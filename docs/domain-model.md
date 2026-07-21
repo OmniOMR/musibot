@@ -15,6 +15,7 @@ classDiagram
     class Pipeline
     class Orchestrator
     class Model
+    class WorkerHead
     class Worker
 
     User "1" --> "*" MusicorpusPage
@@ -22,6 +23,7 @@ classDiagram
     PipelineExecution "*" --> "1" Pipeline
     Orchestrator "1" --> "*" PipelineExecution
     Pipeline "*" --> "*" Model
+    Worker "1" --> "1" WorkerHead
     Worker "1" --> "1" Model
 ```
 
@@ -35,6 +37,8 @@ classDiagram
 
 **Orchestrator** is the part of the python codebase (which may or may not be a separate service/services) responsible for executing *Pipelines*. By executing a *Pipeline* it orchestrates the runtime of individual *Models*.
 
-**Model** is a specific OMR model (in a specific version) used by pipelines to perform recognition work (i.e. transcribing a single staff of music to MusicXML).
+**Model** is a specific OMR model (in a specific version) used by pipelines to perform recognition work (i.e. transcribing a single staff of music to MusicXML). Most models live in their own repositories and are pip-installable, and each model's repository also owns its weights (GitHub releases, Hugging Face, or baked in).
 
-**Worker** is a separate operating system process (on the same or other machine) responsible for executing one specific *Model*. It provides the specific runtime environment needed for that specific *Model*.
+**Worker head** is a small, separate operating system process that runs one specific *Model* as a child subprocess, communicating with it over standard input and the filesystem. This lets the *Model* keep its own python version and dependencies and stay unaware of Musibot's messaging and storage. Each *Worker head* runs exactly one *Model*.
+
+**Worker** is a running pairing of one *Worker head* with the one *Model* it serves, deployed somewhere (on some machine). It is the unit that Musibot scales horizontally — to absorb load bursts, more *Workers* are started for a given *Model*. A *Worker* is deliberately not conflated with its *Worker head*: the head is merely the process that drives the model, whereas the *Worker* is the whole running deployment (head plus model) and is the more important concept.

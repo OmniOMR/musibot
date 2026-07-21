@@ -19,3 +19,4 @@ Musibot consists of:
 - [Who are the users](docs/who-are-the-users.md)
 - [Domain model](docs/domain-model.md)
 - [Architecture](docs/architecture.md)
+- [Deployment](docs/deployment.md)
