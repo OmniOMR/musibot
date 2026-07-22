@@ -1,11 +1,11 @@
 # models
 
-Most Musibot models live in **their own repositories** and only implement the worker-head IPC interface; this folder holds the few **reference models** that ship inside the Musibot monorepo. Either way a model is fully isolated: its own dependencies, its own python version, its own weights.
+Some Musibot models ship inside this monorepo (this folder) and others live in their own repositories; either way a model only implements the worker-head IPC interface. And either way a model is fully isolated: its own dependencies, its own python version, its own weights.
 
 
 ## What a model provides
 
-A model is a subprocess that speaks the worker head's IPC contract (instructions over stdin and the filesystem). It is pip-installable — models in their own repositories are installed via a GitHub link — so deploying one never modifies the Musibot repository.
+A model is a subprocess that speaks the worker head's IPC contract (instructions over stdin and the filesystem). It is pip-installable — a model in its own repository is installed via a GitHub link — so deploying one never modifies the Musibot repository.
 
 
 ## Layout (per reference model in this folder)

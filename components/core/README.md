@@ -1,6 +1,6 @@
 # core
 
-Shared Python library depended on by `api`, `orchestrator`, `worker-head`, and `python-client`. It is the single source of truth for anything that crosses a process boundary.
+Shared Python library depended on by `api`, `orchestrator-head`, `worker-head`, and `python-client`. It is the single source of truth for anything that crosses a process boundary.
 
 
 ## Contains

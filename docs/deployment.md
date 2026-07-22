@@ -5,7 +5,7 @@ Musibot is deployed by manual installation onto plain Ubuntu VMs rather than thr
 
 ## Core services
 
-nginx, the *Web API*, the *Orchestrator*, *MinIO* and *RabbitMQ* are installed onto the VM(s). nginx is the only one exposed publicly; it serves the *Web UI* bundle and reverse-proxies the *Web API*. Services find each other through *RabbitMQ* and *MinIO* connection credentials, so the exact per-VM arrangement stays flexible.
+nginx, the *Web API*, *MinIO* and *RabbitMQ* are installed onto the VM(s). nginx is the only one exposed publicly; it serves the *Web UI* bundle and reverse-proxies the *Web API*. Services find each other through *RabbitMQ* and *MinIO* connection credentials, so the exact per-VM arrangement stays flexible.
 
 
 ## Deploying a model
@@ -18,6 +18,11 @@ A key design goal is that deploying a model is cheap and never touches the core 
 4. Start the *worker head*, pointing it at the *RabbitMQ* and *MinIO* connection credentials.
 
 The *worker head* then registers for that model's work and runs the model as a subprocess. Model weights come from wherever the model's repository keeps them (GitHub releases, Hugging Face, or baked in), which is why weights never live in this repository.
+
+
+## Deploying an orchestrator
+
+Deploying an *Orchestrator* is similar to deploying a *Model*, except much simpler. The *Orchestrator* may run on the VM where all the core services run (unless scaling becomes an issue) and it is a single process that does not need the complex runtime environment of a *Model*. It just connects to RabbitMQ and MinIO. It runs the same python version as the other core services but should have its own venv due to having custom additional dependencies that may conflict (depends on what its *Pipelines* need).
 
 
 ## API tokens
