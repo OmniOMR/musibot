@@ -19,8 +19,8 @@ Musibot consists of:
 User documentation:
 
 - Using Web UI
-- [Using python client](docs/using-python-client.md) TODO
-- [Adding models](docs/adding-models.md)
+- [Using python client](docs/using-python-client.md)
+- [Adding models](docs/adding-models.md) TODO
 - [Writing pipelines](docs/writing-pipelines.md)
 
 Design:
