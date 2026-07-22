@@ -18,6 +18,7 @@ Working with *Musicorpus Pages*:
 
 - `POST /musicorpus-pages` Creates a new and empty *MusicorpusPage*, returns that page's representation, including its ID (integer, autoincrementing).
 - `GET /musicorpus-pages/{id}` Fetches information about a given *MusicorpusPage*
+- `DELETE /musicorpus-pages/{id}` Deltes a *MusicorpusPage* and frees all of its resources (including killing any running *Pipeline Executions*).
 
 Working with *Files*:
 

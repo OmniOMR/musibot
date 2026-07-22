@@ -124,7 +124,7 @@ async def my_pipeline(ctx: PipelineContext):
     await ctx.execute_model(
         name="my-model",
         version="2026-07-22", # TODO: what about loose model version selection?
-        input=["image.jpg"], # TODO: model arguments are not yet clear (JSON payload? Musicorpus derived? Per-model specific?)
+        input={"image.jpg"}, # TODO: what about additional model arguments? JSON payload specific to that model? likely.
     )
 
     ...
@@ -145,7 +145,7 @@ async def hello_world_pipeline(ctx: PipelineContext):
     await ctx.execute_model(
         name="staff-detector",
         version="2026-07-22",
-        input=["image.jpg"], # TODO: unsettled API
+        input={"image.jpg"},
     )
 
     # use Musicorpus logic inside Musibot to create
@@ -178,7 +178,7 @@ async def hello_world_pipeline(ctx: PipelineContext):
                 ctx.execute_model(  # No await on purpose!
                     name="staff-transcriptor",
                     version="2026-07-22",
-                    input=[f"Staves/{staff_number}/image.jpg"], # TODO: unsettled API
+                    input={f"Staves/{staff_number}/image.jpg"},
                 )
             )
 

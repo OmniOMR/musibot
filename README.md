@@ -18,7 +18,8 @@ Musibot consists of:
 
 User documentation:
 
-- TODO: using python client
+- Using Web UI
+- [Using python client](docs/using-python-client.md) TODO
 - [Adding models](docs/adding-models.md)
 - [Writing pipelines](docs/writing-pipelines.md)
 
@@ -28,15 +29,15 @@ Design:
 - [Domain model](docs/domain-model.md)
 - [Architecture](docs/architecture.md)
 - [Repository layout](docs/repository-layout.md)
-- User request dataflow - how a page gets recognized and returned, end-to-end
+- [User request dataflow](docs/user-request-dataflow.md)
 
 Interfaces:
 
-- Python Client
+- Python Client (TBA, see `docs/using-python-client.md` for now)
 - [HTTP API](docs/http-api.md)
-- Orchestrator API
+- Orchestrator Head API (TBA, see `docs/writing-pipelines.md` for now)
 - RabbitMQ queues and messages
-- Worker IPC
+- Worker IPC (TBA, see `docs/adding-models.md` and `docs/user-request-dataflow.md` for now)
 
 Technical documentation:
 
