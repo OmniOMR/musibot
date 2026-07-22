@@ -33,7 +33,7 @@ Design:
 Interfaces:
 
 - Python Client
-- HTTP API
+- [HTTP API](docs/http-api.md)
 - Orchestrator API
 - RabbitMQ queues and messages
 - Worker IPC
