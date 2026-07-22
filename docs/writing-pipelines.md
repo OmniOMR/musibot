@@ -157,7 +157,7 @@ async def hello_world_pipeline(ctx: PipelineContext):
 ```
 
 
-## Ivoking the staff transcription model
+## Invoking the staff transcription model
 
 Now we need to run the `staff-transcriptor` model (see [Adding models](adding-models.md) guide) on each staff image in parallel and wait when all are done:
 

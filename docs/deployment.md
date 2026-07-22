@@ -5,7 +5,7 @@ Musibot is deployed by manual installation onto plain Ubuntu VMs rather than thr
 
 ## Core services
 
-nginx, the *Web API*, *MinIO* and *RabbitMQ* are installed onto the VM(s). nginx is the only one exposed publicly; it serves the *Web UI* bundle and reverse-proxies the *Web API*. Services find each other through *RabbitMQ* and *MinIO* connection credentials, so the exact per-VM arrangement stays flexible.
+nginx, the *Web API*, *MinIO* and *RabbitMQ* are installed onto the VM(s). nginx is the only public entry point; it serves the *Web UI* bundle, reverse-proxies the *Web API*, and also reverse-proxies the *MinIO* S3 endpoint — clients upload and download *Files* directly to MinIO via presigned URLs, and those URLs must point at a publicly reachable MinIO address. Services find each other through *RabbitMQ* and *MinIO* connection credentials, so the exact per-VM arrangement stays flexible.
 
 
 ## Deploying a model

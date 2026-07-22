@@ -10,7 +10,7 @@ Musibot consists of:
 - **Web HTTP API** that advanced users may use to send pages for recognition.
 - **Python Client** that advanced users may choose over the low-level HTTP API for easier consumption.
 - **Recognition pipelines** that string together specific versions of OMR models to perform useful work for the user (e.g. first find all staves, then run each staff through an end-to-end CRNN model and then concatenate results into one MusicXML file).
-- **Models** that preform the actual recognition (usually deep learning models)
+- **Models** that perform the actual recognition (usually deep learning models)
 - **Workers** create separated runtime environments for specific models and allow for their horizontal scalability
 
 
@@ -43,3 +43,4 @@ Technical documentation:
 
 - [Service configuration](docs/service-configuration.md)
 - [Deployment](docs/deployment.md)
+- [Rough edges](docs/rough-edges.md)
