@@ -42,7 +42,7 @@ classDiagram
 
 **MusicorpusPage** is all the data associated with a single scanned page (or a part of it), following the [Musicorpus Specification](https://github.com/OmniOMR/musicorpus/blob/main/docs/musicorpus-specification/musicorpus-specification.md). It starts out containing only the scan of the page as a JPEG file and then a recognition *Pipeline* is executed to provide additional data. Finally, the *User* downloads this additional data after the *PipelineExecution* finishes.
 
-**File** is what a *MusicorpusPage* consists of. The page is just an empty directory and it contains *Files* with names and meaning governed by the [Musicorpus Specification](https://github.com/OmniOMR/musicorpus/blob/main/docs/musicorpus-specification/musicorpus-specification.md).
+**File** is what a *MusicorpusPage* consists of. The page is just an empty directory and it contains *Files* with names and meaning governed by the [Musicorpus Specification](https://github.com/OmniOMR/musicorpus/blob/main/docs/musicorpus-specification/musicorpus-specification.md). To Musibot itself a *File* is opaque bytes with a path: it stores and moves *Files* without ever parsing one. Reading and writing their contents belongs to the *Models* and *Pipelines* that understand the formats involved, which is what keeps a new file format from being a change to Musibot.
 
 **PipelineExecution** is one execution of some *Pipeline* against some *Files* in a *MusicorpusPage*. The execution generates new *Files* that are added to the *MusicorpusPage*.
 
