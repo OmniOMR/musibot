@@ -10,20 +10,15 @@ file path within a page may look like, and how the two map onto object storage
 and onto the local mirror a *Worker Head* hands to its *Model*.
 """
 
-import secrets
-import string
 from pathlib import Path, PurePosixPath
 from typing import Annotated
 
 from pydantic import AfterValidator
 
-PAGE_ID_LENGTH = 12
+from musibot.core.identifiers import ID_ALPHABET, ID_LENGTH, is_well_formed_id, random_id
 
-# A NanoID alphabet, restricted to alphanumerics. The usual NanoID alphabet
-# also has `-` and `_`; they are dropped because a page ID becomes a directory
-# name, and a directory whose name begins with `-` is a nuisance to every
-# command line tool that would ever look at it. 62^12 is ample either way.
-PAGE_ID_ALPHABET = string.ascii_letters + string.digits
+PAGE_ID_LENGTH = ID_LENGTH
+PAGE_ID_ALPHABET = ID_ALPHABET
 
 # An object key in S3 may be 1024 bytes; the page ID and a separator take some
 # of that, so a file path within a page gets the rest, rounded down.
@@ -45,16 +40,13 @@ def generate_page_id() -> str:
     across *Users* — defense in depth behind the ownership check in the `api`
     service.
     """
-    return "".join(secrets.choice(PAGE_ID_ALPHABET) for _ in range(PAGE_ID_LENGTH))
+    return random_id()
 
 
 def validate_page_id(page_id: str) -> str:
     """Return the page ID unchanged, or raise :class:`InvalidPageId`."""
-    if len(page_id) != PAGE_ID_LENGTH:
-        raise InvalidPageId(f"A page ID is {PAGE_ID_LENGTH} characters long: {page_id!r}")
-
-    if not all(character in PAGE_ID_ALPHABET for character in page_id):
-        raise InvalidPageId(f"A page ID is alphanumeric: {page_id!r}")
+    if not is_well_formed_id(page_id):
+        raise InvalidPageId(f"A page ID is {PAGE_ID_LENGTH} alphanumeric characters: {page_id!r}")
 
     return page_id
 

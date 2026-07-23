@@ -9,7 +9,9 @@ Shared Python library depended on by `api`, `orchestrator-head`, `worker-head`, 
 - **Logging setup** — `musibot.core.logging`, shared by every service.
 - **Musicorpus page model** — `musibot.core.page`: page identity, the file paths a page may contain, and where those map to in storage. A `MusicorpusPage` is a folder of *Files* and a *File* is opaque bytes; what is *inside* a file is governed by the [Musicorpus Specification](https://github.com/OmniOMR/musicorpus/blob/main/docs/musicorpus-specification/musicorpus-specification.md) and is the business of the *Models* and *Pipelines* that read and write them, not of Musibot, which only moves them around.
 - **Storage contracts** — also `musibot.core.page`: object keys in MinIO, and the local mirror a *Worker Head* stages for its *Model*.
-- **Message / protocol schemas** — the RabbitMQ work-request, progress, and result message shapes exchanged between the Orchestrator and worker heads. *(not yet implemented)*
+- **Message / protocol schemas** — the RabbitMQ message shapes, one module per protocol: `musibot.core.discovery` today (see [Discovery](../../docs/discovery.md)); the pipeline-execution, model-execution and log messages are still to come. These modules also hold the exchange names and the protocol timings, which are constants rather than settings because every service has to agree on them.
+
+The `musibot.core` package re-exports the general-purpose pieces — settings, logging, page identity — while a protocol module is imported by name, so that `discovery.WorkerAnnouncement` stays readable at the call site.
 
 The `musibot` package is a namespace package shared by every Musibot distribution, so this component provides `musibot.core` and deliberately ships no `musibot/__init__.py`.
 

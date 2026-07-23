@@ -7,7 +7,7 @@ Each message is a JSON object. Payloads are given in full on the linked pages ra
 
 ## Discovery
 
-How the `api` service learns which *Pipelines* and *Models* currently exist. See [Discovery](discovery.md) for the full protocol, the message payloads, and the timing rules.
+How the `api` service learns which *Pipelines* and *Models* currently exist. See [Discovery](discovery.md) for the full protocol, the message payloads, and the timing rules. The schemas are implemented in `musibot.core.discovery`, which is also where the exchange names and timings live as constants.
 
 - `musibot.discovery` (fanout) — published to by every *Orchestrator Head* and *Worker Head*, consumed by the `api` service alone.
     - `announcement` — "I exist and here is what I provide": an *Orchestrator Head* announces its set of *Pipelines*, a *Worker Head* the single *Model* it runs. Sent on startup, then every 10 seconds, and in reply to a probe.
