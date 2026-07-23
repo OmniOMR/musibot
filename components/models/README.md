@@ -26,7 +26,7 @@ Weights are the responsibility of the model's own repository — GitHub releases
 
 ## Deployment
 
-Clone or install the model, create a venv on the required python version, `pip install` the model plus the `worker-head`, and start the worker head against RabbitMQ + MinIO (see `docs/deployment.md`). "Deploy to production" then means pointing a pipeline at this model version.
+Clone or install the model, create a venv on the required python version, `pip install` the model plus the `worker-head`, and start the worker head against RabbitMQ + MinIO (see `docs/deployment.md`). A model that cannot share a venv with the worker head — one needing a python older than 3.11, or with conflicting pins — gets a venv of its own and is launched by path across the IPC boundary. "Deploy to production" then means pointing a pipeline at this model version.
 
 
 ## Testing

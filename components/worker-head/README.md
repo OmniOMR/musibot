@@ -30,7 +30,9 @@ Exercised with a trivial fake model (identity / echo) that speaks the IPC contra
 
 ## Deployment
 
-`pip install`ed into a model's virtual environment and started with RabbitMQ + MinIO credentials (see `docs/deployment.md`). It is never deployed on its own — always together with exactly one model.
+`pip install`ed into a virtual environment on python 3.11+ (the floor `core` sets) and started with RabbitMQ + MinIO credentials plus the command that launches its model (see `docs/deployment.md`). It is never deployed on its own — always together with exactly one model.
+
+That environment may be the model's own venv, and usually is. It has to be a separate one when the model cannot live there — a model pinned to python 3.10, or with conflicting dependency pins — in which case the worker head launches it by absolute path from its own venv. Nothing crosses that boundary but the IPC contract, which is the point of making it IPC.
 
 
 ## Versioning

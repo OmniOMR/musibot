@@ -12,7 +12,7 @@ Shared Python library depended on by `api`, `orchestrator-head`, `worker-head`, 
 
 ## Development
 
-Pure library, no runtime process. Keep dependencies minimal so every consumer can depend on it without conflicts — this is the one package that every isolated model environment must also be able to install.
+Pure library, no runtime process. Requires **python 3.11+**, which through `worker-head` becomes the floor for any environment a worker head runs in. Keep dependencies minimal so every consumer can depend on it without conflicts — a *Model* that can meet both constraints shares the worker head's venv, and one that cannot falls back to its own venv across the IPC boundary (see `docs/deployment.md`).
 
 
 ## Testing
