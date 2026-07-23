@@ -98,17 +98,17 @@ Now you can start the orchestrator process and connect it to an existing RabbitM
 
 ```bash
 python3 orchestrator.py \
-    --rabbit_host localhost:5672 \
-    --rabbit_user root \
-    --rabbit_password password \
-    --s3_host localhost:9000 \
-    --s3_user root \
-    --s3_password password
+    --rabbit-host localhost \
+    --rabbit-user root \
+    --rabbit-password password \
+    --s3-endpoint-url http://localhost:9000 \
+    --s3-access-key root \
+    --s3-secret-key password
 ```
 
 Now you can test the pipeline, for example, from the Web UI.
 
-> **Note:** The process may be configured just like any other of the core services via command line arguments, environment variables, or a config file. See [Service configuration](service-configuration.md) for more.
+> **Note:** The process may be configured just like any other of the core services via command line arguments, environment variables, or a config file. The values above are in fact the defaults — against the [local development stack](../deploy/README.md) you can start the orchestrator with no arguments at all. See [Service configuration](service-configuration.md) for more.
 
 
 ## Invoking the staff detection model

@@ -38,7 +38,7 @@ Interfaces:
 - [HTTP API](docs/http-api.md)
 - Orchestrator Head API (TBA, see `docs/writing-pipelines.md` for now)
 - [RabbitMQ exchanges and messages](docs/rabbitmq-exchanges-and-messages.md)
-- Worker IPC (TBA, see `docs/adding-models.md` and `docs/user-request-dataflow.md` for now)
+- [Worker IPC](docs/worker-ipc.md)
 
 Technical documentation:
 
