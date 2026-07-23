@@ -54,6 +54,14 @@ class MusicorpusPageView(BaseModel):
         )
 
 
+class CreatePipelineExecutionRequest(BaseModel):
+    """The *Pipeline* to run against a page, and any parameters for it."""
+
+    pipeline_name: str
+    pipeline_version: str
+    parameters: dict[str, object] = {}
+
+
 class FileUrlsRequest(BaseModel):
     """The *Files* to get URLs for. Paths are validated as they are parsed, so
     a path escaping the page is rejected before any URL is signed."""

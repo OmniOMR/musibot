@@ -1,3 +1,4 @@
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -5,7 +6,8 @@ from fastapi.testclient import TestClient
 
 from musibot.api.app import create_app
 from musibot.api.config import ApiSettings
-from tests.fakes import FakeStorage
+from musibot.api.domain import MusicorpusPageRepository
+from tests.fakes import FakePublisher, FakeStorage
 
 ALICE_TOKEN = "alice-token"
 BOB_TOKEN = "bob-token"
@@ -24,9 +26,28 @@ def storage() -> FakeStorage:
 
 
 @pytest.fixture
-def client(tokens_file: Path, storage: FakeStorage) -> TestClient:
+def publisher() -> FakePublisher:
+    return FakePublisher()
+
+
+@pytest.fixture
+def repository() -> MusicorpusPageRepository:
+    return MusicorpusPageRepository()
+
+
+@pytest.fixture
+def client(
+    tokens_file: Path,
+    storage: FakeStorage,
+    publisher: FakePublisher,
+    repository: MusicorpusPageRepository,
+) -> Iterator[TestClient]:
     settings = ApiSettings.for_testing(api_tokens_file=tokens_file)
-    return TestClient(create_app(settings, storage=storage))
+    app = create_app(settings, pages_repository=repository, storage=storage, publisher=publisher)
+    # The context manager runs the lifespan, so timeout timers are cancelled on
+    # teardown; no real broker is attached, so nothing reaches for RabbitMQ.
+    with TestClient(app) as test_client:
+        yield test_client
 
 
 @pytest.fixture

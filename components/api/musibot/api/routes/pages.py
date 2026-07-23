@@ -1,11 +1,13 @@
 """The *MusicorpusPage* endpoints: create, fetch, delete."""
 
+import asyncio
 import logging
 
 from fastapi import APIRouter, Depends, Request, status
 
 from musibot.api.auth import current_user, get_owned_page
 from musibot.api.domain import MusicorpusPage, MusicorpusPageRepository
+from musibot.api.executions import ExecutionService
 from musibot.api.schemas import MusicorpusPageView
 from musibot.api.storage import StoragePort
 
@@ -30,18 +32,21 @@ def get_page(page: MusicorpusPage = Depends(get_owned_page)) -> MusicorpusPageVi
 
 
 @router.delete("/{page_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_page(request: Request, page: MusicorpusPage = Depends(get_owned_page)) -> None:
-    """Delete a *MusicorpusPage* and free its resources.
-
-    Removing it from the repository is what makes it vanish from the API; its
-    MinIO folder is then cleared too. Terminating a running *Pipeline Execution*
-    is wired in when RabbitMQ dispatch lands.
-    """
+async def delete_page(request: Request, page: MusicorpusPage = Depends(get_owned_page)) -> None:
+    """Delete a *MusicorpusPage* and free all its resources."""
     repository: MusicorpusPageRepository = request.app.state.pages
+    executions: ExecutionService | None = request.app.state.executions
+    storage: StoragePort | None = request.app.state.storage
+
+    # Tell orchestrators to stop any running execution before the page vanishes,
+    # while its executions are still known.
+    if executions is not None:
+        await executions.terminate_running(page)
+
     removed = repository.delete(page.page_id)
 
-    storage: StoragePort | None = request.app.state.storage
+    # The MinIO delete is a blocking boto3 call; keep it off the event loop.
     if storage is not None:
-        storage.delete_page(removed.page_id)
+        await asyncio.to_thread(storage.delete_page, removed.page_id)
 
     logger.info("Deleted page %s for user %s", removed.page_id, page.owner)

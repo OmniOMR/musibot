@@ -7,6 +7,7 @@ from musibot.core import configure_logging
 
 from musibot.api.app import create_app
 from musibot.api.config import ApiSettings
+from musibot.api.messaging import Broker
 from musibot.api.storage import Storage
 
 logger = logging.getLogger(__name__)
@@ -23,7 +24,11 @@ def main() -> None:
     storage = Storage(settings)
     storage.wipe_bucket()
 
-    app = create_app(settings, storage=storage)
+    # The broker is both the publisher the routes use and the connection the
+    # lifespan opens and subscribes the results consumer on.
+    broker = Broker(settings)
+
+    app = create_app(settings, storage=storage, publisher=broker, broker=broker)
     uvicorn.run(app, host=settings.host, port=settings.port, log_config=None)
 
 

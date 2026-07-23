@@ -1,5 +1,7 @@
 """Test doubles for the service's external collaborators."""
 
+from dataclasses import dataclass
+
 from musibot.api.storage import HttpMethod
 
 
@@ -22,3 +24,29 @@ class FakeStorage:
 
     def wipe_bucket(self) -> None:
         self.wiped = True
+
+
+@dataclass
+class PublishedMessage:
+    exchange: str
+    routing_key: str
+    body: bytes
+    expiration_seconds: float | None
+
+
+class FakePublisher:
+    """A `MessagePublisher` that records what it was asked to publish, so the
+    routes and the execution service can be tested without RabbitMQ."""
+
+    def __init__(self) -> None:
+        self.published: list[PublishedMessage] = []
+
+    async def publish(
+        self,
+        exchange: str,
+        routing_key: str,
+        body: bytes,
+        *,
+        expiration_seconds: float | None = None,
+    ) -> None:
+        self.published.append(PublishedMessage(exchange, routing_key, body, expiration_seconds))
