@@ -38,6 +38,10 @@ class ApiSettings(RabbitSettings, S3Settings, LoggingSettings):
     # out. A ceiling over whatever a pipeline start requests.
     pipeline_execution_timeout_seconds: float = 300.0
 
+    # How long a presigned upload/download URL stays valid. Long enough to
+    # transfer a page scan on a slow link, short enough to limit a leaked URL.
+    file_url_ttl_seconds: float = 900.0
+
     def load_api_tokens(self) -> dict[str, str]:
         """Read the configured token→user map, or fall back to the dev token.
 

@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 
 from musibot.api.app import create_app
 from musibot.api.config import ApiSettings
+from tests.fakes import FakeStorage
 
 ALICE_TOKEN = "alice-token"
 BOB_TOKEN = "bob-token"
@@ -18,9 +19,14 @@ def tokens_file(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def client(tokens_file: Path) -> TestClient:
+def storage() -> FakeStorage:
+    return FakeStorage()
+
+
+@pytest.fixture
+def client(tokens_file: Path, storage: FakeStorage) -> TestClient:
     settings = ApiSettings.for_testing(api_tokens_file=tokens_file)
-    return TestClient(create_app(settings))
+    return TestClient(create_app(settings, storage=storage))
 
 
 @pytest.fixture

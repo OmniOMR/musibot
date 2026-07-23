@@ -45,8 +45,8 @@ It is a separate file from the service's dotenv config so the secrets are not mi
 
 ## Testing
 
-- Unit tests for the API layer, driven through FastAPI's `TestClient` — no RabbitMQ or MinIO needed.
-- Integration tests against ephemeral RabbitMQ / MinIO (compose or testcontainers) as those integrations land.
+- Unit tests for the API layer, driven through FastAPI's `TestClient` with fake collaborators — no RabbitMQ or MinIO needed.
+- Storage integration tests that run against the [local dev stack's](../../deploy/README.md) MinIO and **skip automatically when it is not reachable**, so the default `pytest` run stays hermetic. Bring MinIO up with `docker compose up` in `/deploy` to exercise them.
 
 ```bash
 .venv/bin/python -m pytest

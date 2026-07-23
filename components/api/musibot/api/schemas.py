@@ -5,6 +5,9 @@ outward contract of the service and are versioned as such; the internal domain
 objects they are built from live in `domain.py`.
 """
 
+from datetime import datetime
+
+from musibot.core import PageFilePath
 from pydantic import BaseModel
 
 from musibot.api.domain import MusicorpusPage, PipelineExecution
@@ -49,3 +52,19 @@ class MusicorpusPageView(BaseModel):
                 for execution in sorted(page.executions.values(), key=lambda e: e.execution_id)
             ],
         )
+
+
+class FileUrlsRequest(BaseModel):
+    """The *Files* to get URLs for. Paths are validated as they are parsed, so
+    a path escaping the page is rejected before any URL is signed."""
+
+    put: list[PageFilePath] = []
+    get: list[PageFilePath] = []
+
+
+class FileUrlsResponse(BaseModel):
+    """Presigned URLs, one per requested *File*, and when they expire."""
+
+    put: dict[str, str] = {}
+    get: dict[str, str] = {}
+    expires_at: datetime
