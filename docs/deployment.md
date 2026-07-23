@@ -34,7 +34,7 @@ The two-venv arrangement is what makes the other cases possible. The worker head
     --s3-endpoint-url http://minio.internal:9000
 ```
 
-Nothing is shared across that boundary — no python objects, no imported packages, not even a python version. The two processes communicate only over the [worker IPC](worker-ipc.md): JSON lines on the model's standard input and output, plus the filesystem. This is precisely why the worker-head-to-model interface was made an IPC boundary rather than a python API, and a model pinned to an old python is the case that justifies it.
+Nothing is shared across that boundary — no python objects, no imported packages, not even a python version. The two processes communicate only over the [worker IPC](worker-ipc.md): JSON lines on a dedicated pair of pipes, plus the filesystem. This is precisely why the worker-head-to-model interface was made an IPC boundary rather than a python API, and a model pinned to an old python is the case that justifies it.
 
 
 ## Deploying an orchestrator

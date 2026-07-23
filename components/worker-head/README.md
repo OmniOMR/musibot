@@ -5,7 +5,7 @@ A small process — comparable to the [OpenFaaS watchdog](https://docs.openfaas.
 
 ## How it talks to a model
 
-The model runs as a **subprocess**. The worker head feeds it instructions over **standard input and the filesystem** (inter-process communication). This boundary is deliberate:
+The model runs as a **subprocess**. The worker head feeds it instructions over **a dedicated pair of pipes and the filesystem** (inter-process communication), leaving the model's own stdout and stderr free — they are captured as its log. This boundary is deliberate:
 
 - The model implementation carries no Musibot messaging or storage concerns.
 - Each model may use its own python version and its own dependencies — nothing is shared with the worker head's environment except this IPC contract.

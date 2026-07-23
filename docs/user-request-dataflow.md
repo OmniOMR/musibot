@@ -113,23 +113,23 @@ Now the pipeline implementation may execute *Models* as it's running. The setup 
 
 ## 5. A worker head picks up a model execution request
 
-A running *Worker Head* subscribes to RabbitMQ for messages that fit its *Model* name and version. When it receives a message to start a model execution it fetches the files listed as the execution's input from the MinIO and mirrors the needed MinIO folder structure locally in the filesystem. Then it puts the invocation request as a JSON object on a new line of the *Model's* standard input and waits for the model to confirm its completion via its standard output.
+A running *Worker Head* subscribes to RabbitMQ for messages that fit its *Model* name and version. When it receives a message to start a model execution it fetches the files listed as the execution's input from the MinIO and mirrors the needed MinIO folder structure locally in the filesystem. Then it puts the invocation request as a JSON object on a new line of the *Model's* command pipe and waits for the model to confirm its completion on the result pipe.
 
 The *Model* modifies the local filesystem mirror of MinIO (of the Musicorpus page we're interested in with this invocation). The *Worker Head* detects which files have been updated and uploads them to MinIO. Then it sends a model execution completion message to RabbitMQ to be picked up by the corresponding *Orchestrator*.
 
-> **Note:** If the *Model* subprocess exits without confirming completion (for example, it crashes), the *Worker Head* notices the process exit and reports the model execution as failed, which propagates up and fails the *Pipeline Execution*. The precise handshake will be specified later in the Worker IPC interface document.
+> **Note:** If the *Model* subprocess exits without confirming completion (for example, it crashes), the *Worker Head* notices the process exit and reports the model execution as failed, which propagates up and fails the *Pipeline Execution*. The full handshake is specified in [Worker IPC](worker-ipc.md).
 
 Some *Models* support **batching** to better utilize deep-learning hardware. Because not every model can batch, batching is opt-in and exposed as a *separate IPC command*: a model that does not implement it advertises so and only ever receives single-execution commands. For a batchable *Model*, the *Worker Head* accumulates several pending model-execution requests from RabbitMQ (possibly originating from different *Pipeline Executions*) and dispatches them to the model as one batch command. The model processes all samples together (e.g. in a single forward pass) and reports a completion for each. The local MinIO filesystem mirror is unaffected — it is simply shared by all samples in the batch, each operating within its own *Musicorpus Page* folder in the mirror.
 
 
-## 6. The model receives the model execution request via stdin
+## 6. The model receives the model execution request over its command pipe
 
-The *Model* process is running and reads instructions from its standard input. These instructions come as sequence of JSON objects, where each is a single command and each occupies one line of the input. So one invocation of the `input()` python function fetches one command.
+The *Model* process is running and reads instructions from its command pipe — a file descriptor the *Worker Head* handed it at startup, whose number it learns from the environment. These instructions come as a sequence of JSON objects, where each is a single command and each occupies one line of the pipe. So reading one line fetches one command.
 
 The model also knows which folder mirrors the MinIO folder structure (which corresponds to the Musicorpus dataset folder structure) so that it knows where to operate.
 
-When an execution command arrives, the model reads the corresponding input files from the file system, runs its processing and then writes output files to the file system. Then it sends an "execution completed" message to the *Worker Head* via its standard output - formatted in the same way as the standard input - a JSONL stream.
+When an execution command arrives, the model reads the corresponding input files from the file system, runs its processing and then writes output files to the file system. Then it sends an "execution completed" message to the *Worker Head* over its result pipe — formatted the same way, a JSONL stream.
 
 A *Model* does not multitask, it executes one command at a time.
 
-Logging for the code inside a *Model* (e.g. the `print` function) must be redirected to not interfere with the standard output. It may be redirected to RabbitMQ by being wrapped in specialized messages in the *Model's* standard output, which the *Worker Head* understands as log messages and forwards them to RabbitMQ. They can then be collected up in the *Orchestrator* and become part of the *Pipeline Execution* log and be streamed further through the `api` service via SSE to the web UI where they may be viewed in near real-time by the *User*.
+The protocol deliberately avoids standard input and output, leaving both of the *Model's* own output streams free. Whatever the model prints — with `print`, through the `logging` module, or from a library announcing itself on import — is captured by the *Worker Head* and forwarded to RabbitMQ as log messages. They are then collected up in the *Orchestrator*, become part of the *Pipeline Execution* log, and are streamed further through the `api` service via SSE to the web UI where they may be viewed in near real-time by the *User*. A *Model* needs no logging setup, and a stray `print` cannot corrupt the protocol. See [Worker IPC](worker-ipc.md) for why this is worth two extra file descriptors.

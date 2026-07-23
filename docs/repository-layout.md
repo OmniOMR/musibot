@@ -22,7 +22,7 @@ Musibot is extensible along two axes that share a shape: a Musibot-owned *head* 
 | Axis | Head (Musibot-owned) | Plugin (often external) | Coupling |
 | --- | --- | --- | --- |
 | Pipelines | `orchestrator-head` | `orchestrators` | Tight — runs in the same process and uses domain concepts (reads pages, invokes models). |
-| Models | `worker-head` | `models` | Loose — runs the model as an isolated subprocess over stdin / filesystem IPC, so it can bring its own python and dependencies. |
+| Models | `worker-head` | `models` | Loose — runs the model as an isolated subprocess over pipe / filesystem IPC, so it can bring its own python and dependencies. |
 
 
 ## Other top-level folders

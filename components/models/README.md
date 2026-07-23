@@ -5,7 +5,7 @@ Some Musibot models ship inside this monorepo (this folder) and others live in t
 
 ## What a model provides
 
-A model is a subprocess that speaks the worker head's IPC contract (instructions over stdin and the filesystem). It is pip-installable — a model in its own repository is installed via a GitHub link — so deploying one never modifies the Musibot repository.
+A model is a subprocess that speaks the worker head's IPC contract (instructions over a dedicated pair of pipes and the filesystem). It is pip-installable — a model in its own repository is installed via a GitHub link — so deploying one never modifies the Musibot repository.
 
 
 ## Layout (per reference model in this folder)

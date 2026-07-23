@@ -54,7 +54,7 @@ classDiagram
 
 **Model** is a specific OMR model (in a specific version) used by pipelines to perform recognition work (i.e. transcribing a single staff of music to MusicXML). Models may live outside of this repository, but this repository provides some out of the box. Where model's weights are stored depends on the model, it may be using Github releases, Hugging face or have parameters commited in the repository. A *Model* is identified by a name and a version.
 
-**WorkerHead** is a small, separate operating system process that runs one specific *Model* as a child subprocess, communicating with it over standard input and the filesystem. This lets the *Model* keep its own python version and dependencies and stay unaware of Musibot's messaging and storage. Each *Worker head* runs exactly one *Model*.
+**WorkerHead** is a small, separate operating system process that runs one specific *Model* as a child subprocess, communicating with it over a dedicated pair of pipes and the filesystem. This lets the *Model* keep its own python version and dependencies and stay unaware of Musibot's messaging and storage. Each *Worker head* runs exactly one *Model*.
 
 **Worker** is a running pairing of one *Worker head* with the one *Model* it serves, deployed somewhere (on some machine). It is the unit that Musibot scales horizontally — to absorb load bursts, more *Workers* are started for a given *Model*. A *Worker* is deliberately not conflated with its *Worker head*: the head is merely the process that drives the model, whereas the *Worker* is the whole running deployment (head plus model) and is the more important concept.
 
