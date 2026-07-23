@@ -1,0 +1,55 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "musibot-api"
+version = "0.1.0"
+description = "The Musibot Web API service"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.11"
+dependencies = [
+    "musibot-core",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.6",
+    "mypy>=1.11",
+    "httpx>=0.27",
+]
+
+[project.scripts]
+musibot-api = "musibot.api.__main__:main"
+
+# `musibot-core` is a sibling in this monorepo, installed from its path so that
+# an editable checkout of core is picked up here. Published builds pin a version
+# instead; this override is for local development.
+[tool.uv.sources]
+musibot-core = { path = "../core", editable = true }
+
+[tool.hatch.build.targets.wheel]
+packages = ["musibot"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+
+# FastAPI's dependency injection puts `Depends(...)` / `Header(...)` in argument
+# defaults by design; bugbear's B008 is a false positive for them.
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Header"]
+
+[tool.mypy]
+strict = true
+plugins = ["pydantic.mypy"]
+files = ["musibot", "tests"]
+namespace_packages = true
+explicit_package_bases = true
+mypy_path = "."

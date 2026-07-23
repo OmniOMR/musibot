@@ -16,6 +16,10 @@
         {
             "name": "core",
             "path": "components/core"
+        },
+        {
+            "name": "api",
+            "path": "components/api"
         }
     ],
     "settings": {
