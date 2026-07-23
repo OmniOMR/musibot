@@ -30,13 +30,14 @@ Design:
 - [Architecture](docs/architecture.md)
 - [Repository layout](docs/repository-layout.md)
 - [User request dataflow](docs/user-request-dataflow.md)
+- [Discovery](docs/discovery.md)
 
 Interfaces:
 
 - Python Client (TBA, see `docs/using-python-client.md` for now)
 - [HTTP API](docs/http-api.md)
 - Orchestrator Head API (TBA, see `docs/writing-pipelines.md` for now)
-- RabbitMQ queues and messages
+- [RabbitMQ exchanges and messages](docs/rabbitmq-exchanges-and-messages.md)
 - Worker IPC (TBA, see `docs/adding-models.md` and `docs/user-request-dataflow.md` for now)
 
 Technical documentation:

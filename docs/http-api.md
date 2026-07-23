@@ -50,6 +50,8 @@ Endpoints to inspect available *Pipelines* and their versions.
 - `GET /pipelines` Returns the list of known and available *Pipelines* and their versions and *Orchestrators* they can run on.
 - `GET /pipelines/{pipeline-name}` Returns the list of versions of a given *Pipeline*, used by users to check when a newer version becomes available.
 
+This listing is not configured anywhere — it is assembled from what *Orchestrators* and *Workers* announce over RabbitMQ, and it includes an *ImplicitPipeline* for every known *Model*. Beside the `pipelines` array, the response carries a top-level `warnings` array reporting name and signature conflicts between announcing providers. See [Discovery](discovery.md) for the response shape and for why the listing may lag reality by a few seconds.
+
 
 ## Streaming
 
