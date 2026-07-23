@@ -1,0 +1,44 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "musibot-core"
+version = "0.1.0"
+description = "Shared library and wire contract for the Musibot OMR service"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.7",
+    "pydantic-settings>=2.6",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.6",
+    "mypy>=1.11",
+]
+
+# `musibot` is a namespace package shared by all Musibot distributions
+# (musibot.core here, musibot.api, musibot.worker_head, ... elsewhere),
+# so it deliberately has no __init__.py of its own.
+[tool.hatch.build.targets.wheel]
+packages = ["musibot"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.mypy]
+strict = true
+plugins = ["pydantic.mypy"]
+files = ["musibot", "tests"]
+# `musibot` is a namespace package, so mypy needs to be told where the package
+# root is; without this it sees this component's modules under two names.
+namespace_packages = true
+explicit_package_bases = true
+mypy_path = "."
