@@ -1,0 +1,28 @@
+{
+    // A multi-root workspace: each component is a workspace folder, so each
+    // gets its own python interpreter (its own .venv) and its own tool
+    // configuration from its own .vscode/settings.json. This is the
+    // arrangement to use once more than one component has a virtual
+    // environment; add every new component here as it appears.
+    //
+    // The repository root is listed first so that docs/, deploy/ and the
+    // components without an environment yet stay reachable. Components listed
+    // below it therefore appear twice in the explorer, which is cosmetic.
+    "folders": [
+        {
+            "name": "musibot",
+            "path": "."
+        },
+        {
+            "name": "core",
+            "path": "components/core"
+        }
+    ],
+    "settings": {
+        "search.exclude": {
+            "**/.venv": true,
+            "**/__pycache__": true,
+            "**/*.egg-info": true
+        }
+    }
+}

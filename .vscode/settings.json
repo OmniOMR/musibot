@@ -1,0 +1,40 @@
+{
+    // Settings for opening this repository as a single folder.
+    //
+    // Musibot is a monorepo of independently installed components, each with
+    // its own virtual environment and its own pyproject.toml. VS Code has one
+    // python interpreter per workspace folder, so opening the repository as a
+    // single folder can only point at one of them — `core` today. Once a
+    // second component grows a venv, open `musibot.code-workspace` instead:
+    // it makes every component its own workspace folder, and each then picks
+    // up the settings in its own .vscode/settings.json.
+    "python.defaultInterpreterPath": "${workspaceFolder}/components/core/.venv/bin/python",
+
+    // Run mypy and ruff from the environment rather than the versions bundled
+    // with the extensions: the pinned versions are the ones the component
+    // declares, and mypy in particular cannot load the `pydantic.mypy` plugin
+    // unless it runs in an environment where pydantic is installed.
+    "mypy-type-checker.importStrategy": "fromEnvironment",
+    "ruff.importStrategy": "fromEnvironment",
+
+    // Run mypy from the component directory, so that it finds the
+    // [tool.mypy] section of that component's pyproject.toml. Without this it
+    // runs from the repository root, finds no configuration at all, and then
+    // reports errors that the configured settings do not produce — notably
+    // "Unexpected keyword argument" against pydantic-settings constructors.
+    "mypy-type-checker.cwd": "${workspaceFolder}/components/core",
+
+    "python.testing.pytestEnabled": true,
+    "python.testing.cwd": "${workspaceFolder}/components/core",
+
+    "[python]": {
+        "editor.defaultFormatter": "charliermarsh.ruff",
+        "editor.formatOnSave": true
+    },
+
+    "search.exclude": {
+        "**/.venv": true,
+        "**/__pycache__": true,
+        "**/*.egg-info": true
+    }
+}

@@ -1,0 +1,28 @@
+{
+    // Settings for this component when it is a workspace folder of its own,
+    // which is what `musibot.code-workspace` at the repository root arranges.
+    // Each component then gets its own interpreter and its own tool
+    // configuration, which is the only arrangement that scales to components
+    // whose virtual environments differ.
+    //
+    // Every component's .vscode/settings.json should look like this one; only
+    // the interpreter path is component-specific, and it is relative here.
+    "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
+
+    "mypy-type-checker.importStrategy": "fromEnvironment",
+    "ruff.importStrategy": "fromEnvironment",
+
+    // mypy runs from this folder by default, so it finds the [tool.mypy]
+    // section of this component's pyproject.toml — including the
+    // `pydantic.mypy` plugin, without which pydantic-settings constructors are
+    // wrongly reported as taking unexpected keyword arguments.
+    "mypy-type-checker.cwd": "${workspaceFolder}",
+
+    "python.testing.pytestEnabled": true,
+    "python.testing.cwd": "${workspaceFolder}",
+
+    "[python]": {
+        "editor.defaultFormatter": "charliermarsh.ruff",
+        "editor.formatOnSave": true
+    }
+}

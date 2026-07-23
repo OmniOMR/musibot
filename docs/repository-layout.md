@@ -29,3 +29,4 @@ Musibot is extensible along two axes that share a shape: a Musibot-owned *head* 
 
 - `docs/` — architecture, domain model, deployment, and this document.
 - `deploy/` — nginx config, docker-compose, and deployment notes.
+- `.vscode/` and `musibot.code-workspace` — editor setup. Each component has its own virtual environment and its own tool configuration, and VS Code binds an interpreter per workspace *folder*, so opening `musibot.code-workspace` (which makes every component a folder of its own) is what keeps them apart. Opening the repository as a plain folder works too and is wired to `core`.
