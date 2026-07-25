@@ -61,6 +61,10 @@ class ModelProcess:
         self._pending: dict[str, asyncio.Future[None]] = {}
         self._ready: asyncio.Future[ModelDescription] | None = None
         self._readers: list[asyncio.Task[None]] = []
+        # Set while shutting down, so that the model exiting — which is the
+        # whole point at that moment — is not reported as though something had
+        # gone wrong.
+        self._stopping = False
         # A Model handles one command at a time, so this lock is the whole of
         # the concurrency control.
         self._lock = asyncio.Lock()
@@ -87,6 +91,7 @@ class ModelProcess:
         """
         if self.is_running and self._description is not None:
             return self._description
+        self._stopping = False
         return await self._start()
 
     async def execute(
@@ -130,6 +135,8 @@ class ModelProcess:
         process = self._process
         if process is None:
             return
+
+        self._stopping = True
 
         if process.returncode is None:
             try:
@@ -330,7 +337,12 @@ class ModelProcess:
         Execution*. The model is restarted by the next execution that needs it.
         """
         returncode = await process.wait()
-        logger.warning("The model exited with code %s", returncode)
+
+        if self._stopping:
+            logger.info("The model stopped with code %s", returncode)
+        else:
+            # Unasked-for, so whatever it was running has just failed.
+            logger.warning("The model exited unexpectedly with code %s", returncode)
 
         if self._ready is not None and not self._ready.done():
             self._ready.set_exception(

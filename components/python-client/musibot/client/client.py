@@ -63,8 +63,13 @@ class MusibotClient:
     ):
         self._base_url = musibot_api_url.rstrip("/")
         self._poll_interval_seconds = poll_interval_seconds
+        # Deliberately not a default header on the client: this token
+        # authenticates against the `api` service only. Object storage is
+        # reached with presigned URLs, which carry their signature in the query
+        # string and reject a request that also presents an Authorization
+        # header — so sending it there would break every upload and download.
+        self._auth_headers = {"Authorization": f"Bearer {api_token}"}
         self._http = httpx.Client(
-            headers={"Authorization": f"Bearer {api_token}"},
             timeout=request_timeout_seconds,
             follow_redirects=True,
             transport=transport,
@@ -275,7 +280,7 @@ class MusibotClient:
     def _request(self, method: str, path: str, **kwargs: Any) -> httpx.Response:
         url = self._base_url + path
         try:
-            response = self._http.request(method, url, **kwargs)
+            response = self._http.request(method, url, headers=self._auth_headers, **kwargs)
         except httpx.RequestError as error:
             raise MusibotApiError(f"Could not reach the Musibot server at {url}: {error}")
 
@@ -324,7 +329,11 @@ def _raise_for_storage_status(response: httpx.Response, file_path: str, action: 
     """
     if response.is_success:
         return
+    # Object storage explains itself in the body, and that explanation is the
+    # whole diagnosis when a presigned URL is refused — so it is carried along
+    # rather than reduced to a status code.
     raise MusibotApiError(
-        f"Could not {action} {file_path!r}: object storage answered {response.status_code}",
+        f"Could not {action} {file_path!r}: object storage answered "
+        f"{response.status_code}: {response.text[:300]}",
         status_code=response.status_code,
     )

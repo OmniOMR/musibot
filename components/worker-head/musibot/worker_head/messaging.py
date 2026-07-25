@@ -135,12 +135,19 @@ class Broker:
         ends: a *Worker* that crashes mid-execution must not have its work
         redelivered and the model run twice. The execution simply times out
         from the `api` service's point of view instead.
+
+        The queue is declared **durable** even though nothing in Musibot is
+        meant to outlive a broker restart: RabbitMQ 4 refuses transient queues
+        that are not exclusive, and this one cannot be exclusive precisely
+        because it is shared. Durability here costs nothing — the queue still
+        auto-deletes with its last consumer, and the messages in it are
+        published non-persistent, so a broker restart still loses them.
         """
         declared = self._exchanges.get(exchange) or await self.declare_exchange(
             exchange, ExchangeType.DIRECT
         )
         queue = await self._channel.declare_queue(
-            queue_name, exclusive=False, auto_delete=True, durable=False
+            queue_name, exclusive=False, auto_delete=True, durable=True
         )
         await queue.bind(declared, routing_key=routing_key)
 

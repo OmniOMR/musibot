@@ -146,6 +146,19 @@ class FakeServer:
         )
 
     def _storage(self, request: httpx.Request) -> httpx.Response:
+        # A presigned URL carries its signature in the query string, and real
+        # object storage refuses a request that *also* presents an
+        # Authorization header. Refusing it here too keeps the client's API
+        # token from leaking onto the storage host unnoticed.
+        if "Authorization" in request.headers:
+            return httpx.Response(
+                400,
+                text=(
+                    "<Error><Code>InvalidRequest</Code><Message>Only one auth "
+                    "mechanism allowed</Message></Error>"
+                ),
+            )
+
         # Everything after `/bucket/` is the object key: the page ID and then
         # the File's path within it, which may have folders of its own.
         key = request.url.path.split("/", 2)[-1]

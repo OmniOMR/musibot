@@ -48,13 +48,32 @@ def test_process_page_round_trip() -> None:
     assert server.deleted_pages == [PAGE_ID]
 
 
-def test_every_request_carries_the_token() -> None:
+def test_every_api_request_carries_the_token() -> None:
     server = FakeServer(stored={f"{PAGE_ID}/out.txt": b"x"})
 
     with a_client(server) as client:
         client.process_page(input={}, pipeline=("p", "1"), output={"out.txt"})
 
     assert server.token == "Bearer secret"
+    api_requests = [r for r in server.requests if r.url.host == "musibot.test"]
+    assert all("Authorization" in r.headers for r in api_requests)
+
+
+def test_the_token_never_reaches_object_storage() -> None:
+    """The API token authenticates against the `api` service and nothing else.
+
+    A presigned URL signs itself in the query string, and object storage
+    refuses a request that also presents an Authorization header — so sending
+    it would break every transfer, besides handing the token to another host.
+    """
+    server = FakeServer(stored={f"{PAGE_ID}/out.txt": b"x"})
+
+    with a_client(server) as client:
+        client.process_page(input={"image.jpg": SCAN}, pipeline=("p", "1"), output={"out.txt"})
+
+    storage_requests = [r for r in server.requests if r.url.host == "minio.test"]
+    assert storage_requests, "the test proved nothing if no transfer happened"
+    assert all("Authorization" not in r.headers for r in storage_requests)
 
 
 def test_it_waits_while_the_execution_runs() -> None:
