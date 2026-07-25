@@ -26,6 +26,10 @@
             "path": "components/worker-head"
         },
         {
+            "name": "python-client",
+            "path": "components/python-client"
+        },
+        {
             "name": "hello-model",
             "path": "components/models/hello-model"
         }

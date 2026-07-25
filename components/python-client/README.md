@@ -9,20 +9,60 @@ Python package that lets external users (libraries, model developers) talk to a 
 - Batch-friendly helpers for library-scale workloads (millions of pages in bursts).
 
 
+## Using it
+
+The whole round trip is one call — see [using the python client](../../docs/using-python-client.md):
+
+```py
+from musibot.client import MusibotClient
+from pathlib import Path
+
+client = MusibotClient(musibot_api_url="http://localhost:8080", api_token="secret")
+
+output_files = client.process_page(
+    input={"image.jpg": Path("my-page-scan.jpg").read_bytes()},
+    pipeline=("hello-model", "1.0.0"),
+    output={"transcription.musicxml"},
+)
+```
+
+`process_page` creates a page, uploads the input, starts the *Pipeline Execution*, waits for it, downloads what was asked for, and deletes the page — including when the execution fails, since a failure is no reason to leave a page behind on the server.
+
+Every step is also a method of its own (`create_page`, `upload_files`, `start_execution`, `wait_for_execution`, `download_files`, `delete_page`), for callers who want to hold a page open across several executions or watch progress themselves. `list_pipelines()` answers what is currently available, *ImplicitPipelines* included.
+
+*File* bytes never pass through the `api` service: it issues short-lived presigned URLs and this client transfers directly to and from object storage, which is what keeps the one non-scaling service out of the byte path.
+
+
 ## Depends on
 
-`core` (for the `MusicorpusPage` model and shared types). Kept light — it installs on end-user machines.
+`core` (for page path validation and shared types) and `httpx`. Kept light — it installs on end-user machines.
 
 
 ## Development
 
-Develop against a local compose server, or a mocked HTTP layer.
+```bash
+cd components/python-client
+python3 -m venv .venv
+.venv/bin/pip install -e ../core -e '.[dev]'
+```
 
 
 ## Testing
 
-- Unit tests against a mocked HTTP layer.
-- Optional integration tests against a live compose server.
+Unit tests run against a fake Musibot server on an `httpx.MockTransport`, so the client's real request building, URL handling and parsing are exercised and only the network is absent. Object storage answers on a host of its own there, exactly as in production.
+
+```bash
+.venv/bin/python -m pytest
+.venv/bin/python -m ruff check .
+.venv/bin/python -m ruff format --check .
+.venv/bin/python -m mypy
+```
+
+
+## Not yet implemented
+
+- **Progress streaming.** `wait_for_execution` polls once a second; the SSE stream that replaces it is not built yet.
+- **Batch helpers.** The library-scale burst workflow in the docs is still a TODO.
 
 
 ## Distribution

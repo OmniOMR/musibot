@@ -50,6 +50,33 @@ print(output_files)
 ```
 
 
+## Running a single model
+
+Every *Model* Musibot knows about is also offered as a *Pipeline* of its own, with the same name and version — an [ImplicitPipeline](domain-model.md). It runs that one *Model* and nothing else, which is how a *Model* is tested in isolation without anyone having to write a *Pipeline* that merely calls it.
+
+There is nothing new to learn: it is requested exactly like any other pipeline.
+
+```py
+output_files = client.process_page(
+    input={"image.jpg": Path("my-page-scan.jpg").read_bytes()},
+    pipeline=("hello-model", "1.0.0"),  # a Model, run on its own
+    output={"transcription.musicxml"}
+)
+```
+
+To see what is available — pipelines and models alike — ask:
+
+```py
+listing = client.list_pipelines()
+
+for pipeline in listing.pipelines:
+    kind = "model" if pipeline.implicit else "pipeline"
+    print(f"{pipeline.name} {pipeline.version} ({kind}, {pipeline.instances} running)")
+```
+
+`instances` is the number of live providers behind an entry. It is worth reading when executions time out for no apparent reason: an entry with zero instances is listed only because something announced it moments before going away.
+
+
 ## Batch processing of many pages
 
 TODO
