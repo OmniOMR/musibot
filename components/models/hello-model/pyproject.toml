@@ -1,0 +1,39 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "musibot-hello-model"
+version = "1.0.0"
+description = "A Musibot model that transcribes nothing, for testing the plumbing"
+readme = "README.md"
+license = "Apache-2.0"
+# Lower than the 3.11 that `core` requires, and deliberately so: a Model speaks
+# only the IPC contract, so it is free to run on a python the rest of Musibot
+# could not. Nothing here needs a newer one.
+requires-python = ">=3.9"
+# None, and that is the point — a Model carries no Musibot dependency.
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.6",
+    "mypy>=1.11",
+]
+
+[project.scripts]
+musibot-hello-model = "hello_model:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["hello_model"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.mypy]
+strict = true
+files = ["hello_model", "tests"]

@@ -8,6 +8,11 @@ Some Musibot models ship inside this monorepo (this folder) and others live in t
 A model is a subprocess that speaks the worker head's IPC contract (instructions over a dedicated pair of pipes and the filesystem). It is pip-installable — a model in its own repository is installed via a GitHub link — so deploying one never modifies the Musibot repository.
 
 
+## Models in this folder
+
+- **[hello-model](hello-model/)** — transcribes nothing; reads `image.jpg` and writes a fixed `transcription.musicxml`. It is the worked example of the [worker IPC contract](../../docs/worker-ipc.md) and what the rest of Musibot is exercised against without any machine learning in the way.
+
+
 ## Layout (per reference model in this folder)
 
 ```

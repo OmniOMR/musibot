@@ -20,6 +20,10 @@
         {
             "name": "api",
             "path": "components/api"
+        },
+        {
+            "name": "hello-model",
+            "path": "components/models/hello-model"
         }
     ],
     "settings": {
