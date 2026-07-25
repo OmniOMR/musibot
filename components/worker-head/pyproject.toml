@@ -1,0 +1,53 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "musibot-worker-head"
+version = "0.1.0"
+description = "Runs one Musibot model as a subprocess and connects it to Musibot"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.11"
+# Kept minimal on purpose: this is often installed into a Model's own virtual
+# environment, so every dependency here is one that could conflict with the
+# model's.
+dependencies = [
+    "musibot-core",
+    "boto3>=1.34",
+    "aio-pika>=9.4",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.6",
+    "mypy>=1.11",
+    "boto3-stubs[s3]>=1.34",
+]
+
+[project.scripts]
+musibot-worker-head = "musibot.worker_head.__main__:main"
+
+# `musibot-core` is a sibling in this monorepo, installed from its path so that
+# an editable checkout of core is picked up here. Published builds pin a version
+# instead; this override is for local development.
+[tool.uv.sources]
+musibot-core = { path = "../core", editable = true }
+
+[tool.hatch.build.targets.wheel]
+packages = ["musibot"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.mypy]
+strict = true
+plugins = ["pydantic.mypy"]
+files = ["musibot", "tests"]
+namespace_packages = true
+explicit_package_bases = true
+mypy_path = "."

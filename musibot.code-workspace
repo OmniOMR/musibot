@@ -22,6 +22,10 @@
             "path": "components/api"
         },
         {
+            "name": "worker-head",
+            "path": "components/worker-head"
+        },
+        {
             "name": "hello-model",
             "path": "components/models/hello-model"
         }

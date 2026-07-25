@@ -18,14 +18,63 @@ The model runs as a **subprocess**. The worker head feeds it instructions over *
 - Stream progress and results back over RabbitMQ.
 
 
+## What one execution looks like
+
+1. A `model-execution-start` arrives on the shared queue for this model's name and version. It is acknowledged **immediately** — a *Worker* that dies mid-execution must not have the work redelivered and the model run twice; the execution times out from the `api` service's point of view instead.
+2. The *Files* the request declares as input are downloaded from MinIO into a local mirror of the bucket, one folder per *Musicorpus Page*.
+3. An `execute` command goes down the command pipe, and the model reports `completed` or `failed` back on the result pipe.
+4. Whatever the model created or changed is uploaded, and the page's local mirror is discarded — it is scratch space for one execution, not a cache.
+5. The result is published to the queue named by the request's `reply_to`. Who that is — an *Orchestrator Head*, or the `api` service running an *ImplicitPipeline* — is not this head's business.
+
+
 ## Depends on
 
 `core` only. Kept thin so it adds almost nothing to a model's environment when installed alongside it.
 
 
-## Development and testing
+## Development
 
-Exercised with a trivial fake model (identity / echo) that speaks the IPC contract — no ML dependencies needed.
+```bash
+cd components/worker-head
+python3 -m venv .venv
+.venv/bin/pip install -e ../core -e '.[dev]'
+```
+
+Run it against the [local development stack](../../deploy/README.md) and the [hello-model](../models/hello-model/README.md), which needs no arguments beyond the command that launches the model, since every other default already points at that stack:
+
+```bash
+.venv/bin/musibot-worker-head \
+    --model-command "../models/hello-model/.venv/bin/python -m hello_model"
+```
+
+
+## Configuration
+
+Beyond the shared RabbitMQ, MinIO and logging blocks (see [service configuration](../../docs/service-configuration.md)):
+
+| Setting | Meaning |
+| --- | --- |
+| `model_command` | **Required.** The command that launches the *Model*, split as a shell would split it. Usually an absolute path into the model's own virtual environment. |
+| `pages_dir` | Where the local mirror lives. A temporary directory is used when unset, which is the normal case. |
+| `model_ready_timeout_seconds` | How long to wait for the model to say `ready`. Generous by default — this is where a model loads its weights. |
+
+
+## Testing
+
+The model side is a real subprocess over real pipes, driven by a scriptable fake model, because descriptor passing, flushing, EOF and a process that dies are exactly what in-memory streams would not exercise. Only RabbitMQ and MinIO are faked.
+
+```bash
+.venv/bin/python -m pytest
+.venv/bin/python -m ruff check .
+.venv/bin/python -m ruff format --check .
+.venv/bin/python -m mypy
+```
+
+
+## Not yet implemented
+
+- **Batching.** A model's `supports_batching` is read and announced, but every execution is currently sent as its own `execute` command and no `execute-batch` is ever issued. A batching model therefore works correctly, just without the throughput it could have.
+- **Log forwarding.** A model's stdout and stderr are captured and drained — which they must be, or a model blocks on its next `print` — but they go to this head's own log rather than onto `musibot.logs` for the `api` service to stream to the Web UI. Same for `progress` messages.
 
 
 ## Deployment
