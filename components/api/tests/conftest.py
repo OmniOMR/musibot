@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 
 from musibot.api.app import create_app
 from musibot.api.config import ApiSettings
+from musibot.api.discovery import ProviderRegistry
 from musibot.api.domain import MusicorpusPageRepository
 from tests.fakes import FakePublisher, FakeStorage
 
@@ -36,14 +37,28 @@ def repository() -> MusicorpusPageRepository:
 
 
 @pytest.fixture
+def registry() -> ProviderRegistry:
+    """An empty registry the test fills by recording announcements itself,
+    standing in for what would arrive over RabbitMQ."""
+    return ProviderRegistry()
+
+
+@pytest.fixture
 def client(
     tokens_file: Path,
     storage: FakeStorage,
     publisher: FakePublisher,
     repository: MusicorpusPageRepository,
+    registry: ProviderRegistry,
 ) -> Iterator[TestClient]:
     settings = ApiSettings.for_testing(api_tokens_file=tokens_file)
-    app = create_app(settings, pages_repository=repository, storage=storage, publisher=publisher)
+    app = create_app(
+        settings,
+        pages_repository=repository,
+        registry=registry,
+        storage=storage,
+        publisher=publisher,
+    )
     # The context manager runs the lifespan, so timeout timers are cancelled on
     # teardown; no real broker is attached, so nothing reaches for RabbitMQ.
     with TestClient(app) as test_client:

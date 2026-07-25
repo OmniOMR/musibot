@@ -10,6 +10,7 @@ from datetime import datetime
 from musibot.core import PageFilePath
 from pydantic import BaseModel
 
+from musibot.api.discovery import DiscoveryWarning, Listing, PipelineListing, WarningType
 from musibot.api.domain import MusicorpusPage, PipelineExecution
 
 
@@ -76,3 +77,82 @@ class FileUrlsResponse(BaseModel):
     put: dict[str, str] = {}
     get: dict[str, str] = {}
     expires_at: datetime
+
+
+class NameAndVersionView(BaseModel):
+    """Identifies a *Pipeline* — never an instance of one."""
+
+    name: str
+    version: str
+
+
+class SignatureView(BaseModel):
+    """The *Files* a *Pipeline* reads and the *Files* it produces."""
+
+    input: list[str] = []
+    output: list[str] = []
+
+
+class PipelineView(BaseModel):
+    """One *Pipeline* of the listing, as the API presents it."""
+
+    name: str
+    version: str
+    signature: SignatureView
+    # True when this is an *ImplicitPipeline* — the one Musibot offers for every
+    # known *Model*, so that a *Model* can be run in isolation.
+    implicit: bool
+    orchestrators: list[str] = []
+    # How many live announcers are behind this entry. A diagnostic, not a
+    # capacity figure: a listed pipeline whose executions all time out is
+    # explained by a zero here.
+    instances: int
+
+    @classmethod
+    def of(cls, pipeline: PipelineListing) -> "PipelineView":
+        return cls(
+            name=pipeline.name,
+            version=pipeline.version,
+            signature=SignatureView(
+                input=list(pipeline.signature.input),
+                output=list(pipeline.signature.output),
+            ),
+            implicit=pipeline.implicit,
+            orchestrators=pipeline.orchestrators,
+            instances=pipeline.instances,
+        )
+
+
+class PipelineWarningView(BaseModel):
+    """A conflict between announcing providers. `type` is the contract; the
+    wording of `message` is not."""
+
+    type: WarningType
+    message: str
+    pipeline: NameAndVersionView
+
+    @classmethod
+    def of(cls, warning: DiscoveryWarning) -> "PipelineWarningView":
+        return cls(
+            type=warning.type,
+            message=warning.message,
+            pipeline=NameAndVersionView(name=warning.name, version=warning.version),
+        )
+
+
+class PipelineListingResponse(BaseModel):
+    """The answer to `GET /pipelines`.
+
+    Warnings sit at the top level rather than on entries: a conflict is a
+    property of the system as a whole, not of any single *Pipeline*.
+    """
+
+    pipelines: list[PipelineView]
+    warnings: list[PipelineWarningView]
+
+    @classmethod
+    def of(cls, listing: Listing) -> "PipelineListingResponse":
+        return cls(
+            pipelines=[PipelineView.of(pipeline) for pipeline in listing.pipelines],
+            warnings=[PipelineWarningView.of(warning) for warning in listing.warnings],
+        )
