@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 from musibot.core.execution import (
     PIPELINE_EXECUTIONS_EXCHANGE,
@@ -10,8 +11,20 @@ from musibot.core.execution import (
     routing_key,
 )
 
+from musibot.api.discovery import ProviderRegistry
 from musibot.api.domain import MusicorpusPageRepository
 from tests.fakes import FakePublisher
+from tests.test_discovery import orchestrator_announcement
+
+
+@pytest.fixture(autouse=True)
+def announce_hello_world(registry: ProviderRegistry) -> None:
+    """Put `hello-world` into the registry, as an *Orchestrator* would.
+
+    Every test here starts it, and a start is resolved against the registry —
+    a *Pipeline* nobody announces never gets dispatched at all.
+    """
+    registry.record(orchestrator_announcement())
 
 
 def make_page(client: TestClient, headers: dict[str, str]) -> str:
@@ -96,6 +109,21 @@ def test_polling_reflects_a_settled_execution(
 
     response = client.get(f"/musicorpus-pages/{page_id}/pipeline-executions/1", headers=alice)
     assert response.json()["state"] == "completed"
+
+
+def test_starting_a_pipeline_nobody_provides_is_404(
+    client: TestClient, alice: dict[str, str], publisher: FakePublisher
+) -> None:
+    page_id = make_page(client, alice)
+
+    response = client.post(
+        f"/musicorpus-pages/{page_id}/pipeline-executions",
+        headers=alice,
+        json={"pipeline_name": "nothing-like-this", "pipeline_version": "1.0.0"},
+    )
+
+    assert response.status_code == 404
+    assert publisher.published == []
 
 
 def test_fetching_a_missing_execution_is_404(client: TestClient, alice: dict[str, str]) -> None:

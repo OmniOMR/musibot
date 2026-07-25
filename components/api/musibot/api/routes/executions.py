@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from musibot.api.auth import get_owned_page
 from musibot.api.domain import MusicorpusPage
-from musibot.api.executions import ExecutionService
+from musibot.api.executions import ExecutionService, PipelineNotFound
 from musibot.api.schemas import CreatePipelineExecutionRequest, PipelineExecutionView
 
 logger = logging.getLogger(__name__)
@@ -33,9 +33,16 @@ async def start_pipeline_execution(
     executions: ExecutionService = Depends(get_executions),
 ) -> PipelineExecutionView:
     """Start a *Pipeline Execution* against this page."""
-    execution = await executions.start(
-        page, body.pipeline_name, body.pipeline_version, body.parameters
-    )
+    try:
+        execution = await executions.start(
+            page, body.pipeline_name, body.pipeline_version, body.parameters
+        )
+    except PipelineNotFound as error:
+        # The listing may lag a fresh deployment by a few seconds, but a typo in
+        # a pipeline name is far more common than a request racing one — and
+        # failing now beats timing out minutes later.
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error))
+
     return PipelineExecutionView.of(execution)
 
 

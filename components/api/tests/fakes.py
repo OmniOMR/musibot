@@ -32,6 +32,8 @@ class PublishedMessage:
     routing_key: str
     body: bytes
     expiration_seconds: float | None
+    reply_to: str | None = None
+    correlation_id: str | None = None
 
 
 class FakePublisher:
@@ -48,5 +50,17 @@ class FakePublisher:
         body: bytes,
         *,
         expiration_seconds: float | None = None,
+        reply_to: str | None = None,
+        correlation_id: str | None = None,
     ) -> None:
-        self.published.append(PublishedMessage(exchange, routing_key, body, expiration_seconds))
+        self.published.append(
+            PublishedMessage(
+                exchange, routing_key, body, expiration_seconds, reply_to, correlation_id
+            )
+        )
+
+    def only(self, exchange: str) -> PublishedMessage:
+        """The one message published to an exchange, asserting there was one."""
+        matching = [message for message in self.published if message.exchange == exchange]
+        assert len(matching) == 1, f"expected one message on {exchange!r}, got {len(matching)}"
+        return matching[0]

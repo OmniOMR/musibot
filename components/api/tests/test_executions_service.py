@@ -19,9 +19,26 @@ from musibot.core.execution import (
     serialize_message,
 )
 
+from musibot.api.discovery import ProviderRegistry
 from musibot.api.domain import MusicorpusPageRepository
 from musibot.api.executions import ExecutionService
 from tests.fakes import FakePublisher
+from tests.test_discovery import orchestrator_announcement
+
+
+def a_registry() -> ProviderRegistry:
+    """A registry announcing the *Pipelines* these tests start.
+
+    A start is resolved against the registry — that is what tells an explicit
+    *Pipeline* from an *ImplicitPipeline* — so one nobody announces is refused
+    before it is ever dispatched.
+    """
+    registry = ProviderRegistry()
+    registry.record(orchestrator_announcement(pipeline_name="hello-world", version="1.0.0"))
+    registry.record(
+        orchestrator_announcement(instance_id="orchestrator-2", pipeline_name="p", version="1")
+    )
+    return registry
 
 
 def a_result(
@@ -43,7 +60,7 @@ def test_start_publishes_a_start_message() -> None:
         repository = MusicorpusPageRepository()
         publisher = FakePublisher()
         page = repository.create("alice")
-        service = ExecutionService(repository, publisher, timeout_seconds=300)
+        service = ExecutionService(repository, publisher, a_registry(), timeout_seconds=300)
 
         execution = await service.start(page, "hello-world", "1.0.0", {"x": 1})
 
@@ -67,7 +84,7 @@ def test_a_result_settles_the_execution() -> None:
     async def scenario() -> None:
         repository = MusicorpusPageRepository()
         page = repository.create("alice")
-        service = ExecutionService(repository, FakePublisher(), timeout_seconds=300)
+        service = ExecutionService(repository, FakePublisher(), a_registry(), timeout_seconds=300)
         execution = await service.start(page, "p", "1", {})
 
         await service.handle_result(a_result(page.page_id, execution.execution_id, "completed"))
@@ -82,7 +99,7 @@ def test_a_failed_result_carries_its_error() -> None:
     async def scenario() -> None:
         repository = MusicorpusPageRepository()
         page = repository.create("alice")
-        service = ExecutionService(repository, FakePublisher(), timeout_seconds=300)
+        service = ExecutionService(repository, FakePublisher(), a_registry(), timeout_seconds=300)
         execution = await service.start(page, "p", "1", {})
 
         await service.handle_result(
@@ -101,7 +118,7 @@ def test_a_late_result_does_not_overturn_a_settled_execution() -> None:
     async def scenario() -> None:
         repository = MusicorpusPageRepository()
         page = repository.create("alice")
-        service = ExecutionService(repository, FakePublisher(), timeout_seconds=300)
+        service = ExecutionService(repository, FakePublisher(), a_registry(), timeout_seconds=300)
         execution = await service.start(page, "p", "1", {})
 
         await service.handle_result(a_result(page.page_id, execution.execution_id, "failed", "x"))
@@ -116,7 +133,9 @@ def test_a_late_result_does_not_overturn_a_settled_execution() -> None:
 
 def test_a_result_for_an_unknown_page_is_ignored() -> None:
     async def scenario() -> None:
-        service = ExecutionService(MusicorpusPageRepository(), FakePublisher(), timeout_seconds=300)
+        service = ExecutionService(
+            MusicorpusPageRepository(), FakePublisher(), a_registry(), timeout_seconds=300
+        )
 
         # A well-formed page ID that was never created: must not raise, just
         # do nothing.
@@ -131,7 +150,7 @@ def test_timeout_fails_the_execution_and_publishes_a_terminate() -> None:
         repository = MusicorpusPageRepository()
         publisher = FakePublisher()
         page = repository.create("alice")
-        service = ExecutionService(repository, publisher, timeout_seconds=0.05)
+        service = ExecutionService(repository, publisher, a_registry(), timeout_seconds=0.05)
 
         execution = await service.start(page, "p", "1", {})
         await asyncio.sleep(0.2)
@@ -158,7 +177,7 @@ def test_a_completed_execution_does_not_time_out() -> None:
         repository = MusicorpusPageRepository()
         publisher = FakePublisher()
         page = repository.create("alice")
-        service = ExecutionService(repository, publisher, timeout_seconds=0.05)
+        service = ExecutionService(repository, publisher, a_registry(), timeout_seconds=0.05)
 
         execution = await service.start(page, "p", "1", {})
         await service.handle_result(a_result(page.page_id, execution.execution_id, "completed"))
@@ -177,7 +196,7 @@ def test_terminate_running_targets_only_running_executions() -> None:
         repository = MusicorpusPageRepository()
         publisher = FakePublisher()
         page = repository.create("alice")
-        service = ExecutionService(repository, publisher, timeout_seconds=300)
+        service = ExecutionService(repository, publisher, a_registry(), timeout_seconds=300)
 
         done = await service.start(page, "p", "1", {})
         await service.handle_result(a_result(page.page_id, done.execution_id, "completed"))

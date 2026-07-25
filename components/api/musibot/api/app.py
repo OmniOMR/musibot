@@ -13,6 +13,8 @@ from musibot.core.discovery import (
     serialize_message,
 )
 from musibot.core.execution import (
+    MODEL_EXECUTION_CONTROL_EXCHANGE,
+    MODEL_EXECUTIONS_EXCHANGE,
     PIPELINE_EXECUTION_CONTROL_EXCHANGE,
     PIPELINE_EXECUTION_RESULTS_EXCHANGE,
     PIPELINE_EXECUTIONS_EXCHANGE,
@@ -51,6 +53,7 @@ def create_app(
         ExecutionService(
             repository,
             publisher,
+            providers,
             timeout_seconds=settings.pipeline_execution_timeout_seconds,
         )
         if publisher is not None
@@ -65,11 +68,20 @@ def create_app(
             # results consumer (which declares its own exchange).
             await broker.declare_exchange(PIPELINE_EXECUTIONS_EXCHANGE, ExchangeType.DIRECT)
             await broker.declare_exchange(PIPELINE_EXECUTION_CONTROL_EXCHANGE, ExchangeType.FANOUT)
+            # Model executions are dispatched by this service too, for every
+            # ImplicitPipeline it runs.
+            await broker.declare_exchange(MODEL_EXECUTIONS_EXCHANGE, ExchangeType.DIRECT)
+            await broker.declare_exchange(MODEL_EXECUTION_CONTROL_EXCHANGE, ExchangeType.FANOUT)
             if execution_service is not None:
                 await broker.subscribe(
                     exchange=PIPELINE_EXECUTION_RESULTS_EXCHANGE,
                     exchange_type=ExchangeType.FANOUT,
                     handler=execution_service.handle_result,
+                )
+                # The reply queue must exist before any Model execution is
+                # dispatched naming it, so it is declared here rather than lazily.
+                await broker.declare_reply_queue(
+                    execution_service.reply_queue, execution_service.handle_model_result
                 )
 
             # Listen for announcements before asking for them, so that no reply

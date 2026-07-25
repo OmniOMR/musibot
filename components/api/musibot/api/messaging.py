@@ -35,6 +35,8 @@ class MessagePublisher(Protocol):
         body: bytes,
         *,
         expiration_seconds: float | None = None,
+        reply_to: str | None = None,
+        correlation_id: str | None = None,
     ) -> None: ...
 
 
@@ -79,18 +81,24 @@ class Broker:
         body: bytes,
         *,
         expiration_seconds: float | None = None,
+        reply_to: str | None = None,
+        correlation_id: str | None = None,
     ) -> None:
         """Publish a message to a previously declared exchange.
 
         `expiration_seconds` sets the message's TTL: a request that reaches a
         queue nobody is draining expires rather than being run long after anyone
-        cared.
+        cared. `reply_to` and `correlation_id` are how a *Model* execution names
+        the queue its result goes back to — the result of a *Model* run belongs
+        to the one requester that asked for it, not to a known service.
         """
         message = aio_pika.Message(
             body,
             content_type="application/json",
             delivery_mode=aio_pika.DeliveryMode.NOT_PERSISTENT,
             expiration=expiration_seconds,
+            reply_to=reply_to,
+            correlation_id=correlation_id,
         )
         await self._exchanges[exchange].publish(message, routing_key=routing_key)
 
@@ -128,6 +136,28 @@ class Broker:
 
         await queue.consume(on_message)
         logger.info("Subscribed to exchange %r", exchange)
+
+    async def declare_reply_queue(self, name: str, handler: MessageHandler) -> None:
+        """Consume a queue of this service's own, bound to no exchange.
+
+        Results of *Model* executions come back here rather than through a
+        shared exchange, because they belong to the one requester that asked:
+        the request carries this queue's name as its `reply_to`, and a *Worker
+        Head* publishes the result to it through the default exchange.
+        """
+        queue = await self._channel.declare_queue(
+            name, exclusive=True, auto_delete=True, durable=False
+        )
+
+        async def on_message(message: aio_pika.abc.AbstractIncomingMessage) -> None:
+            async with message.process(requeue=False, ignore_processed=True):
+                try:
+                    await handler(message.body)
+                except Exception:
+                    logger.exception("Dropping a message that failed to handle on %r", name)
+
+        await queue.consume(on_message)
+        logger.info("Consuming the reply queue %r", name)
 
     async def close(self) -> None:
         if self._connection is not None:
