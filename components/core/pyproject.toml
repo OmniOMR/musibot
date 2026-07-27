@@ -1,10 +1,10 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
 name = "musibot-core"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Shared library and wire contract for the Musibot OMR service"
 readme = "README.md"
 license = "Apache-2.0"
@@ -20,6 +20,18 @@ dev = [
     "ruff>=0.6",
     "mypy>=1.11",
 ]
+
+# The version is read from the git tags rather than written down here, so that
+# every commit builds as a distinct version — see docs/versioning-and-releases.md.
+# `root` points at the repository root because setuptools-scm refuses to run from
+# a subdirectory even when it can see the repository above it. `--match` and
+# `tag_regex` keep this component reading its own tags only, and strip the
+# `core/v` prefix off the version they yield.
+[tool.hatch.version]
+source = "vcs"
+raw-options.root = "../.."
+raw-options.git_describe_command = ["git", "describe", "--dirty", "--tags", "--long", "--match", "core/v*"]
+raw-options.tag_regex = '^core/v(?P<version>\d+\.\d+\.\d+.*)$'
 
 # `musibot` is a namespace package shared by all Musibot distributions
 # (musibot.core here, musibot.api, musibot.worker_head, ... elsewhere),

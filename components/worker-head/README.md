@@ -86,7 +86,12 @@ That environment may be the model's own venv, and usually is. It has to be a sep
 
 ## Versioning
 
-Semver. The IPC contract between the worker head and models is the interface to keep stable; a model records the worker-head version it targets.
+Two numbers live here, and they are not the same one:
+
+- **This component's version** — semver, derived from the `worker-head/v*` git tags rather than written into `pyproject.toml`. It versions the implementation: this process, its RabbitMQ and MinIO behaviour, its configuration and its CLI. See [Versioning and releases](../../docs/versioning-and-releases.md) and [CHANGELOG.md](CHANGELOG.md).
+- **The IPC protocol version** — a single integer, `1` today, which a *Model* declares in its `ready` message and this head checks for exact equality. It versions the [worker IPC contract](../../docs/worker-ipc.md) and moves far more rarely.
+
+Keeping the IPC contract stable is the obligation that matters to *Models*, and it is what "do not break this casually" refers to — but the mechanical compatibility check is the integer, not this component's semver, which a *Model* never sees. See [the protocol version](../../docs/worker-ipc.md#the-protocol-version) for when each one moves.
 
 
 ## Naming

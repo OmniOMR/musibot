@@ -45,4 +45,4 @@ Type checking is `mypy --strict` (configured in `pyproject.toml`, so plain `mypy
 
 ## Versioning
 
-Semver. This is the wire contract — a breaking change here ripples to the API, orchestrator, worker heads, and client, so bump it deliberately.
+Semver. This is the wire contract — a breaking change here ripples to the API, orchestrator, worker heads, and client, so bump it deliberately. The version is derived from the `core/v*` git tags rather than written into `pyproject.toml`; see [Versioning and releases](../../docs/versioning-and-releases.md) and [CHANGELOG.md](CHANGELOG.md).

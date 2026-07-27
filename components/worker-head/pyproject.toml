@@ -1,19 +1,21 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
 name = "musibot-worker-head"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Runs one Musibot model as a subprocess and connects it to Musibot"
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.11"
 # Kept minimal on purpose: this is often installed into a Model's own virtual
 # environment, so every dependency here is one that could conflict with the
-# model's.
+# model's. `musibot-core` is named but not sourced here: it is not on any package
+# index, so whoever installs this has to say where it comes from — a path in
+# development, a git link in deployment. See docs/versioning-and-releases.md.
 dependencies = [
-    "musibot-core",
+    "musibot-core>=0.1.0",
     "boto3>=1.34",
     "aio-pika>=9.4",
 ]
@@ -30,10 +32,23 @@ dev = [
 musibot-worker-head = "musibot.worker_head.__main__:main"
 
 # `musibot-core` is a sibling in this monorepo, installed from its path so that
-# an editable checkout of core is picked up here. Published builds pin a version
-# instead; this override is for local development.
+# an editable checkout of core is picked up here. This is uv-specific and pip
+# ignores it, so an install from a git link has to name core explicitly — see
+# docs/versioning-and-releases.md.
 [tool.uv.sources]
 musibot-core = { path = "../core", editable = true }
+
+# The version is read from the git tags rather than written down here, so that
+# every commit builds as a distinct version — see docs/versioning-and-releases.md.
+# `root` points at the repository root because setuptools-scm refuses to run from
+# a subdirectory even when it can see the repository above it. `--match` and
+# `tag_regex` keep this component reading its own tags only, and strip the
+# `worker-head/v` prefix off the version they yield.
+[tool.hatch.version]
+source = "vcs"
+raw-options.root = "../.."
+raw-options.git_describe_command = ["git", "describe", "--dirty", "--tags", "--long", "--match", "worker-head/v*"]
+raw-options.tag_regex = '^worker-head/v(?P<version>\d+\.\d+\.\d+.*)$'
 
 [tool.hatch.build.targets.wheel]
 packages = ["musibot"]

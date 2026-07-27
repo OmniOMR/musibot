@@ -67,9 +67,17 @@ Unit tests run against a fake Musibot server on an `httpx.MockTransport`, so the
 
 ## Distribution
 
-Published to PyPI — `pip install musibot-client` (name TBD).
+Not published to PyPI yet. While Musibot is on `0.x` and only the team is running it, releases are git tags and the client is installed from a git link — note that `musibot-core` has to be given explicitly, since it is not on any index either:
+
+```bash
+pip install \
+  'musibot-core @ git+https://github.com/OmniOMR/musibot.git@core/v0.1.0#subdirectory=components/core' \
+  'musibot-client @ git+https://github.com/OmniOMR/musibot.git@python-client/v0.1.0#subdirectory=components/python-client'
+```
+
+This is the component most likely to go to PyPI first, as `musibot-client`, once there are users outside the team. See [Versioning and releases](../../docs/versioning-and-releases.md).
 
 
 ## Versioning
 
-Semver, independent of the API's release cadence. This is a public, outward-facing contract.
+Semver, independent of the API's release cadence. This is a public, outward-facing contract. The version is derived from the `python-client/v*` git tags rather than written into `pyproject.toml`; see [Versioning and releases](../../docs/versioning-and-releases.md).

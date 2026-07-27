@@ -85,9 +85,50 @@ Before sending a command, the *Worker Head* downloads that command's declared in
 A *Model* must confine itself to the page folders named in the command it is currently executing. Nothing else in the directory is its business, and paths that escape a page folder are rejected by the *Worker Head*.
 
 
+## The protocol version
+
+The protocol has a version of its own: an integer, `1` today, which a *Model* declares in its `ready` message and a *Worker Head* checks for exact equality. A model announcing anything else is refused rather than driven on a guess.
+
+It is deliberately an integer and not a semver string. The thing that has to compare it is a *Model* — possibly not written in python, and whose whole obligation here is meant to fit in the thirty lines at the end of this page. `if version != 1: fail` is a comparison anyone can write correctly in any language; parsing and ordering `1.2.0` against `1.10.0` is not. Semver would also imply a negotiation — does a head speaking `1.2` accept a model speaking `1.3`? — that nothing here wants. There is one authority defining these versions and no independent implementations to reconcile, so a single equality check is the whole compatibility story.
+
+The constant lives in `worker-head` (`musibot.worker_head.model_process.IPC_VERSION`) rather than in `core`, which holds the RabbitMQ protocol constants. Unlike those, this contract has only one Musibot-side speaker: a *Model* is not a Musibot process and imports nothing from us.
+
+
+### It is not the `worker-head` version
+
+These are two different numbers and conflating them will mislead you. `worker-head` is a python distribution versioned with semver from git tags (see [Versioning and releases](versioning-and-releases.md)); `ipc_version` versions the wire contract specified on this page — much as OpenSSH 9.6 speaks SSH protocol 2.
+
+| | `worker-head` version | `ipc_version` |
+| --- | --- | --- |
+| Versions | The implementation: the process, its RabbitMQ and MinIO behaviour, its configuration and its CLI. | The contract on this page: which messages exist, what fields they carry, and the rules of the exchange. |
+| Form | Semver — `0.1.0` | One integer — `1` |
+| Travels | Outward over RabbitMQ, to the `api` service. | Inward over the result pipe, from the *Model*. |
+| Who reads it | The `api` service, as reported detail about a running *Worker*. | The *Worker Head*, deciding whether it can drive this *Model* at all. |
+| How often it moves | Every release. | Rarely; most protocol growth does not need it. |
+
+They do not even travel on the same channel. A *Worker Head* looks its own version up at runtime with `importlib.metadata.version("musibot-worker-head")` — so it is whatever was installed, which is now whatever the git tags said — and publishes it as `head_version` in its [discovery](discovery.md) announcements. `ipc_version` never leaves the pipes.
+
+The relationship between them runs one way: a change to `ipc_version` is necessarily a change to `worker-head` and forces a version bump there, while `worker-head` bumps repeatedly without the protocol moving at all. The knowledge is one-directional too — a *Model* never learns the head's version, while the head checks the model's integer before it will run it.
+
+So when the [worker-head README](../components/worker-head/README.md) describes its semver as covering "the IPC contract", it means the practical obligation: do not break models casually. The mechanical compatibility check is `ipc_version`, and nothing else.
+
+
+### When to bump it
+
+Most growth does not need a bump, because [unknown message types are ignored in both directions](#rules-of-the-exchange), and a new head → model message can be gated behind a capability the *Model* advertises — the way `execute-batch` is gated behind `supports_batching`. Bump `ipc_version` only when a change would make an existing, correct *Model* behave incorrectly:
+
+- a field or message is removed or renamed, or changes its meaning or type
+- the head begins to require behaviour a model could not have known to implement — a new message it expects a reply to, unconditionally, with no capability flag guarding it
+- a rule of the exchange changes, such as one command at a time
+
+Adding an optional model → head message, adding a capability-gated command, or changing anything purely on the head's side of the pipe — batching internals, log forwarding, configuration — does not qualify.
+
+If a bump ever happens, a *Worker Head* may come to accept a set of versions rather than a single one, but only for versions it can genuinely drive. The check exists to refuse guesses, not to paper over them.
+
+
 ## The messages
 
-The protocol version is an integer, `1` today. A *Model* declares which version it implements, and a *Worker Head* refuses to run a model whose version it does not know.
+Every message is a JSON object carrying a `type`, written on one line and flushed. What follows is every type the protocol defines; anything else is ignored by both sides.
 
 
 ### `ready` — model → head

@@ -42,3 +42,13 @@ Per-model unit tests. Heavier MusicXML-level, retrieval, and end-to-end pipeline
 ## Versioning
 
 Model version is a first-class domain concept — it is what pipelines pin and what a deployment selects.
+
+A *Model* author is handling three numbers that are easy to confuse, so it is worth naming them apart:
+
+| Number | What it is | Where it lives |
+| --- | --- | --- |
+| **Model version** | The domain concept above: what a *Pipeline* pins and what [discovery](../../docs/discovery.md) announces. Musibot treats it as an opaque identifier and never parses it, so semver is a convention here rather than a requirement — a date works just as well. | Declared in the model's `ready` message. |
+| **`ipc_version`** | The version of the [worker IPC contract](../../docs/worker-ipc.md) the model implements. A single integer, `1` today, checked by the *Worker Head* for exact equality — a model announcing anything else is refused. | Declared in the same `ready` message. |
+| **The python package version** | Packaging only, for whoever `pip install`s the model. Nothing in Musibot reads it. | The model's `pyproject.toml`. |
+
+The first two are deliberately independent of the third: [hello-model](hello-model/) keeps its announced `MODEL_VERSION` as its own constant rather than deriving it from the installed distribution, because what a *Pipeline* pinned should not change just because the model was repackaged. See [the protocol version](../../docs/worker-ipc.md#the-protocol-version) for how `ipc_version` differs from the `worker-head` component's own semver.

@@ -63,4 +63,4 @@ Installed onto a VM behind nginx (see `docs/deployment.md`).
 
 ## Versioning
 
-Semver on the HTTP API — it is an outward contract for `python-client` and library users.
+Semver on the HTTP API — it is an outward contract for `python-client` and library users. The version is derived from the `api/v*` git tags rather than written into `pyproject.toml`; see [Versioning and releases](../../docs/versioning-and-releases.md) and [CHANGELOG.md](CHANGELOG.md).

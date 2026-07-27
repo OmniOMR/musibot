@@ -1,18 +1,20 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
 name = "musibot-client"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Python client for the Musibot optical music recognition service"
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.11"
 # Light on purpose: this installs on end-user machines, alongside whatever else
-# they have.
+# they have. `musibot-core` is named but not sourced here: it is not on any
+# package index, so whoever installs this has to say where it comes from — a path
+# in development, a git link otherwise. See docs/versioning-and-releases.md.
 dependencies = [
-    "musibot-core",
+    "musibot-core>=0.1.0",
     "httpx>=0.27",
 ]
 
@@ -25,6 +27,18 @@ dev = [
 
 [tool.uv.sources]
 musibot-core = { path = "../core", editable = true }
+
+# The version is read from the git tags rather than written down here, so that
+# every commit builds as a distinct version — see docs/versioning-and-releases.md.
+# `root` points at the repository root because setuptools-scm refuses to run from
+# a subdirectory even when it can see the repository above it. `--match` and
+# `tag_regex` keep this component reading its own tags only, and strip the
+# `python-client/v` prefix off the version they yield.
+[tool.hatch.version]
+source = "vcs"
+raw-options.root = "../.."
+raw-options.git_describe_command = ["git", "describe", "--dirty", "--tags", "--long", "--match", "python-client/v*"]
+raw-options.tag_regex = '^python-client/v(?P<version>\d+\.\d+\.\d+.*)$'
 
 [tool.hatch.build.targets.wheel]
 packages = ["musibot"]
