@@ -10,6 +10,8 @@ The model runs as a **subprocess**. The worker head feeds it instructions over *
 - The model implementation carries no Musibot messaging or storage concerns.
 - Each model may use its own python version and its own dependencies — nothing is shared with the worker head's environment except this IPC contract.
 
+The model is started in a session of its own, so a terminal's signals reach this head and not the model: Ctrl+C on a head started from a shell stops the model through the protocol rather than killing it out from under the head. Stopping escalates to the model's *process group*, so workers a model started itself go with it.
+
 
 ## Responsibilities
 

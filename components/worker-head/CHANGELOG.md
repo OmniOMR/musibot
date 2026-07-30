@@ -8,6 +8,12 @@ Versions are semver on the **IPC contract** between the worker head and a *Model
 ## Unreleased
 
 
+### Fixed
+
+- **Ctrl+C no longer looks like a model crash.** The *Model* is now started in a session of its own, so a terminal's `SIGINT` — which the kernel delivers to the whole foreground process group — reaches the head and not the model. The head then stops its model deliberately, over the protocol, exactly as it does when signalled on its own. Before this, a head started from a shell and stopped with Ctrl+C logged `The model exited unexpectedly with code -2` and failed whatever was in flight, because the model was killed before the head had asked it to stop.
+- **Stopping a *Model* signals its process group**, so workers a model started itself are not left behind when it has to be terminated. A model that exits politely on `shutdown` is still responsible for its own children.
+
+
 ### Added
 
 - **A *Model* that reported success without writing an output its *Signature* promises now fails the execution.** Only the slot-free, non-optional entries are checked — how many *Files* fill a `Staves/{*}/image.jpg` is the *Model's* to decide. Writing output to the wrong path is the commonest way to get a *Model* wrong, and it otherwise shows up as a *Pipeline* that succeeds and produces nothing.

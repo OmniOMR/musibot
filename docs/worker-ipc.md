@@ -225,6 +225,10 @@ Anything the *Model* prints is already captured as a log line, so `progress` is 
 
 Sent when the *Worker Head* is stopping. The *Model* should finish what it is doing, exit, and stop reading commands. The *Worker Head* then closes the command pipe, waits briefly, and escalates to `SIGTERM` and `SIGKILL` if the process is still alive.
 
+This is the **only** way a *Model* is asked to stop. It is started in a session of its own, so a terminal's signals — the `SIGINT` of a Ctrl+C, which the kernel delivers to the whole foreground process group — reach the *Worker Head* and not the *Model*. A *Model* therefore does not need to handle `SIGINT` and should not count on receiving one; without this it would be killed by the same keystroke that asks the head to stop, and its death reported as a crash, since the head had not asked for it yet.
+
+The escalation goes to the *Model's* process group rather than to the one process, so workers a *Model* started itself are not left behind. A *Model* that exits politely on `shutdown` is still responsible for its own children — nothing signals them in that case.
+
 
 ## Rules of the exchange
 

@@ -33,6 +33,16 @@ if MODE == "wrong-ipc-version":
     send({"type": "ready", "ipc_version": 99, "model": {}})
     sys.exit(0)
 
+if MODE == "spawns-a-child":
+    # A model with a worker process of its own — a dataloader, say. The PID is
+    # written out before `ready`, so a test can find it the moment the model is
+    # up. This mode also ignores `shutdown` below, which is what makes the head
+    # escalate to signalling the process group.
+    import subprocess
+
+    child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(300)"])
+    (pages_dir / "child.pid").write_text(str(child.pid))
+
 send(
     {
         "type": "ready",
@@ -52,6 +62,8 @@ for line in commands:
     command = json.loads(line)
 
     if command["type"] == "shutdown":
+        if MODE == "spawns-a-child":
+            continue  # deliberately deaf, so the head has to insist
         break
 
     if command["type"] != "execute":

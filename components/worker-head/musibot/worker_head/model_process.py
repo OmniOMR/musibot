@@ -14,6 +14,7 @@ import json
 import logging
 import os
 import shlex
+import signal
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -47,10 +48,20 @@ class ModelProcess:
     further goes down the pipe until every execution in it has been reported.
     """
 
-    def __init__(self, command: str, pages_dir: Path, *, ready_timeout_seconds: float = 300.0):
+    def __init__(
+        self,
+        command: str,
+        pages_dir: Path,
+        *,
+        ready_timeout_seconds: float = 300.0,
+        stop_timeout_seconds: float = 5.0,
+    ):
         self._command = shlex.split(command)
         self._pages_dir = pages_dir
         self._ready_timeout_seconds = ready_timeout_seconds
+        # How long each step of stopping is given before the next one: the
+        # polite request, then SIGTERM, then SIGKILL.
+        self._stop_timeout_seconds = stop_timeout_seconds
 
         self._process: asyncio.subprocess.Process | None = None
         self._commands: asyncio.StreamWriter | None = None
@@ -149,15 +160,15 @@ class ModelProcess:
 
         if process.returncode is None:
             try:
-                await asyncio.wait_for(process.wait(), timeout=5)
+                await asyncio.wait_for(process.wait(), timeout=self._stop_timeout_seconds)
             except TimeoutError:
                 logger.warning("The model ignored shutdown; terminating it")
-                process.terminate()
+                self._signal_group(process, signal.SIGTERM)
                 try:
-                    await asyncio.wait_for(process.wait(), timeout=5)
+                    await asyncio.wait_for(process.wait(), timeout=self._stop_timeout_seconds)
                 except TimeoutError:
                     logger.warning("The model ignored SIGTERM; killing it")
-                    process.kill()
+                    self._signal_group(process, signal.SIGKILL)
                     await process.wait()
 
         for reader in self._readers:
@@ -167,6 +178,20 @@ class ModelProcess:
         self._description = None
 
     # --- internals -----------------------------------------------------------
+
+    @staticmethod
+    def _signal_group(process: asyncio.subprocess.Process, number: int) -> None:
+        """Signal the *Model* and everything it started.
+
+        The model leads a process group of its own, so a model that spawns
+        workers of its own — a dataloader, say — has them in that group. Sending
+        to the group rather than to the one process is what keeps those from
+        being left behind, now that the terminal no longer signals them either.
+        """
+        try:
+            os.killpg(process.pid, number)
+        except ProcessLookupError:
+            pass  # it exited between the timeout expiring and this call
 
     async def _start(self) -> ModelDescription:
         """Launch the model and wait for it to announce itself."""
@@ -198,6 +223,13 @@ class ModelProcess:
                 stderr=subprocess.PIPE,
                 env=environment,
                 pass_fds=(command_read, result_write),
+                # A session of the model's own. A terminal signals its whole
+                # foreground process group, so Ctrl+C on a head started from a
+                # shell would otherwise reach the model directly — killing it
+                # before this head has asked it to stop, and reporting that as a
+                # crash. The model is now stopped deliberately, over the
+                # protocol, exactly as it is when the head is signalled alone.
+                start_new_session=True,
             )
         finally:
             # The child has its ends now; ours must not stay open or the pipes

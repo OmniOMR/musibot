@@ -165,3 +165,76 @@ def test_shutdown_stops_the_model(tmp_path: Path) -> None:
         assert not model.is_running
 
     run(scenario)
+
+
+def test_the_model_runs_in_a_session_of_its_own(tmp_path: Path) -> None:
+    """What keeps Ctrl+C from reaching the *Model* directly.
+
+    A terminal delivers its signals to the whole foreground process group, so a
+    model sharing this process's group would be killed by the very SIGINT that
+    asks the head to stop — and its death reported as a crash, since the head
+    had not asked for it yet.
+
+    The membership is what is asserted rather than a real SIGINT: sending one
+    would mean signalling this test's own process group, which in a
+    non-interactive shell holds the test runner too. Group membership is the
+    whole of the mechanism — the kernel does the rest.
+    """
+
+    async def scenario() -> None:
+        model = a_model(tmp_path)
+        await model.ensure_running()
+        try:
+            process = model._process
+            assert process is not None
+            # A session of its own, so it leads its own group rather than
+            # sitting in whichever one this process is in.
+            assert os.getpgid(process.pid) == process.pid
+            assert os.getpgid(process.pid) != os.getpgid(0)
+        finally:
+            await model.shutdown()
+
+    run(scenario)
+
+
+def test_the_models_own_children_are_killed_with_it(tmp_path: Path) -> None:
+    """A model that ignores `shutdown` and has a child of its own.
+
+    Signalling the group rather than the one process is what reaches that
+    child, now that the terminal no longer signals it either.
+    """
+
+    async def scenario() -> None:
+        model = a_model(tmp_path, mode="spawns-a-child", stop_timeout_seconds=0.2)
+        await model.ensure_running()
+
+        # The model writes its child's PID out before it says `ready`.
+        child_pid = int((tmp_path / "child.pid").read_text())
+        assert _is_alive(child_pid)
+
+        await model.shutdown()
+
+        assert not model.is_running
+        # `shutdown` waits for the model, not for what the model started, so the
+        # child goes a moment later.
+        assert await _gone(child_pid), "the model's child outlived it"
+
+    run(scenario)
+
+
+def _is_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    return True
+
+
+async def _gone(pid: int, timeout: float = 5.0) -> bool:
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + timeout
+    while loop.time() < deadline:
+        if not _is_alive(pid):
+            return True
+        await asyncio.sleep(0.02)
+    return False
