@@ -9,6 +9,8 @@ Requests to the API are authorized with a bearer token, given to the *User* manu
 
 Authentication for the *general public* is not yet designed or implemented. Will be added later.
 
+The token is declared as an OpenAPI security scheme, so the interactive docs the service serves at `/docs` carry an **Authorize** button: paste the token once there and every request from that page is authenticated, which is the quickest way to try the API by hand.
+
 
 ## Musicorpus Page
 

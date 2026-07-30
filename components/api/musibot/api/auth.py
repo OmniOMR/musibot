@@ -7,9 +7,34 @@ a *User* may only touch pages they created.
 
 import secrets
 
-from fastapi import Depends, Header, HTTPException, Request, status
+from fastapi import Depends, HTTPException, Request, Security, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from musibot.api.domain import MusicorpusPage, MusicorpusPageRepository, PageNotFound
+
+bearer_scheme = HTTPBearer(
+    scheme_name="API token",
+    description="The API token issued to you, sent as `Authorization: Bearer <token>`.",
+    # This service answers a missing or malformed token itself, below, so that
+    # the three ways of getting it wrong are told apart in the response body.
+    auto_error=False,
+)
+"""How a *User* authenticates.
+
+Declared as a security scheme rather than read as a plain header, so that it
+appears once in the OpenAPI document under `securitySchemes` and the interactive
+docs offer the **Authorize** button. Spelling it as a header parameter made it a
+per-endpoint field that had to be retyped for every request.
+"""
+
+
+def _unauthorized(detail: str) -> HTTPException:
+    """A `401` that says how to authenticate, as the status code requires."""
+    return HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail=detail,
+        headers={"WWW-Authenticate": "Bearer"},
+    )
 
 
 def resolve_user(token: str, tokens: dict[str, str]) -> str | None:
@@ -27,34 +52,23 @@ def resolve_user(token: str, tokens: dict[str, str]) -> str | None:
 
 def current_user(
     request: Request,
-    authorization: str | None = Header(default=None),
+    credentials: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
 ) -> str:
     """The *User* making this request, from the `Authorization: Bearer` header.
 
     Raises `401` if the header is missing, malformed, or names no known token.
     """
-    if authorization is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing Authorization header",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+    if credentials is None:
+        # The scheme reports a missing header and a header that is not a bearer
+        # one the same way, and the two are worth telling apart: one means "you
+        # sent no token", the other "you sent something that is not one".
+        if request.headers.get("Authorization") is None:
+            raise _unauthorized("Missing Authorization header")
+        raise _unauthorized("Authorization header must be 'Bearer <token>'")
 
-    scheme, _, token = authorization.partition(" ")
-    if scheme.lower() != "bearer" or not token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authorization header must be 'Bearer <token>'",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    user = resolve_user(token, request.app.state.api_tokens)
+    user = resolve_user(credentials.credentials, request.app.state.api_tokens)
     if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Unknown API token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        raise _unauthorized("Unknown API token")
 
     return user
 

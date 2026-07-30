@@ -60,10 +60,10 @@ testpaths = ["tests"]
 [tool.ruff]
 line-length = 100
 
-# FastAPI's dependency injection puts `Depends(...)` / `Header(...)` in argument
-# defaults by design; bugbear's B008 is a false positive for them.
+# FastAPI's dependency injection puts `Depends(...)` / `Security(...)` in
+# argument defaults by design; bugbear's B008 is a false positive for them.
 [tool.ruff.lint.flake8-bugbear]
-extend-immutable-calls = ["fastapi.Depends", "fastapi.Header"]
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Security"]
 
 [tool.mypy]
 strict = true

@@ -8,6 +8,11 @@ Versions are semver on the **HTTP API**, which is the outward contract for `pyth
 ## Unreleased
 
 
+### Fixed
+
+- **The API token is now an OpenAPI security scheme**, so the interactive docs at `/docs` carry an **Authorize** button and the token is entered once for the whole page. It had been declared as a plain `Authorization` header parameter, which put a field to retype on every endpoint and did not authenticate requests made from the docs.
+
+
 ### Changed
 
 - **Starting a *Pipeline Execution* requires an `input` array** naming the *Files* of the page to process. There is no default and the service will not invent one: it keeps no list of a page's *Files*, and uploads travel over presigned URLs, so it knows which it minted and never which were used. See [Signatures](../../docs/signatures.md).
