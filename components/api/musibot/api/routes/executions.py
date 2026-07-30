@@ -3,6 +3,7 @@
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from musibot.core import SignatureMismatch
 
 from musibot.api.auth import get_owned_page
 from musibot.api.domain import MusicorpusPage
@@ -35,13 +36,18 @@ async def start_pipeline_execution(
     """Start a *Pipeline Execution* against this page."""
     try:
         execution = await executions.start(
-            page, body.pipeline_name, body.pipeline_version, body.parameters
+            page, body.pipeline_name, body.pipeline_version, body.input, body.parameters
         )
     except PipelineNotFound as error:
         # The listing may lag a fresh deployment by a few seconds, but a typo in
         # a pipeline name is far more common than a request racing one — and
         # failing now beats timing out minutes later.
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error))
+    except SignatureMismatch as error:
+        # The input list does not fit what the Pipeline says it consumes. Said
+        # here, where it is still legible, rather than as a Model failing on
+        # files it never expected.
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error))
 
     return PipelineExecutionView.of(execution)
 

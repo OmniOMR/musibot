@@ -41,8 +41,15 @@ def test_process_page_round_trip() -> None:
     assert output == {"transcription.musicxml": TRANSCRIPTION}
     # The scan went straight to object storage, not through the api service.
     assert server.objects[f"{PAGE_ID}/image.jpg"] == SCAN
+    # The input list is filled in from what this call uploaded: the server keeps
+    # no list of a page's Files and could not have supplied it.
     assert server.started == [
-        {"pipeline_name": "hello-model", "pipeline_version": "1.0.0", "parameters": {}}
+        {
+            "pipeline_name": "hello-model",
+            "pipeline_version": "1.0.0",
+            "input": ["image.jpg"],
+            "parameters": {},
+        }
     ]
     # And the page was given back once its results were in hand.
     assert server.deleted_pages == [PAGE_ID]
@@ -181,13 +188,19 @@ def test_the_steps_are_available_on_their_own() -> None:
         page = client.create_page()
         client.upload_files(page.page_id, {"image.jpg": SCAN})
 
-        first = client.start_execution(page.page_id, "p", "1")
+        first = client.start_execution(page.page_id, "p", "1", ["image.jpg"])
         client.wait_for_execution(page.page_id, first.execution_id)
-        second = client.start_execution(page.page_id, "p", "2")
+        second = client.start_execution(page.page_id, "p", "2", ["Staves/1/image.jpg"])
         client.wait_for_execution(page.page_id, second.execution_id)
 
         assert client.download_files(page.page_id, ["out.txt"]) == {"out.txt": b"x"}
         client.delete_page(page.page_id)
 
     assert len(server.started) == 2
+    # Each execution names its own Files, which is what a caller holding a page
+    # open across several of them needs.
+    assert [started["input"] for started in server.started] == [
+        ["image.jpg"],
+        ["Staves/1/image.jpg"],
+    ]
     assert server.deleted_pages == [PAGE_ID]

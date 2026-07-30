@@ -151,11 +151,6 @@ So the boundary is: the `api` service **passes an input list through**; it does 
 *ImplicitPipelines* exist so a *Model* can be exercised in isolation during development, as [Domain model](domain-model.md) says. They are marked `implicit` in the `GET /pipelines` listing and that is what the marking is for. A friendlier per-page staff-transcription *Pipeline* is a real *Pipeline*, written in an *Orchestrator* — and writing it is a good way to find out what fan-out and gather primitives the *Orchestrator Head* API ought to expose.
 
 
-## Status
-
-The design on this page is being implemented. The code today carries the degenerate case — signatures are flat lists of concrete paths, `PipelineExecutionStart` has no `input` field, and nothing is checked against a *Signature* anywhere. Because there is no input list to forward, the `api` service currently substitutes a *Model's* declared `signature.input` as the staging list for an *ImplicitPipeline*; that substitution goes away once the request carries its own input list. [Discovery](discovery.md) and [Worker IPC](worker-ipc.md) still carry the open question this page answers.
-
-
 ## Open questions
 
 - **Nested slots** — `Systems/{sys}/Staves/{staff}/image.jpg` is syntactically fine and semantically meaningless today, since the Musicorpus Specification nests subdivisions exactly one level deep. Nothing forbids it, and nothing supports it either.

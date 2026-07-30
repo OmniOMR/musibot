@@ -68,6 +68,9 @@ The pipeline function gets a `ctx` context object that acts as the API for commu
 - `ctx.logger.info(...)` Prints messages to the pipeline execution log.
 - `ctx.read_file_bytes(...)` Reads a binary *File* from the current *MusicorpusPage* directory.
 - `ctx.write_file_string(...)` Writes a text *File* to the current *MusicorpusPage* directory.
+- `ctx.input` The *Files* the *User* asked to have processed, as a list of concrete paths.
+
+This pipeline reads `image.jpg` outright because that is the only thing it is for. A *Pipeline* that works at the staff level takes the staves from `ctx.input` instead — the `api` service has already checked that list against the *Pipeline's* declared [Signature](signatures.md), so it fits the shape the *Pipeline* announced, but which staves it names is the *User's* choice and only `ctx.input` knows. Unlike a *Model*, a *Pipeline* is not confined to that list: nothing is staged for it, and it will write and re-read intermediate *Files* that did not exist when it started.
 
 
 ## Orchestrator deployment

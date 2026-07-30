@@ -50,10 +50,13 @@ A *Pipeline Execution* is identified by the pair `page_id` + `execution_id` — 
   "page_id": "7Kf2mP9xLwQa",
   "execution_id": 1,
   "pipeline": { "name": "hello-world", "version": "1.0.0" },
+  "input": ["image.jpg"],
   "parameters": {},
   "timeout_seconds": 300
 }
 ```
+
+`input` names the *Files* this execution is about, as the *User* asked for them and checked by the `api` service against the *Pipeline's* [Signature](signatures.md). Unlike the identically shaped field of a `model-execution-start` it does not bound what may be read: nothing is staged for a *Pipeline*, and it will write and re-read intermediate *Files* that did not exist when it started.
 
 ```json
 {
@@ -108,6 +111,8 @@ The requester is an *Orchestrator Head* — or the `api` service itself, when it
 ```
 
 `pipeline_execution` travels along so that everything the *Model* logs can be attributed to the *Pipeline Execution* that caused it, without the *Worker Head* having to ask anyone.
+
+Here `input` **is** the staging list: the *Worker Head* downloads exactly these *Files* and the *Model* sees nothing else in the page folder. For an *ImplicitPipeline* it is whatever the *User* named, passed through unchanged — the `api` service does not expand the *Model's* [Signature](signatures.md) to arrive at it, and does not fan one request out into several.
 
 > **Note:** Termination is best-effort and only cancels what has not started. A *Model* executes one command at a time and the [worker IPC](worker-ipc.md) has no way to interrupt one, so a *Model* already working runs to completion and its result is discarded. This is deliberate — interrupting a model mid-execution would mean killing the process, and restarting a model that holds gigabytes of weights costs far more than letting one execution finish.
 

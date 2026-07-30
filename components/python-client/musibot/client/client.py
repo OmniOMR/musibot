@@ -101,6 +101,10 @@ class MusibotClient:
 
         `input` maps each *File's* path within the page to its bytes, `pipeline`
         is a name and version, and `output` names the *Files* to bring back.
+        The execution is run over everything `input` uploaded — this method is
+        the whole round trip for one page, so what was sent is what there is.
+        A caller holding a page open across several executions names the *Files*
+        for each of them with :meth:`start_execution` instead.
 
         The page is deleted before returning, whatever happens — including on
         failure. It is the caller's page and nothing else will need it; a server
@@ -111,7 +115,9 @@ class MusibotClient:
             self.upload_files(page.page_id, input)
 
             name, version = pipeline
-            execution = self.start_execution(page.page_id, name, version, parameters or {})
+            execution = self.start_execution(
+                page.page_id, name, version, list(input), parameters or {}
+            )
             settled = self.wait_for_execution(
                 page.page_id, execution.execution_id, timeout_seconds=timeout_seconds
             )
@@ -209,15 +215,24 @@ class MusibotClient:
         page_id: str,
         pipeline_name: str,
         pipeline_version: str,
+        input: Iterable[str],
         parameters: dict[str, Any] | None = None,
     ) -> PipelineExecution:
-        """Start a *Pipeline Execution* against a page and return immediately."""
+        """Start a *Pipeline Execution* against a page and return immediately.
+
+        `input` names the *Files* of the page to process. It is explicit because
+        the server cannot supply it — it keeps no list of a page's *Files*, and
+        uploads go straight to object storage over presigned URLs, so it never
+        learns which of them were used. The caller knows, having uploaded them.
+        For the common case :meth:`process_page` fills this in.
+        """
         response = self._request(
             "POST",
             f"/musicorpus-pages/{page_id}/pipeline-executions",
             json={
                 "pipeline_name": pipeline_name,
                 "pipeline_version": pipeline_version,
+                "input": list(input),
                 "parameters": parameters or {},
             },
         )

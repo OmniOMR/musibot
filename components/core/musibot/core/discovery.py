@@ -10,12 +10,19 @@ that may not even be part of this repository, so they are parsed rather than
 trusted.
 """
 
-from typing import Annotated, Any, Literal
+from collections.abc import Sequence
+from typing import Annotated, Any, Literal, Self
 
-from pydantic import BaseModel, Discriminator, Tag, TypeAdapter
+from pydantic import BaseModel, Discriminator, Tag, TypeAdapter, model_validator
 
 from musibot.core.identifiers import random_id
-from musibot.core.page import PageFilePath
+from musibot.core.patterns import (
+    PageFilePattern,
+    check_input_files,
+    check_slot_names,
+    concrete_outputs,
+    parse_file_patterns,
+)
 
 # Exchange names are part of the wire protocol rather than of a deployment, so
 # they are constants here rather than settings. Same for the timings below:
@@ -41,10 +48,32 @@ def generate_instance_id() -> str:
 
 
 class Signature(BaseModel):
-    """The *Files* something reads and the *Files* it produces."""
+    """Which sets of *Files* something reads, and which it produces.
 
-    input: list[PageFilePath] = []
-    output: list[PageFilePath] = []
+    Entries are patterns rather than paths — see `musibot.core.patterns` and
+    `docs/signatures.md`. A *Signature* with no slots in it names *Files*
+    outright, which is what every page-level *Model* has.
+    """
+
+    input: list[PageFilePattern] = []
+    output: list[PageFilePattern] = []
+
+    @model_validator(mode="after")
+    def _slot_names_agree(self) -> Self:
+        # A slot name binds across the whole *Signature*, so this cannot be
+        # checked one entry at a time as the entries are parsed.
+        check_slot_names(parse_file_patterns([*self.input, *self.output]))
+        return self
+
+    def check_input(self, file_paths: Sequence[str]) -> None:
+        """Raise `musibot.core.patterns.SignatureMismatch` unless this input
+        list is one the declaration admits."""
+        check_input_files(parse_file_patterns(self.input), file_paths)
+
+    def promised_output_files(self) -> list[str]:
+        """The *Files* this promises outright — the slot-free, non-optional
+        entries, which are the ones whose absence is a *Model* bug."""
+        return concrete_outputs(parse_file_patterns(self.output))
 
 
 class PipelineDescription(BaseModel):

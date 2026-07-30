@@ -7,7 +7,11 @@ Versions are semver on the **IPC contract** between the worker head and a *Model
 
 ## Unreleased
 
-Nothing yet.
+
+### Added
+
+- **A *Model* that reported success without writing an output its *Signature* promises now fails the execution.** Only the slot-free, non-optional entries are checked — how many *Files* fill a `Staves/{*}/image.jpg` is the *Model's* to decide. Writing output to the wrong path is the commonest way to get a *Model* wrong, and it otherwise shows up as a *Pipeline* that succeeds and produces nothing.
+- **Files the *Model* wrote that its *Signature* does not describe are logged**, and still uploaded — filtering them away would silently swallow a diagnostic file somebody meant to keep.
 
 
 ## 0.1.0 — 2026-07-27

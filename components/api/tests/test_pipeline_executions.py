@@ -32,7 +32,12 @@ def make_page(client: TestClient, headers: dict[str, str]) -> str:
 
 
 def start_body() -> dict[str, object]:
-    return {"pipeline_name": "hello-world", "pipeline_version": "1.0.0", "parameters": {}}
+    return {
+        "pipeline_name": "hello-world",
+        "pipeline_version": "1.0.0",
+        "input": ["image.jpg"],
+        "parameters": {},
+    }
 
 
 def test_start_a_pipeline_execution(
@@ -57,6 +62,56 @@ def test_start_a_pipeline_execution(
     start = parse_pipeline_execution_message(message.body)
     assert isinstance(start, PipelineExecutionStart)
     assert start.page_id == page_id
+    # The Files the User named travel with the request, and come back out of it.
+    assert start.input == ["image.jpg"]
+    assert body["input"] == ["image.jpg"]
+
+
+def test_an_input_list_the_signature_does_not_admit_is_400(
+    client: TestClient, alice: dict[str, str], publisher: FakePublisher
+) -> None:
+    page_id = make_page(client, alice)
+
+    response = client.post(
+        f"/musicorpus-pages/{page_id}/pipeline-executions",
+        headers=alice,
+        json=start_body() | {"input": ["image.jpg", "unexpected.json"]},
+    )
+
+    assert response.status_code == 400
+    assert "unexpected.json" in response.json()["detail"]
+    assert publisher.published == []
+
+
+def test_an_execution_request_without_an_input_list_is_refused(
+    client: TestClient, alice: dict[str, str]
+) -> None:
+    # No default is possible: this service holds no list of a page's Files, and
+    # presigned uploads mean it never learns which of the URLs it minted were
+    # used. See `docs/signatures.md`.
+    page_id = make_page(client, alice)
+    body = start_body()
+    del body["input"]
+
+    response = client.post(
+        f"/musicorpus-pages/{page_id}/pipeline-executions", headers=alice, json=body
+    )
+
+    assert response.status_code == 422
+
+
+def test_an_input_path_escaping_the_page_is_refused(
+    client: TestClient, alice: dict[str, str]
+) -> None:
+    page_id = make_page(client, alice)
+
+    response = client.post(
+        f"/musicorpus-pages/{page_id}/pipeline-executions",
+        headers=alice,
+        json=start_body() | {"input": ["../../etc/passwd"]},
+    )
+
+    assert response.status_code == 422
 
 
 def test_execution_ids_increment_per_page(client: TestClient, alice: dict[str, str]) -> None:
@@ -119,7 +174,11 @@ def test_starting_a_pipeline_nobody_provides_is_404(
     response = client.post(
         f"/musicorpus-pages/{page_id}/pipeline-executions",
         headers=alice,
-        json={"pipeline_name": "nothing-like-this", "pipeline_version": "1.0.0"},
+        json={
+            "pipeline_name": "nothing-like-this",
+            "pipeline_version": "1.0.0",
+            "input": ["image.jpg"],
+        },
     )
 
     assert response.status_code == 404

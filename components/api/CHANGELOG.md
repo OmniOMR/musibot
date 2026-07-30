@@ -7,7 +7,13 @@ Versions are semver on the **HTTP API**, which is the outward contract for `pyth
 
 ## Unreleased
 
-Nothing yet.
+
+### Changed
+
+- **Starting a *Pipeline Execution* requires an `input` array** naming the *Files* of the page to process. There is no default and the service will not invent one: it keeps no list of a page's *Files*, and uploads travel over presigned URLs, so it knows which it minted and never which were used. See [Signatures](../../docs/signatures.md).
+- **The input list is checked against the announced *Signature*** and a list that does not fit is a `400`, naming the mismatch — twelve staves handed to a one-staff *Model* is refused at the edge instead of failing three hops away.
+- **An *ImplicitPipeline* passes the input list straight through** to the *Worker*, rather than substituting the *Model's* declared `signature.input` as the staging list. The service does not expand patterns and does not fan one request out into several; an *ImplicitPipeline* is the *Model* and nothing more.
+- **`GET` on an execution reports its `input`.**
 
 
 ## 0.1.0 — 2026-07-27

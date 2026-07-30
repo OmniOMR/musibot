@@ -7,7 +7,12 @@ Versions are semver, independent of the `api` service's release cadence. This is
 
 ## Unreleased
 
-Nothing yet.
+
+### Changed
+
+- **`start_execution` takes an `input` list** naming the *Files* to process. It is explicit because the server cannot supply it — it keeps no list of a page's *Files* and never learns which presigned upload URLs were used. A caller holding one page open across several executions names the *Files* for each of them.
+- **`process_page` fills it in** from the dict it just uploaded, so the common round trip is unchanged.
+- **`PipelineExecution` carries `input`.**
 
 
 ## 0.1.0 — 2026-07-27

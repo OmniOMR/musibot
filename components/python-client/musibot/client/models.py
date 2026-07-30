@@ -19,6 +19,7 @@ class PipelineExecution(Model):
     execution_id: int
     pipeline_name: str
     pipeline_version: str
+    input: list[str] = []
     state: str
     error: str | None = None
 

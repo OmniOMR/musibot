@@ -20,6 +20,7 @@ from musibot.core.discovery import (
     parse_discovery_message,
     serialize_message,
 )
+from musibot.core.patterns import SignatureMismatch
 
 # The messages exactly as `docs/discovery.md` documents them.
 
@@ -149,6 +150,53 @@ def test_a_signature_naming_an_escaping_path_is_refused() -> None:
 
     with pytest.raises(ValidationError):
         parse_discovery_message(json.dumps(payload))
+
+
+def test_a_signature_may_carry_slots() -> None:
+    payload = json.loads(json.dumps(WORKER_ANNOUNCEMENT))
+    payload["model"]["signature"] = {
+        "input": ["Staves/{s}/image.jpg"],
+        "output": ["Staves/{s}/transcription.musicxml"],
+    }
+
+    message = parse_discovery_message(json.dumps(payload))
+
+    assert isinstance(message, WorkerAnnouncement)
+    assert message.model.signature.input == ["Staves/{s}/image.jpg"]
+
+
+def test_a_signature_with_a_malformed_slot_is_refused() -> None:
+    payload = json.loads(json.dumps(WORKER_ANNOUNCEMENT))
+    payload["model"]["signature"]["input"] = ["image.{variant}.jpg"]
+
+    with pytest.raises(ValidationError):
+        parse_discovery_message(json.dumps(payload))
+
+
+def test_a_signature_whose_slot_names_disagree_is_refused() -> None:
+    # The name binds across input and output together, so this is a property of
+    # the whole Signature rather than of either entry.
+    with pytest.raises(ValidationError):
+        Signature(input=["Staves/{s}/image.jpg"], output=["Staves/{*s}/transcription.musicxml"])
+
+
+def test_a_signature_checks_an_input_list_against_its_own_patterns() -> None:
+    signature = Signature(
+        input=["Staves/{s}/image.jpg"], output=["Staves/{s}/transcription.musicxml"]
+    )
+
+    signature.check_input(["Staves/7/image.jpg"])
+
+    with pytest.raises(SignatureMismatch):
+        signature.check_input(["Staves/7/image.jpg", "Staves/8/image.jpg"])
+
+
+def test_a_signature_promises_only_its_slot_free_required_outputs() -> None:
+    signature = Signature(
+        input=["image.jpg"], output=["layout.json", "warnings.json?", "Staves/{*}/image.jpg"]
+    )
+
+    assert signature.promised_output_files() == ["layout.json"]
 
 
 def test_an_announcement_can_be_built_in_code() -> None:

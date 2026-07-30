@@ -75,6 +75,12 @@ def validate_file_path(file_path: str) -> str:
         # same path — one of which the checks below would not see through.
         raise InvalidFilePath(f"A file path separator is `/`, not `\\`: {file_path!r}")
 
+    if "{" in file_path or "}" in file_path:
+        # Reserved for the slots of a *Signature* (`musibot.core.patterns`). A
+        # page that could hold a file named `Staves/{s}/image.jpg` would force
+        # patterns to carry an escape, for the sake of a name nobody wants.
+        raise InvalidFilePath(f"A file path may not contain `{{` or `}}`: {file_path!r}")
+
     if any(character in file_path for character in ("\x00", "\n", "\r")) or any(
         ord(character) < 0x20 or ord(character) == 0x7F for character in file_path
     ):

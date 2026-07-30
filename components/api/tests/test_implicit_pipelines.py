@@ -6,6 +6,7 @@ There is no *Orchestrator* anywhere in these tests, which is the point — a
 
 import asyncio
 
+from musibot.core.discovery import Signature
 from musibot.core.execution import (
     MODEL_EXECUTION_CONTROL_EXCHANGE,
     MODEL_EXECUTIONS_EXCHANGE,
@@ -20,6 +21,7 @@ from musibot.core.execution import (
     routing_key,
     serialize_message,
 )
+from musibot.core.patterns import SignatureMismatch
 
 from musibot.api.discovery import ProviderRegistry
 from musibot.api.domain import MusicorpusPageRepository
@@ -68,7 +70,7 @@ def test_starting_a_model_dispatches_a_model_execution() -> None:
         page = repository.create("alice")
         service = a_service(repository, publisher, a_registry_with_the_model())
 
-        execution = await service.start(page, *MODEL, {"threshold": 0.5})
+        execution = await service.start(page, *MODEL, ["image.jpg"], {"threshold": 0.5})
 
         assert execution.state == "running"
         message = publisher.only(MODEL_EXECUTIONS_EXCHANGE)
@@ -83,8 +85,8 @@ def test_starting_a_model_dispatches_a_model_execution() -> None:
         assert message.correlation_id == start.model_execution_id
         assert start.page_id == page.page_id
         assert start.parameters == {"threshold": 0.5}
-        # Taken from the Model's announced signature: it is the thing that
-        # knows what it reads.
+        # The Files the User named, passed straight through — this service does
+        # not expand the Model's Signature to arrive at them.
         assert start.input == ["image.jpg"]
         # Rides along so a Worker can attribute its logs without asking anyone.
         assert start.pipeline_execution.page_id == page.page_id
@@ -104,7 +106,7 @@ def test_a_model_result_completes_the_pipeline_execution() -> None:
         publisher = FakePublisher()
         page = repository.create("alice")
         service = a_service(repository, publisher, a_registry_with_the_model())
-        execution = await service.start(page, *MODEL, {})
+        execution = await service.start(page, *MODEL, ["image.jpg"], {})
 
         start = parse_model_execution_message(publisher.only(MODEL_EXECUTIONS_EXCHANGE).body)
         assert isinstance(start, ModelExecutionStart)
@@ -122,7 +124,7 @@ def test_a_failed_model_fails_the_pipeline_execution_with_its_error() -> None:
         publisher = FakePublisher()
         page = repository.create("alice")
         service = a_service(repository, publisher, a_registry_with_the_model())
-        execution = await service.start(page, *MODEL, {})
+        execution = await service.start(page, *MODEL, ["image.jpg"], {})
 
         start = parse_model_execution_message(publisher.only(MODEL_EXECUTIONS_EXCHANGE).body)
         assert isinstance(start, ModelExecutionStart)
@@ -158,7 +160,7 @@ def test_a_timed_out_implicit_pipeline_terminates_the_model_execution() -> None:
             repository, publisher, a_registry_with_the_model(), timeout_seconds=0.05
         )
 
-        execution = await service.start(page, *MODEL, {})
+        execution = await service.start(page, *MODEL, ["image.jpg"], {})
         start = parse_model_execution_message(publisher.only(MODEL_EXECUTIONS_EXCHANGE).body)
         assert isinstance(start, ModelExecutionStart)
 
@@ -191,7 +193,7 @@ def test_a_result_arriving_after_the_timeout_is_ignored() -> None:
             repository, publisher, a_registry_with_the_model(), timeout_seconds=0.05
         )
 
-        execution = await service.start(page, *MODEL, {})
+        execution = await service.start(page, *MODEL, ["image.jpg"], {})
         start = parse_model_execution_message(publisher.only(MODEL_EXECUTIONS_EXCHANGE).body)
         assert isinstance(start, ModelExecutionStart)
 
@@ -211,7 +213,7 @@ def test_deleting_a_page_terminates_a_running_model_execution() -> None:
         page = repository.create("alice")
         service = a_service(repository, publisher, a_registry_with_the_model())
 
-        await service.start(page, *MODEL, {})
+        await service.start(page, *MODEL, ["image.jpg"], {})
         publisher.published.clear()
         await service.terminate_running(page)
 
@@ -219,6 +221,65 @@ def test_deleting_a_page_terminates_a_running_model_execution() -> None:
             publisher.only(MODEL_EXECUTION_CONTROL_EXCHANGE).body
         )
         assert isinstance(terminate, ModelExecutionTerminate)
+        await service.shutdown()
+
+    asyncio.run(scenario())
+
+
+def test_a_slotted_model_is_run_over_the_instance_the_user_named() -> None:
+    async def scenario() -> None:
+        repository = MusicorpusPageRepository()
+        publisher = FakePublisher()
+        page = repository.create("alice")
+        registry = ProviderRegistry()
+        registry.record(
+            worker_announcement(
+                signature=Signature(
+                    input=["Staves/{s}/image.jpg"],
+                    output=["Staves/{s}/transcription.musicxml"],
+                )
+            )
+        )
+        service = a_service(repository, publisher, registry)
+
+        await service.start(page, *MODEL, ["Staves/7/image.jpg"], {})
+
+        start = parse_model_execution_message(publisher.only(MODEL_EXECUTIONS_EXCHANGE).body)
+        assert isinstance(start, ModelExecutionStart)
+        assert start.input == ["Staves/7/image.jpg"]
+
+        await service.shutdown()
+
+    asyncio.run(scenario())
+
+
+def test_an_input_list_the_model_signature_does_not_admit_is_refused() -> None:
+    async def scenario() -> None:
+        repository = MusicorpusPageRepository()
+        publisher = FakePublisher()
+        page = repository.create("alice")
+        registry = ProviderRegistry()
+        registry.record(
+            worker_announcement(
+                signature=Signature(
+                    input=["Staves/{s}/image.jpg"],
+                    output=["Staves/{s}/transcription.musicxml"],
+                )
+            )
+        )
+        service = a_service(repository, publisher, registry)
+
+        # A whole page of staves handed to a one-staff Model.
+        try:
+            await service.start(page, *MODEL, ["Staves/1/image.jpg", "Staves/2/image.jpg"], {})
+        except SignatureMismatch:
+            pass
+        else:
+            raise AssertionError("expected SignatureMismatch")
+
+        # Refused before the execution existed, so the page is untouched.
+        assert publisher.published == []
+        assert page.executions == {}
         await service.shutdown()
 
     asyncio.run(scenario())
@@ -232,7 +293,7 @@ def test_a_pipeline_nobody_announces_is_refused() -> None:
         service = a_service(repository, publisher, ProviderRegistry())
 
         try:
-            await service.start(page, "nothing-like-this", "1.0.0", {})
+            await service.start(page, "nothing-like-this", "1.0.0", ["image.jpg"], {})
         except PipelineNotFound:
             pass
         else:
@@ -256,7 +317,7 @@ def test_an_explicit_pipeline_wins_over_a_colliding_model() -> None:
         page = repository.create("alice")
         service = a_service(repository, publisher, registry)
 
-        await service.start(page, *MODEL, {})
+        await service.start(page, *MODEL, ["image.jpg"], {})
 
         # Matching the listing, where the colliding ImplicitPipeline is the one
         # suppressed.

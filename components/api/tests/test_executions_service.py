@@ -62,7 +62,7 @@ def test_start_publishes_a_start_message() -> None:
         page = repository.create("alice")
         service = ExecutionService(repository, publisher, a_registry(), timeout_seconds=300)
 
-        execution = await service.start(page, "hello-world", "1.0.0", {"x": 1})
+        execution = await service.start(page, "hello-world", "1.0.0", ["image.jpg"], {"x": 1})
 
         assert execution.state == "running"
         [message] = publisher.published
@@ -85,7 +85,7 @@ def test_a_result_settles_the_execution() -> None:
         repository = MusicorpusPageRepository()
         page = repository.create("alice")
         service = ExecutionService(repository, FakePublisher(), a_registry(), timeout_seconds=300)
-        execution = await service.start(page, "p", "1", {})
+        execution = await service.start(page, "p", "1", ["image.jpg"], {})
 
         await service.handle_result(a_result(page.page_id, execution.execution_id, "completed"))
 
@@ -100,7 +100,7 @@ def test_a_failed_result_carries_its_error() -> None:
         repository = MusicorpusPageRepository()
         page = repository.create("alice")
         service = ExecutionService(repository, FakePublisher(), a_registry(), timeout_seconds=300)
-        execution = await service.start(page, "p", "1", {})
+        execution = await service.start(page, "p", "1", ["image.jpg"], {})
 
         await service.handle_result(
             a_result(page.page_id, execution.execution_id, "failed", "boom")
@@ -119,7 +119,7 @@ def test_a_late_result_does_not_overturn_a_settled_execution() -> None:
         repository = MusicorpusPageRepository()
         page = repository.create("alice")
         service = ExecutionService(repository, FakePublisher(), a_registry(), timeout_seconds=300)
-        execution = await service.start(page, "p", "1", {})
+        execution = await service.start(page, "p", "1", ["image.jpg"], {})
 
         await service.handle_result(a_result(page.page_id, execution.execution_id, "failed", "x"))
         # A completion that arrives after the failure is ignored.
@@ -152,7 +152,7 @@ def test_timeout_fails_the_execution_and_publishes_a_terminate() -> None:
         page = repository.create("alice")
         service = ExecutionService(repository, publisher, a_registry(), timeout_seconds=0.05)
 
-        execution = await service.start(page, "p", "1", {})
+        execution = await service.start(page, "p", "1", ["image.jpg"], {})
         await asyncio.sleep(0.2)
 
         settled = page.executions[execution.execution_id]
@@ -179,7 +179,7 @@ def test_a_completed_execution_does_not_time_out() -> None:
         page = repository.create("alice")
         service = ExecutionService(repository, publisher, a_registry(), timeout_seconds=0.05)
 
-        execution = await service.start(page, "p", "1", {})
+        execution = await service.start(page, "p", "1", ["image.jpg"], {})
         await service.handle_result(a_result(page.page_id, execution.execution_id, "completed"))
         await asyncio.sleep(0.2)  # let the timer fire on an already-settled execution
 
@@ -198,9 +198,9 @@ def test_terminate_running_targets_only_running_executions() -> None:
         page = repository.create("alice")
         service = ExecutionService(repository, publisher, a_registry(), timeout_seconds=300)
 
-        done = await service.start(page, "p", "1", {})
+        done = await service.start(page, "p", "1", ["image.jpg"], {})
         await service.handle_result(a_result(page.page_id, done.execution_id, "completed"))
-        running = await service.start(page, "p", "1", {})
+        running = await service.start(page, "p", "1", ["image.jpg"], {})
 
         publisher.published.clear()
         await service.terminate_running(page)

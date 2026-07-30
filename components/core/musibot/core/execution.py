@@ -85,6 +85,11 @@ class PipelineExecutionStart(BaseModel):
     page_id: PageId
     execution_id: int
     pipeline: NameAndVersion
+    # The *Files* this execution is about, named by the *User*. Unlike the input
+    # list of a model execution it does not bound what may be read: a *Pipeline*
+    # writes and re-reads intermediate *Files* that nobody could have named,
+    # since they do not exist when it starts.
+    input: list[PageFilePath] = []
     parameters: dict[str, object] = {}
     timeout_seconds: float
 

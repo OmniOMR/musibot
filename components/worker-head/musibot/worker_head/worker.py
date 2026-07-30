@@ -39,6 +39,7 @@ from musibot.core.execution import (
     routing_key,
     serialize_message,
 )
+from musibot.core.patterns import parse_file_patterns
 
 from musibot.worker_head.messaging import (
     DEFAULT_EXCHANGE,
@@ -47,7 +48,7 @@ from musibot.worker_head.messaging import (
     WorkMessage,
 )
 from musibot.worker_head.model_process import ModelFailed, ModelProcess, ModelProtocolError
-from musibot.worker_head.storage import InputFileMissing, PageStoragePort
+from musibot.worker_head.storage import FileStamp, InputFileMissing, PageStoragePort
 
 logger = logging.getLogger(__name__)
 
@@ -188,6 +189,7 @@ class WorkerHead:
                 dict(message.parameters),
             )
 
+            after = await asyncio.to_thread(self._storage.snapshot, page_id)
             uploaded = await asyncio.to_thread(self._storage.upload_changes, page_id, before)
             logger.info(
                 "Model execution %s produced %d file(s): %s",
@@ -195,6 +197,18 @@ class WorkerHead:
                 len(uploaded),
                 ", ".join(uploaded) or "none",
             )
+            self._warn_about_undeclared(message, uploaded)
+
+            missing = self._missing_promised_outputs(after)
+            if missing:
+                # Writing output to the wrong path is the commonest way to get a
+                # Model wrong, and it otherwise shows up as a Pipeline that
+                # succeeds and produces nothing.
+                return "failed", (
+                    f"The model declares {', '.join(repr(path) for path in missing)} as output "
+                    f"but did not write it"
+                )
+
             return "completed", None
 
         except (ModelFailed, InputFileMissing, ModelProtocolError) as failure:
@@ -210,6 +224,39 @@ class WorkerHead:
 
         finally:
             await asyncio.to_thread(self._storage.discard, page_id)
+
+    def _missing_promised_outputs(self, present: dict[str, FileStamp]) -> list[str]:
+        """Which *Files* the *Signature* promised outright but are not there.
+
+        Only the slot-free, non-optional entries: how many *Files* fill a
+        `Staves/{*}/image.jpg` is the *Model's* to decide, and nothing here
+        could say it got the number wrong.
+        """
+        return [
+            file_path
+            for file_path in self.description.signature.promised_output_files()
+            if file_path not in present
+        ]
+
+    def _warn_about_undeclared(self, message: ModelExecutionStart, uploaded: list[str]) -> None:
+        """Note *Files* the *Model* wrote that its *Signature* does not describe.
+
+        They are kept — filtering them away would silently swallow a diagnostic
+        file somebody meant to keep — but a *Model* producing them is either
+        under-declaring itself or writing to the wrong path.
+        """
+        patterns = parse_file_patterns(self.description.signature.output)
+        undeclared = [
+            file_path
+            for file_path in uploaded
+            if not any(pattern.match(file_path) for pattern in patterns)
+        ]
+        if undeclared:
+            logger.warning(
+                "Model execution %s wrote %s, which its signature does not declare as output",
+                message.model_execution_id,
+                ", ".join(repr(file_path) for file_path in undeclared),
+            )
 
     async def _report(
         self,

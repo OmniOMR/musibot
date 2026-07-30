@@ -71,5 +71,15 @@ for line in commands:
         continue
 
     page_dir = pages_dir / command["page"]
+
+    if MODE == "wrong-path":
+        # Reports success, but writes its output somewhere its signature does
+        # not promise — the commonest way to get a Model wrong.
+        (page_dir / "typo.txt").write_text("misplaced", encoding="utf-8")
+        send({"type": "completed", "execution_id": command["execution_id"]})
+        continue
+
     (page_dir / "out.txt").write_text("produced by the fake model", encoding="utf-8")
+    if MODE == "extra-files":
+        (page_dir / "warnings.json").write_text("[]", encoding="utf-8")
     send({"type": "completed", "execution_id": command["execution_id"]})

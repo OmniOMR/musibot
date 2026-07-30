@@ -38,7 +38,9 @@ POST /musicorpus-pages/{id}/file-urls
 
 Executing *Pipelines*:
 
-- `POST /musicorpus-pages/{id}/pipeline-executions` Starts a new pipeline execution, with its name and version specified in the payload. Returns that pipeline's representation, including its ID (integer, autoincrementing per page).
+- `POST /musicorpus-pages/{id}/pipeline-executions` Starts a new pipeline execution, with its name and version specified in the payload, alongside an `input` array naming the *Files* of the page to process. Returns that pipeline's representation, including its ID (integer, autoincrementing per page).
+
+`input` is required and has no default: this service keeps no list of a page's *Files*, and uploads travel over presigned URLs, so it knows which it minted and never which were used. It is checked against the *Pipeline's* announced *Signature* and a list that does not fit is a `400` — see [Signatures](signatures.md).
 - `GET /musicorpus-pages/{id}/pipeline-executions` Returns the list of completed and running pipeline executions for this page.
 - `GET /musicorpus-pages/{id}/pipeline-executions/{id}` Returns information about a specific pipeline execution.
 

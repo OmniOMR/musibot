@@ -60,7 +60,7 @@ classDiagram
 
 **ImplicitPipeline** models and pipelines have the same interface - they modify a *MusicorpusPage*. The semantic difference is that a *User* sees a *Pipeline*, but is unaware of any *Models*. To make *Models* testable without having to write *Pipelines* that simply call that *Model*, Musibot creates an *ImplicitPipeline* for each *Model* it knows about. *User* can than invoke that *ImplicitPipeline* in order to execute (and use/test) just that single *Model* in isolation. The *ImplicitPipeline* has the same name and version as the *Model* behind it. For this reason, *Model* names should not conflict with *Pipeline* names. *ImplicitPipelines* are orchestrated by the *Web API* service, which means that they allow the Musibot system to function without *Orchestrators*. *Orchestrators* are only needed when more complex pipelines need to be introduced.
 
-**Signature** is the I/O signature of a *Pipeline* or a *Model*. It specifies the set of *Files* it expects to have as an input and the set of *Files* it will produce as output.
+**Signature** is the I/O signature of a *Pipeline* or a *Model*. It does not name *Files*; it describes which sets of *Files* are admissible as input and which will be produced as output — `Staves/{s}/image.jpg` rather than a `Staves/7/image.jpg` that would be true of one page and wrong for the next. Which *Files* one run is actually about is named by the *PipelineExecution* that requests it. See [Signatures](signatures.md).
 
 
 ## FAQ

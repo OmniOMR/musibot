@@ -85,6 +85,8 @@ A *Worker Head* announces the single *Model* it runs:
 
 A *Worker* provides exactly one *Model*, so `provider.name` is that *Model's* name and the payload is a single `model` object rather than a list.
 
+The entries of a `signature` are patterns rather than *File* paths — the one above has no slots in it, as every page-level *Model* has, but a staff-level one announces `"input": ["Staves/{s}/image.jpg"]`. See [Signatures](signatures.md) for what they may say and what is checked against them.
+
 
 ### Goodbye
 
@@ -184,6 +186,5 @@ A warning is a property of the system as a whole, not of any single *Pipeline*, 
 
 ## Open questions
 
-- **Signature representation** — the examples above spell a *Signature* as flat lists of *File* paths, which cannot express "one `transcription.musicxml` per staff, however many staves there are". The [Musicorpus Specification](https://github.com/OmniOMR/musicorpus/blob/main/docs/musicorpus-specification/musicorpus-specification.md) has the vocabulary for this; the wire shape needs to be settled when *Signature* is implemented in `core`.
 - **Loose version selection** — the listing is exact name-plus-version. Whether a *User* may ask for "the newest `1.x` of `hello-world`" is an open question shared with [Writing pipelines](writing-pipelines.md), and would be resolved against this listing.
 - **Announcement authenticity** — anything able to reach RabbitMQ can announce anything, including a *Pipeline* name that shadows a real one. Musibot's internal network is trusted today; if that changes, this exchange is one of the places it shows.

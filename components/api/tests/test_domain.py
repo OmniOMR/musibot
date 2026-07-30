@@ -34,8 +34,8 @@ def test_executions_are_numbered_per_page_from_one() -> None:
     repository = MusicorpusPageRepository()
     page = repository.create(owner="alice")
 
-    first = page.add_execution("hello-world", "1.0.0", {})
-    second = page.add_execution("hello-world", "1.0.0", {})
+    first = page.add_execution("hello-world", "1.0.0", ["image.jpg"], {})
+    second = page.add_execution("hello-world", "1.0.0", ["image.jpg"], {})
 
     assert (first.execution_id, second.execution_id) == (1, 2)
     assert page.executions[1] is first
@@ -46,8 +46,8 @@ def test_execution_numbering_does_not_reset_across_pages() -> None:
     page_a = repository.create(owner="alice")
     page_b = repository.create(owner="alice")
 
-    page_a.add_execution("p", "1", {})
-    execution_on_b = page_b.add_execution("p", "1", {})
+    page_a.add_execution("p", "1", ["image.jpg"], {})
+    execution_on_b = page_b.add_execution("p", "1", ["image.jpg"], {})
 
     # Each page numbers from 1 independently.
     assert execution_on_b.execution_id == 1
@@ -59,7 +59,7 @@ def test_a_page_reports_a_running_execution() -> None:
 
     assert not page.has_running_execution()
 
-    execution = page.add_execution("p", "1", {})
+    execution = page.add_execution("p", "1", ["image.jpg"], {})
     assert page.has_running_execution()
 
     execution.state = "completed"

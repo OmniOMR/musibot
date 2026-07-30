@@ -90,6 +90,16 @@ def test_paths_that_could_escape_their_page_are_refused(file_path: str) -> None:
         validate_file_path(file_path)
 
 
+@pytest.mark.parametrize(
+    "file_path", ["Staves/{s}/image.jpg", "Staves/{}/image.jpg", "image{.jpg", "image}.jpg"]
+)
+def test_braces_are_refused_because_a_signature_spells_its_slots_with_them(file_path: str) -> None:
+    # See `musibot.core.patterns`: a page that could hold a file named
+    # `Staves/{s}/image.jpg` would force every pattern to carry an escape.
+    with pytest.raises(InvalidFilePath):
+        validate_file_path(file_path)
+
+
 def test_an_over_long_path_is_refused() -> None:
     with pytest.raises(InvalidFilePath):
         validate_file_path("a" * (MAX_FILE_PATH_LENGTH + 1))

@@ -27,6 +27,7 @@ from musibot.core.discovery import (
     Goodbye,
     ModelDescription,
     OrchestratorAnnouncement,
+    PipelineDescription,
     Signature,
     WorkerAnnouncement,
     parse_discovery_message,
@@ -197,16 +198,24 @@ class ProviderRegistry:
                 return announcement.model
         return None
 
-    def provides_pipeline(self, name: str, version: str) -> bool:
-        """Whether some *Orchestrator* announces this *Pipeline*."""
+    def find_pipeline(self, name: str, version: str) -> PipelineDescription | None:
+        """The *Pipeline* announced under this name and version, if one is live.
+
+        Any live announcer of it will do, as with `find_model` — and where two
+        of them disagree about the *Signature*, the listing says so as a
+        `conflicting-signatures` warning rather than this picking a winner.
+        """
         for entry in self.live_entries():
             announcement = entry.announcement
-            if isinstance(announcement, OrchestratorAnnouncement) and any(
-                pipeline.name == name and pipeline.version == version
-                for pipeline in announcement.pipelines
-            ):
-                return True
-        return False
+            if isinstance(announcement, OrchestratorAnnouncement):
+                for pipeline in announcement.pipelines:
+                    if pipeline.name == name and pipeline.version == version:
+                        return pipeline
+        return None
+
+    def provides_pipeline(self, name: str, version: str) -> bool:
+        """Whether some *Orchestrator* announces this *Pipeline*."""
+        return self.find_pipeline(name, version) is not None
 
     def listing(self) -> Listing:
         """Derive the *Pipeline* listing, *ImplicitPipelines* and warnings included."""

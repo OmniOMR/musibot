@@ -30,6 +30,10 @@ class PipelineExecution:
     execution_id: int
     pipeline_name: str
     pipeline_version: str
+    # The *Files* the *User* asked to have processed. Kept so that the execution
+    # can be reported back with what it was about, which is otherwise only
+    # visible in the message that started it.
+    input: list[str]
     parameters: dict[str, object]
     state: ExecutionState = "running"
     error: str | None = None
@@ -52,6 +56,7 @@ class MusicorpusPage:
         self,
         pipeline_name: str,
         pipeline_version: str,
+        input: list[str],
         parameters: dict[str, object],
     ) -> PipelineExecution:
         """Create the next execution for this page and return it."""
@@ -59,6 +64,7 @@ class MusicorpusPage:
             execution_id=self._next_execution_id,
             pipeline_name=pipeline_name,
             pipeline_version=pipeline_version,
+            input=input,
             parameters=parameters,
         )
         self.executions[execution.execution_id] = execution

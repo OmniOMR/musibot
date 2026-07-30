@@ -86,7 +86,14 @@ class FakeStorage:
         (self._pages_dir / page_id).mkdir(parents=True, exist_ok=True)
 
     def snapshot(self, page_id: str) -> dict[str, FileStamp]:
-        return {}
+        page_dir = self._pages_dir / page_id
+        if not page_dir.is_dir():
+            return {}
+        return {
+            str(path.relative_to(page_dir)): (path.stat().st_size, path.stat().st_mtime_ns)
+            for path in page_dir.rglob("*")
+            if path.is_file()
+        }
 
     def upload_changes(self, page_id: str, before: dict[str, FileStamp]) -> list[str]:
         page_dir = self._pages_dir / page_id
@@ -218,6 +225,52 @@ def test_an_execution_stages_runs_uploads_and_reports(tmp_path: Path) -> None:
             [message] = [m for m in publisher.published if m.exchange == DEFAULT_EXCHANGE]
             assert message.routing_key == REPLY_QUEUE
             assert message.correlation_id == "8Lw4tR6yBn1c"
+        finally:
+            await model.shutdown()
+
+    run(scenario)
+
+
+def test_a_model_that_did_not_write_its_promised_output_fails(tmp_path: Path) -> None:
+    """A *Model* reporting success while writing nowhere its *Signature* names.
+
+    Otherwise this is a *Pipeline* that succeeds and produces nothing, which is
+    a miserable thing to debug.
+    """
+
+    async def scenario() -> None:
+        publisher = FakePublisher()
+        storage = FakeStorage(tmp_path)
+        worker, model = await a_worker(tmp_path, publisher, storage, mode="wrong-path")
+        try:
+            await worker.handle_start(work(a_start()))
+
+            [result] = publisher.results()
+            assert result.state == "failed"
+            assert "'out.txt'" in (result.error or "")
+
+            # The misplaced file still went back: refusing to upload it would
+            # hide the evidence of what the model actually did.
+            assert storage.uploaded == ["typo.txt"]
+        finally:
+            await model.shutdown()
+
+    run(scenario)
+
+
+def test_files_the_signature_does_not_declare_are_still_uploaded(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        publisher = FakePublisher()
+        storage = FakeStorage(tmp_path)
+        worker, model = await a_worker(tmp_path, publisher, storage, mode="extra-files")
+        try:
+            await worker.handle_start(work(a_start()))
+
+            [result] = publisher.results()
+            assert result.state == "completed"
+            # `warnings.json` is undeclared, and kept anyway — filtering it away
+            # would swallow a diagnostic file somebody meant to keep.
+            assert sorted(storage.uploaded) == ["out.txt", "warnings.json"]
         finally:
             await model.shutdown()
 

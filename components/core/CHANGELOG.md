@@ -7,7 +7,12 @@ This component is the wire contract, so a breaking change here ripples to the `a
 
 ## Unreleased
 
-Nothing yet.
+
+### Changed
+
+- **`Signature` entries are patterns, not *File* paths** (`musibot.core.patterns`). A whole path segment may now be a slot — `{}` and `{name}` for one subdivision instance, `{*}` and `{*name}` for all of them, with a repeated name binding two slots to the same instance or the same set — so that a *Model* can declare `Staves/{s}/image.jpg` and mean it of any page. The wire shape is unchanged, still two arrays of strings, and every *Signature* written before this is still valid. `Signature.check_input` decides whether an input list fits, and `Signature.promised_output_files` names the outputs it guarantees outright. See [Signatures](../../docs/signatures.md).
+- **`PipelineExecutionStart` carries `input`** — the *Files* the execution is about. It never had one: an explicit *Pipeline* was dispatched with a page ID and nothing saying what to operate on. Unlike `ModelExecutionStart.input` it does not bound what may be read.
+- **`{` and `}` are refused in a *File* path** (`validate_file_path`), so a pattern never needs an escape and a page can never hold a file whose name looks like a slot. Nothing in the Musicorpus Specification names a file this way.
 
 
 ## 0.1.0 — 2026-07-27

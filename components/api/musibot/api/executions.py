@@ -98,6 +98,7 @@ class ExecutionService:
         page: MusicorpusPage,
         pipeline_name: str,
         pipeline_version: str,
+        input: list[str],
         parameters: dict[str, object],
     ) -> PipelineExecution:
         """Create a *Pipeline Execution* and dispatch it.
@@ -107,17 +108,32 @@ class ExecutionService:
         The explicit one wins if both exist, matching the listing, where the
         colliding *ImplicitPipeline* is the one suppressed.
 
-        Raises :class:`PipelineNotFound` if nothing announces either.
+        `input` names the *Files* to process and comes from the *User* — this
+        service does not invent it, and does not expand a *Signature* to arrive
+        at it (see `docs/signatures.md`). It is checked against the announced
+        *Signature* here, where a mismatch can still be answered with a `400`
+        rather than becoming a puzzling failure several hops away.
+
+        Raises :class:`PipelineNotFound` if nothing announces either, and
+        `musibot.core.patterns.SignatureMismatch` if the input list does not fit.
         """
-        model = None
-        if not self._registry.provides_pipeline(pipeline_name, pipeline_version):
+        model: ModelDescription | None = None
+        pipeline = self._registry.find_pipeline(pipeline_name, pipeline_version)
+        if pipeline is not None:
+            signature = pipeline.signature
+        else:
             model = self._registry.find_model(pipeline_name, pipeline_version)
             if model is None:
                 raise PipelineNotFound(
                     f"No pipeline or model {pipeline_name!r} version {pipeline_version!r}"
                 )
+            signature = model.signature
 
-        execution = page.add_execution(pipeline_name, pipeline_version, parameters)
+        # Checked before the execution exists, so that a rejected request leaves
+        # nothing behind on the page.
+        signature.check_input(input)
+
+        execution = page.add_execution(pipeline_name, pipeline_version, input, parameters)
 
         if model is None:
             await self._dispatch_to_orchestrator(page, execution, parameters)
@@ -192,6 +208,7 @@ class ExecutionService:
             pipeline=NameAndVersion(
                 name=execution.pipeline_name, version=execution.pipeline_version
             ),
+            input=list(execution.input),
             parameters=parameters,
             timeout_seconds=self._timeout_seconds,
         )
@@ -224,9 +241,10 @@ class ExecutionService:
             model_execution_id=model_execution_id,
             model=NameAndVersion(name=model.name, version=model.version),
             page_id=page.page_id,
-            # The Model is the source of truth for what it reads, so its
-            # announced signature is what the Worker Head is told to stage.
-            input=list(model.signature.input),
+            # The Files the User named, passed straight through: an
+            # ImplicitPipeline is the Model and nothing more, so there is
+            # nothing here to expand or fan out (see `docs/signatures.md`).
+            input=list(execution.input),
             parameters=parameters,
             pipeline_execution=PipelineExecutionRef(
                 page_id=page.page_id, execution_id=execution.execution_id

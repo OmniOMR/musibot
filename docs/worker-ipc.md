@@ -153,6 +153,10 @@ Sent once, at startup, before anything else. It tells the *Worker Head* what it 
 
 The *Model* is the source of truth for its own name, version and signature — it is the thing that knows them — and the *Worker Head* republishes them when it announces itself (see [Discovery](discovery.md)). This also gates readiness usefully: the *Worker Head* consumes no work from RabbitMQ and announces nothing until its model has said `ready`, so a model that spends a minute loading its weights is simply not offered work during that minute.
 
+The `signature` says which sets of *Files* the *Model* admits, not which *Files* any one execution will bring: a staff-level model announces `"input": ["Staves/{s}/image.jpg"]` and is handed one staff at a time. [Signatures](signatures.md) defines the notation, and is worth reading before writing one — in particular, a *Model* that treats instances independently should declare one at a time and set `supports_batching`, rather than asking for all of them with `{*}`, because only the former can report a single bad staff as a single failure.
+
+The *Worker Head* fails an execution whose *Model* reported success without writing an output the `signature` promises outright — that is, a slot-free, non-optional entry. Files the *Model* writes that the `signature` does not describe are still sent back, and logged.
+
 
 ### `execute` — head → model
 
@@ -168,7 +172,7 @@ One model execution. The *Model* reads the input files, does its work, writes it
 }
 ```
 
-`execution_id` is opaque to the *Model* and is echoed back in its report. `parameters` is a free-form JSON object, model-specific, passed through from the *Pipeline* that requested the execution — this is where a pipeline hands a model its knobs.
+`execution_id` is opaque to the *Model* and is echoed back in its report. `input` is the *Files* the *Worker Head* has staged, and the only ones it has: they are concrete paths, chosen by whoever requested the execution, never the patterns of the `signature`. A *Model* whose signature is `Staves/{s}/image.jpg` therefore reads `Staves/7/image.jpg` here and writes its output beside it. `parameters` is a free-form JSON object, model-specific, passed through from the *Pipeline* that requested the execution — this is where a pipeline hands a model its knobs.
 
 
 ### `execute-batch` — head → model
@@ -282,5 +286,4 @@ for line in commands:
 
 - **Detecting what changed** — the *Worker Head* uploads the files a command created or changed, but the detection mechanism (modification time against content hash) and whether *deletions* propagate are unspecified. See [Rough edges](rough-edges.md).
 - **Per-model timeouts** — a *Model* that hangs currently ties up its *Worker* until the *Pipeline Execution* times out from above. A watchdog on the head side would bound this.
-- **Signature representation** — as in [Discovery](discovery.md), flat lists of file paths cannot express "one file per staff, however many staves there are".
 - **Weights and warm-up** — nothing in the protocol says when a *Model* may load its weights. Doing it before `ready` is the obvious choice, and delays announcement rather than delaying work, but a model with several large variants may want something more gradual.

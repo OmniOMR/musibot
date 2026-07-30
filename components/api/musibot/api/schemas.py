@@ -20,6 +20,7 @@ class PipelineExecutionView(BaseModel):
     execution_id: int
     pipeline_name: str
     pipeline_version: str
+    input: list[str]
     state: str
     error: str | None
 
@@ -29,6 +30,7 @@ class PipelineExecutionView(BaseModel):
             execution_id=execution.execution_id,
             pipeline_name=execution.pipeline_name,
             pipeline_version=execution.pipeline_version,
+            input=list(execution.input),
             state=execution.state,
             error=execution.error,
         )
@@ -56,10 +58,18 @@ class MusicorpusPageView(BaseModel):
 
 
 class CreatePipelineExecutionRequest(BaseModel):
-    """The *Pipeline* to run against a page, and any parameters for it."""
+    """The *Pipeline* to run against a page, the *Files* to run it over, and any
+    parameters for it.
+
+    `input` has no default. The service cannot supply one honestly — it holds no
+    list of a page's *Files*, and uploads travel over presigned URLs, so it
+    knows which it minted and never which were used. The *User* knows, having
+    just uploaded them, and the python client fills it in from what it sent.
+    """
 
     pipeline_name: str
     pipeline_version: str
+    input: list[PageFilePath]
     parameters: dict[str, object] = {}
 
 

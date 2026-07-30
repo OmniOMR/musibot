@@ -249,6 +249,17 @@ def test_a_pipeline_is_found_by_name_and_version() -> None:
     assert registry.provides_pipeline("hello-world", "2.0.0") is False
 
 
+def test_a_pipeline_is_found_with_its_signature_so_input_can_be_checked() -> None:
+    registry = ProviderRegistry()
+    registry.record(orchestrator_announcement())
+
+    found = registry.find_pipeline("hello-world", "1.0.0")
+
+    assert found is not None
+    assert found.signature.input == ["image.jpg"]
+    assert registry.find_pipeline("hello-world", "2.0.0") is None
+
+
 def test_an_expired_model_is_no_longer_found() -> None:
     clock = FakeClock()
     registry = ProviderRegistry(ttl_seconds=30, clock=clock)
