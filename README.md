@@ -31,6 +31,7 @@ Design:
 - [Repository layout](docs/repository-layout.md)
 - [User request dataflow](docs/user-request-dataflow.md)
 - [Discovery](docs/discovery.md)
+- [Signatures](docs/signatures.md)
 
 Interfaces:
 
