@@ -22,7 +22,7 @@ from pathlib import Path
 
 
 client = MusibotClient(
-    musibot_api_url="http://localhost:8080/api",
+    musibot_api_url="http://localhost:8080",
     api_token="secret"
 )
 
@@ -34,8 +34,8 @@ output_files = client.process_page(
         # "Staves/1/image.jpg": ...
         # "Staves/2/transcription.musicxml": ...
     },
-    pipeline=("hello-world", "1.0.0"),
-    output = {  # a set, not a dict
+    pipeline=("hello-model", "1.0.0"),
+    output={  # a set, not a dict
         "transcription.musicxml"
 
         # optionally any other Musicorpus files
