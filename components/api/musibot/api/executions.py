@@ -100,6 +100,7 @@ class ExecutionService:
         pipeline_version: str,
         input: list[str],
         parameters: dict[str, object],
+        timeout_seconds: float | None = None,
     ) -> PipelineExecution:
         """Create a *Pipeline Execution* and dispatch it.
 
@@ -114,9 +115,15 @@ class ExecutionService:
         *Signature* here, where a mismatch can still be answered with a `400`
         rather than becoming a puzzling failure several hops away.
 
+        `timeout_seconds` overrides this service's general deadline for this one
+        execution — how a public caller gets a shorter one (see `public.py`).
+        The same value governs the timer, the message and the queue expiration,
+        so nothing outlives what the caller was promised.
+
         Raises :class:`PipelineNotFound` if nothing announces either, and
         `musibot.core.patterns.SignatureMismatch` if the input list does not fit.
         """
+        timeout = self._timeout_seconds if timeout_seconds is None else timeout_seconds
         model: ModelDescription | None = None
         pipeline = self._registry.find_pipeline(pipeline_name, pipeline_version)
         if pipeline is not None:
@@ -136,11 +143,11 @@ class ExecutionService:
         execution = page.add_execution(pipeline_name, pipeline_version, input, parameters)
 
         if model is None:
-            await self._dispatch_to_orchestrator(page, execution, parameters)
+            await self._dispatch_to_orchestrator(page, execution, parameters, timeout)
         else:
-            await self._dispatch_to_worker(page, execution, model, parameters)
+            await self._dispatch_to_worker(page, execution, model, parameters, timeout)
 
-        self._arm_timeout(page.page_id, execution.execution_id)
+        self._arm_timeout(page.page_id, execution.execution_id, timeout)
 
         logger.info(
             "Started %spipeline execution %s/%d (%s %s)",
@@ -200,6 +207,7 @@ class ExecutionService:
         page: MusicorpusPage,
         execution: PipelineExecution,
         parameters: dict[str, object],
+        timeout: float,
     ) -> None:
         """Ask whichever *Orchestrator* provides this *Pipeline* to run it."""
         start = PipelineExecutionStart(
@@ -210,7 +218,7 @@ class ExecutionService:
             ),
             input=list(execution.input),
             parameters=parameters,
-            timeout_seconds=self._timeout_seconds,
+            timeout_seconds=timeout,
         )
         await self._publisher.publish(
             PIPELINE_EXECUTIONS_EXCHANGE,
@@ -218,7 +226,7 @@ class ExecutionService:
             serialize_message(start),
             # The request expires if it reaches a queue nobody is draining, so a
             # pipeline no orchestrator provides fails by timeout, not by hanging.
-            expiration_seconds=self._timeout_seconds,
+            expiration_seconds=timeout,
         )
 
     async def _dispatch_to_worker(
@@ -227,6 +235,7 @@ class ExecutionService:
         execution: PipelineExecution,
         model: ModelDescription,
         parameters: dict[str, object],
+        timeout: float,
     ) -> None:
         """Run an *ImplicitPipeline*: one *Model*, requested by this service.
 
@@ -249,13 +258,13 @@ class ExecutionService:
             pipeline_execution=PipelineExecutionRef(
                 page_id=page.page_id, execution_id=execution.execution_id
             ),
-            timeout_seconds=self._timeout_seconds,
+            timeout_seconds=timeout,
         )
         await self._publisher.publish(
             MODEL_EXECUTIONS_EXCHANGE,
             routing_key(model.name, model.version),
             serialize_message(start),
-            expiration_seconds=self._timeout_seconds,
+            expiration_seconds=timeout,
             reply_to=self.reply_queue,
             correlation_id=model_execution_id,
         )
@@ -278,14 +287,14 @@ class ExecutionService:
         execution.error = error
         logger.info("Pipeline execution %s/%d %s", page_id, execution_id, execution.state)
 
-    def _arm_timeout(self, page_id: str, execution_id: int) -> None:
-        timer = asyncio.create_task(self._expire_after_timeout(page_id, execution_id))
+    def _arm_timeout(self, page_id: str, execution_id: int, timeout: float) -> None:
+        timer = asyncio.create_task(self._expire_after_timeout(page_id, execution_id, timeout))
         self._timers.add(timer)
         timer.add_done_callback(self._timers.discard)
 
-    async def _expire_after_timeout(self, page_id: str, execution_id: int) -> None:
+    async def _expire_after_timeout(self, page_id: str, execution_id: int, timeout: float) -> None:
         try:
-            await asyncio.sleep(self._timeout_seconds)
+            await asyncio.sleep(timeout)
         except asyncio.CancelledError:
             return
 
@@ -299,7 +308,7 @@ class ExecutionService:
             return  # it finished in time
 
         execution.state = "failed"
-        execution.error = f"Pipeline execution timed out after {self._timeout_seconds:.0f}s"
+        execution.error = f"Pipeline execution timed out after {timeout:.0f}s"
         logger.warning("Pipeline execution %s/%d timed out", page_id, execution_id)
         await self._publish_terminate(page_id, execution_id)
 

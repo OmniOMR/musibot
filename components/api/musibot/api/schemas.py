@@ -57,6 +57,18 @@ class MusicorpusPageView(BaseModel):
         )
 
 
+class PublicSessionView(BaseModel):
+    """A freshly minted *Public Session*.
+
+    `expires_at` is fixed at minting and is not extended by use: when it passes,
+    the session's pages are freed and every request answers `401`, which the Web
+    UI shows as an expired session rather than papering over.
+    """
+
+    token: str
+    expires_at: datetime
+
+
 class CreatePipelineExecutionRequest(BaseModel):
     """The *Pipeline* to run against a page, the *Files* to run it over, and any
     parameters for it.

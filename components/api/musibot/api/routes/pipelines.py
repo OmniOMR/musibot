@@ -9,7 +9,7 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
-from musibot.api.auth import current_user
+from musibot.api.auth import Caller, current_user
 from musibot.api.discovery import ProviderRegistry
 from musibot.api.schemas import PipelineListingResponse
 
@@ -26,7 +26,7 @@ def get_registry(request: Request) -> ProviderRegistry:
 @router.get("")
 def list_pipelines(
     registry: ProviderRegistry = Depends(get_registry),
-    user: str = Depends(current_user),
+    caller: Caller = Depends(current_user),
 ) -> PipelineListingResponse:
     """Every *Pipeline* currently known, *ImplicitPipelines* included."""
     return PipelineListingResponse.of(registry.listing())
@@ -36,7 +36,7 @@ def list_pipelines(
 def list_pipeline_versions(
     pipeline_name: str,
     registry: ProviderRegistry = Depends(get_registry),
-    user: str = Depends(current_user),
+    caller: Caller = Depends(current_user),
 ) -> PipelineListingResponse:
     """The versions of one *Pipeline* — what a *User* checks for a newer one."""
     listing = registry.listing()

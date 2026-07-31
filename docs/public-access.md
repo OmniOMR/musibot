@@ -1,6 +1,6 @@
 # Public access
 
-How the *General public* — the third and lowest-priority [class of user](who-are-the-users.md) — is let onto a running Musibot instance without endangering the first two. Not yet implemented; this page is the design.
+How the *General public* — the third and lowest-priority [class of user](who-are-the-users.md) — is let onto a running Musibot instance without endangering the first two.
 
 *Libraries* and *Model developers* hold API tokens issued to them by hand (see [HTTP API](http-api.md)). The public holds nothing: they follow a link to the *Web UI*, upload a scan and expect it to work. That is the whole point of the public tier — it exists so the team can demo the pipeline at a conference and email a URL to a prospective partner.
 
@@ -80,7 +80,9 @@ A *Public Session* expires. When it does, its *Musicorpus Pages* are deleted and
 
 This is load-bearing, not housekeeping. A public user closes the browser tab and never deletes anything, so without expiry the public storage pool fills once and never drains — and a public tier that is permanently full is a worse outcome than the starvation being defended against, since it is permanent rather than transient and costs an attacker nothing to maintain. Expiry is what makes a global storage cap a limit rather than a countdown.
 
-A sweep runs periodically and drops sessions past their deadline. A page with a running *Pipeline Execution* is left for the next sweep rather than being deleted underneath its execution; with a public execution timeout far shorter than the session lifetime, this only ever defers a page by one sweep. Requests bearing an expired token get the same `401` as an unknown one. The *Web UI* surfaces that rather than papering over it — it says the session expired and asks the user to reload, which mints a fresh one. Re-minting silently would be worse: the pages went with the session, so the app would quietly appear to have lost the user's work instead of explaining why the page list is empty.
+A sweep runs periodically and drops sessions past their deadline. A page with a running *Pipeline Execution* is left for the next sweep rather than being deleted underneath its execution; with a public execution timeout far shorter than the session lifetime, this only ever defers a page by one sweep. Requests bearing an expired token get the same `401` as an unknown one — and once the sweep has collected the session, an expired token *is* an unknown one, so a client cannot tell them apart and must not try. The contract is simply: a `401` while holding a *Public Session* means that session is over.
+
+The *Web UI* surfaces that rather than papering over it — it says the session expired and asks the user to reload, which mints a fresh one. Re-minting silently would be worse: the pages went with the session, so the app would quietly appear to have lost the user's work instead of explaining why the page list is empty.
 
 
 ## Measuring storage
@@ -103,14 +105,15 @@ Note that this cap **applies to everyone**. nginx cannot tell a *Library* from a
 
 All of it is configuration on the `api` service ([Service configuration](service-configuration.md)), because none of it is a value two Musibot processes have to agree on — it is a policy of one deployment, and the right numbers are not knowable in advance. An instance with no public tier at all is a normal deployment, so the feature is off unless switched on.
 
-| Field | Suggested | Meaning |
+| Field | Default | Meaning |
 | --- | --- | --- |
 | `public_access_enabled` | `false` | Whether `POST /public-sessions` mints anything at all. |
 | `public_max_concurrent_executions` | `2` | The global cap `K`. Size it against the *Worker* fleet. |
 | `public_storage_quota_bytes` | `5 GiB` | Global public storage, out of MinIO's ~20 GiB. |
 | `public_session_ttl_seconds` | `3600` | How long a *Public Session* and its pages live. |
-| `public_execution_timeout_seconds` | `60` | Public ceiling, below the general `pipeline_execution_timeout_seconds`. |
+| `public_sweep_interval_seconds` | `60` | How often sessions are expired and storage re-measured. |
+| `public_execution_timeout_seconds` | `60` | Public ceiling, applied on top of `pipeline_execution_timeout_seconds` — the lower of the two wins. |
 | `public_max_pages_per_session` | `5` | Courtesy cap. |
 | `public_max_concurrent_executions_per_session` | `1` | Courtesy cap. |
 
-The defaults are a starting point to be revised once there is traffic to look at, not a tuned configuration.
+The defaults are a starting point to be revised once there is traffic to look at, not a tuned configuration. Each sweep logs what the public tier is holding, which is how a deployment learns what its quota buys in pages.

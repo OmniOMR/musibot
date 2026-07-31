@@ -46,13 +46,19 @@ def test_no_endpoint_asks_for_the_authorization_header_by_hand(client: TestClien
 def test_every_authenticated_endpoint_requires_the_scheme(client: TestClient) -> None:
     paths = spec(client)["paths"]
 
+    # The only two endpoints that may be reached without a token: a liveness
+    # check nothing may gate, and the endpoint a token is obtained from.
+    open_paths = {"/health", "/public-sessions"}
+
     for path, operations in paths.items():
-        if path == "/health":
-            continue  # deliberately open: a liveness check nothing may gate
+        if path in open_paths:
+            continue
         for method, operation in operations.items():
             assert operation.get("security") == [{"API token": []}], f"{method.upper()} {path}"
 
-    assert "security" not in paths["/health"]["get"]
+    for path in open_paths:
+        for operation in paths[path].values():
+            assert "security" not in operation, path
 
 
 def test_the_three_ways_of_getting_a_token_wrong_are_told_apart(client: TestClient) -> None:

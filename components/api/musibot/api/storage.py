@@ -38,6 +38,8 @@ class StoragePort(Protocol):
 
     def wipe_bucket(self) -> None: ...
 
+    def page_sizes(self) -> dict[str, int]: ...
+
 
 def _make_client(endpoint_url: str, settings: S3Settings) -> S3Client:
     return boto3.client(
@@ -96,6 +98,31 @@ class Storage:
         """
         logger.info("Wiping the MinIO bucket %r clean at startup", self._bucket)
         self._delete_prefix("")
+
+    def page_sizes(self) -> dict[str, int]:
+        """How many bytes each page's folder holds, keyed by page ID.
+
+        This service is never in the byte-path — *Files* travel over presigned
+        URLs straight to MinIO — so the only way it can know what a page weighs
+        is to ask afterwards. Hence one listing of the whole bucket rather than
+        one per page: the caller (the public storage quota) wants the total
+        across many pages, and a listing per page would be a request each.
+
+        Keys that are not under a page folder are ignored rather than guessed
+        at; nothing writes them, and a stray object is not a page's weight.
+        """
+        sizes: dict[str, int] = {}
+        paginator = self._client.get_paginator("list_objects_v2")
+
+        for listing in paginator.paginate(Bucket=self._bucket):
+            for entry in listing.get("Contents", []):
+                key = entry.get("Key")
+                if key is None or "/" not in key:
+                    continue
+                page_id = key.split("/", 1)[0]
+                sizes[page_id] = sizes.get(page_id, 0) + entry.get("Size", 0)
+
+        return sizes
 
     def _delete_prefix(self, prefix: str) -> None:
         paginator = self._client.get_paginator("list_objects_v2")

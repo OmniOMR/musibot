@@ -5,9 +5,10 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from musibot.core import SignatureMismatch
 
-from musibot.api.auth import get_owned_page
+from musibot.api.auth import Caller, current_user, get_owned_page
 from musibot.api.domain import MusicorpusPage
 from musibot.api.executions import ExecutionService, PipelineNotFound
+from musibot.api.public import PublicAccess
 from musibot.api.schemas import CreatePipelineExecutionRequest, PipelineExecutionView
 
 logger = logging.getLogger(__name__)
@@ -30,13 +31,27 @@ def get_executions(request: Request) -> ExecutionService:
 @router.post("/{page_id}/pipeline-executions", status_code=status.HTTP_201_CREATED)
 async def start_pipeline_execution(
     body: CreatePipelineExecutionRequest,
+    request: Request,
     page: MusicorpusPage = Depends(get_owned_page),
+    caller: Caller = Depends(current_user),
     executions: ExecutionService = Depends(get_executions),
 ) -> PipelineExecutionView:
     """Start a *Pipeline Execution* against this page."""
+    public: PublicAccess = request.app.state.public_access
+
+    # The check and the execution it admits are one step: `start` creates the
+    # execution before it awaits anything, so no second request can slip between
+    # counting and counted and take the same slot twice.
+    public.check_may_start_execution(caller.identity)
+
     try:
         execution = await executions.start(
-            page, body.pipeline_name, body.pipeline_version, body.input, body.parameters
+            page,
+            body.pipeline_name,
+            body.pipeline_version,
+            body.input,
+            body.parameters,
+            timeout_seconds=public.execution_timeout(caller.identity),
         )
     except PipelineNotFound as error:
         # The listing may lag a fresh deployment by a few seconds, but a typo in

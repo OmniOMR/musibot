@@ -61,6 +61,29 @@ def test_deleting_a_page_removes_only_its_files(storage: Storage) -> None:
     assert httpx.get(storage.presign("pageBBBBBBBB", "image.jpg", "get", 300)).status_code == 200
 
 
+def test_page_sizes_totals_each_page_folder(storage: Storage) -> None:
+    """What the public storage quota is read against.
+
+    Worth exercising against a real MinIO rather than a fake: the sizes come
+    from parsing object keys back into page IDs, and only a real listing proves
+    that nested paths are charged to the page they belong to rather than to a
+    folder of their own.
+    """
+    httpx.put(storage.presign("pageAAAAAAAA", "image.jpg", "put", 300), content=b"12345")
+    httpx.put(storage.presign("pageAAAAAAAA", "Staves/1/crop.jpg", "put", 300), content=b"678")
+    httpx.put(storage.presign("pageBBBBBBBB", "image.jpg", "put", 300), content=b"b")
+
+    assert storage.page_sizes() == {"pageAAAAAAAA": 8, "pageBBBBBBBB": 1}
+
+
+def test_page_sizes_forgets_a_deleted_page(storage: Storage) -> None:
+    httpx.put(storage.presign("pageAAAAAAAA", "image.jpg", "put", 300), content=b"12345")
+
+    storage.delete_page("pageAAAAAAAA")
+
+    assert storage.page_sizes() == {}
+
+
 def test_wipe_empties_the_bucket(storage: Storage) -> None:
     httpx.put(storage.presign("pageAAAAAAAA", "image.jpg", "put", 300), content=b"a")
 

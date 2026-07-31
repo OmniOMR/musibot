@@ -8,6 +8,12 @@ Versions are semver on the **HTTP API**, which is the outward contract for `pyth
 ## Unreleased
 
 
+### Added
+
+- **Public access for the *General public*.** `POST /public-sessions` mints a throwaway bearer token — free and unlimited, and worth nothing on its own: it exists so two members of the public do not see each other's *Musicorpus Pages*. What protects the instance is a pair of global caps on the public tier as one pool (concurrent *Pipeline Executions*, and total MinIO storage), plus a shorter execution deadline; together they bound how much of the *Worker* fleet the public can occupy, which is what keeps a *Library's* batch run from being starved. Sessions expire and their pages are freed with them. Off unless `public_access_enabled` is set, and *Library* tokens are exempt from every cap. See [Public access](../../docs/public-access.md).
+- **`429` and `507` on the public tier.** A public caller over the concurrency caps gets `429` with `Retry-After`; over the page cap, `429` without one, since deleting a page helps and waiting does not; with public storage full, `507`. An expired session gets `401`, as an unknown token does; while the session has not yet been swept the message says so, but a client must not branch on that — holding a public session and receiving any `401` is what means "expired, start a new one".
+
+
 ### Fixed
 
 - **The API token is now an OpenAPI security scheme**, so the interactive docs at `/docs` carry an **Authorize** button and the token is entered once for the whole page. It had been declared as a plain `Authorization` header parameter, which put a field to retype on every endpoint and did not authenticate requests made from the docs.
@@ -41,7 +47,6 @@ First prototype release: enough of the service to take a page from upload to res
 ### Not yet implemented
 
 - **SSE progress stream.** The Web UI and `python-client` poll for execution status; the live stream is not built yet.
-- **General-public access.** Only *Library* API tokens exist. The design is settled — throwaway *Public Session* tokens for page segregation, with the public tier capped as one pool — see [Public access](../../docs/public-access.md).
 - **Horizontal scaling.** State lives in-process by design. Moving it to Redis is the known path if it is ever needed.
 
 

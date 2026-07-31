@@ -18,6 +18,20 @@ from musibot.core import generate_page_id
 
 ExecutionState = Literal["running", "completed", "failed"]
 
+PUBLIC_IDENTITY_PREFIX = "public:"
+"""What a *General public* identity is spelled with.
+
+*Library* users and public sessions share one identity space — the `owner` of a
+page is a string either way, which is what lets the ownership check below serve
+both without a second code path. The prefix is what tells them apart, and
+`config.py` refuses to load a configured user wearing it.
+"""
+
+
+def is_public_identity(identity: str) -> bool:
+    """Whether this identity belongs to a *Public Session* rather than a *User*."""
+    return identity.startswith(PUBLIC_IDENTITY_PREFIX)
+
 
 @dataclass
 class PipelineExecution:
@@ -125,3 +139,14 @@ class MusicorpusPageRepository:
     def count(self) -> int:
         with self._lock:
             return len(self._pages)
+
+    def all_pages(self) -> list[MusicorpusPage]:
+        """A snapshot of every page, for the callers that must scan them all.
+
+        The public caps count pages and running executions per owner, and the
+        public sweep looks for pages of expired sessions; both are linear scans
+        over a store holding at most a few hundred entries, which is cheaper
+        than maintaining an index that could fall out of step with this dict.
+        """
+        with self._lock:
+            return list(self._pages.values())

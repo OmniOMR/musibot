@@ -8,7 +8,7 @@ The Web API: the python service that serves the public HTTP API. Every external 
 - Public HTTP API — upload a page, start a pipeline execution, poll or stream status, download the result.
 - SSE stream to the Web UI for live progress.
 - Holds all system state, which is entirely ephemeral (a page is received, processed within minutes, downloaded, then forgotten).
-- Authenticates *Library* users via API tokens kept in a config file, and the *General public* via throwaway session tokens capped as one pool — see [Public access](../../docs/public-access.md). *(The public tier is designed but not implemented.)*
+- Authenticates *Library* users via API tokens kept in a config file, and the *General public* via throwaway session tokens capped as one pool — see [Public access](../../docs/public-access.md).
 
 It deliberately does **not** run orchestration or any other heavy logic, so that it can stay a single non-scaled instance. Pipelines are executed by *Orchestrators*, with one exception: an *ImplicitPipeline* — the single-*Model* pipeline Musibot offers for every *Model* it knows about — is dispatched by this service directly to a *Worker*, since there is no pipeline logic to run. That is what lets Musibot execute *Models* with no *Orchestrator* deployed at all, and it costs this service only a message and a reply queue.
 

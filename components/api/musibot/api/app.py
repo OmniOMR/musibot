@@ -1,5 +1,6 @@
 """The FastAPI application: assembling the `api` service."""
 
+import asyncio
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -25,7 +26,8 @@ from musibot.api.discovery import ProviderRegistry
 from musibot.api.domain import MusicorpusPageRepository
 from musibot.api.executions import ExecutionService
 from musibot.api.messaging import Broker, MessagePublisher
-from musibot.api.routes import executions, files, pages, pipelines
+from musibot.api.public import PublicAccess
+from musibot.api.routes import executions, files, pages, pipelines, public_sessions
 from musibot.api.storage import StoragePort
 
 logger = logging.getLogger(__name__)
@@ -59,9 +61,26 @@ def create_app(
         if publisher is not None
         else None
     )
+    # Built whether or not the tier is switched on: with it off nothing mints
+    # and no session resolves, so the wiring needs no branch and the routes can
+    # ask it about every caller.
+    public_access = PublicAccess(
+        settings, repository, executions=execution_service, storage=storage
+    )
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        sweeper: asyncio.Task[None] | None = None
+        if settings.public_access_enabled:
+            logger.info(
+                "Public access is on: at most %d concurrent execution(s) and %.1f GiB "
+                "across the whole public tier, sessions lasting %.0fs",
+                settings.public_max_concurrent_executions,
+                settings.public_storage_quota_bytes / 1024**3,
+                settings.public_session_ttl_seconds,
+            )
+            sweeper = asyncio.create_task(public_access.run_sweeps())
+
         if broker is not None:
             await broker.connect()
             # Declare the exchanges the service publishes to, then subscribe the
@@ -97,6 +116,8 @@ def create_app(
             await broker.declare_exchange(DISCOVERY_PROBE_EXCHANGE, ExchangeType.FANOUT)
             await broker.publish(DISCOVERY_PROBE_EXCHANGE, "", serialize_message(Probe()))
         yield
+        if sweeper is not None:
+            sweeper.cancel()
         if execution_service is not None:
             await execution_service.shutdown()
         if broker is not None:
@@ -110,7 +131,9 @@ def create_app(
     app.state.providers = providers
     app.state.storage = storage
     app.state.executions = execution_service
+    app.state.public_access = public_access
 
+    app.include_router(public_sessions.router)
     app.include_router(pages.router)
     app.include_router(files.router)
     app.include_router(executions.router)

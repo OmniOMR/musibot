@@ -15,15 +15,24 @@ class FakeStorage:
     def __init__(self) -> None:
         self.deleted_pages: list[str] = []
         self.wiped = False
+        # What each page is pretending to hold. A test sets this to stand in for
+        # bytes a *User* uploaded straight to MinIO, which this service never
+        # sees and can only measure afterwards.
+        self.sizes: dict[str, int] = {}
 
     def presign(self, page_id: str, file_path: str, method: HttpMethod, ttl_seconds: float) -> str:
         return f"https://minio.test/{page_id}/{file_path}?method={method}&ttl={int(ttl_seconds)}"
 
     def delete_page(self, page_id: str) -> None:
         self.deleted_pages.append(page_id)
+        self.sizes.pop(page_id, None)
 
     def wipe_bucket(self) -> None:
         self.wiped = True
+        self.sizes.clear()
+
+    def page_sizes(self) -> dict[str, int]:
+        return dict(self.sizes)
 
 
 @dataclass
