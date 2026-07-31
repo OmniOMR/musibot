@@ -9,7 +9,7 @@ How a running Musibot system is assembled from its components. Full narrative in
 
 Planned:
 
-- **nginx config** — public entry point; serves the Web UI bundle and reverse-proxies the Web API.
+- **nginx config** — public entry point; serves the Web UI bundle and reverse-proxies the Web API and the MinIO S3 endpoint. Also where the single-upload size limit lives (see [Public access](../docs/public-access.md)).
 - **deployment notes** — installing the core services onto Ubuntu VMs, and deploying models (clone + venv + worker head).
 
 

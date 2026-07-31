@@ -41,7 +41,7 @@ First prototype release: enough of the service to take a page from upload to res
 ### Not yet implemented
 
 - **SSE progress stream.** The Web UI and `python-client` poll for execution status; the live stream is not built yet.
-- **General-public authentication.** Only *Library* API tokens exist; a token per client IP with rate limiting is the candidate.
+- **General-public access.** Only *Library* API tokens exist. The design is settled — throwaway *Public Session* tokens for page segregation, with the public tier capped as one pool — see [Public access](../../docs/public-access.md).
 - **Horizontal scaling.** State lives in-process by design. Moving it to Redis is the known path if it is ever needed.
 
 

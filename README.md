@@ -32,6 +32,7 @@ Design:
 - [User request dataflow](docs/user-request-dataflow.md)
 - [Discovery](docs/discovery.md)
 - [Signatures](docs/signatures.md)
+- [Public access](docs/public-access.md)
 
 Interfaces:
 

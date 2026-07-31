@@ -7,7 +7,7 @@ This page provides a high-level overview of the HTTP API that the `api` service 
 
 Requests to the API are authorized with a bearer token, given to the *User* manually. Existing known API tokens are listed in the `api` service's configuration file. Each *User* is identified by their token and may only access *Musicorpus Pages* they created; requests touching another user's page are rejected.
 
-Authentication for the *general public* is not yet designed or implemented. Will be added later.
+The *general public* gets a token too, minted on demand by `POST /public-sessions` and carried in the same header. It identifies a *Public Session* rather than a person — minting is free and unlimited, and it exists only so that two members of the public do not see each other's pages. What protects the instance is a set of caps on the public tier as a whole, not on any one session; see [Public access](public-access.md). Not yet implemented.
 
 The token is declared as an OpenAPI security scheme, so the interactive docs the service serves at `/docs` carry an **Authorize** button: paste the token once there and every request from that page is authenticated, which is the quickest way to try the API by hand.
 

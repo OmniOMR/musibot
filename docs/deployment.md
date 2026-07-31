@@ -44,4 +44,6 @@ Deploying an *Orchestrator* is similar to deploying a *Model*, except much simpl
 
 ## API tokens
 
-*Library* users authenticate with API tokens. For now these are kept in a configuration file on the *Web API* host; a database may be introduced later if the config file becomes untenable. Deliberately, no database is introduced just for this one piece of data while everything else is ephemeral. Authentication for *General public* users is still an open question — one candidate is issuing a token per client IP address and rate-limiting on it.
+*Library* users authenticate with API tokens. For now these are kept in a configuration file on the *Web API* host; a database may be introduced later if the config file becomes untenable. Deliberately, no database is introduced just for this one piece of data while everything else is ephemeral.
+
+*General public* users are not identified at all — they mint a throwaway session token that segregates their pages from each other, and the instance is protected by caps on the public tier as a whole (concurrent executions, total storage, session lifetime). This is a deployment-level concern: the caps are `api` service configuration, and the upload size limit is nginx configuration. See [Public access](public-access.md).
