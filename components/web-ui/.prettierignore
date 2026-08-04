@@ -1,0 +1,16 @@
+node_modules/
+dist/
+package-lock.json
+
+# Editor configuration, indented to four spaces to match every other
+# component's .vscode/ and the workspace file at the repository root. Prettier
+# would reindent it to two and single this component out.
+.vscode/
+
+# Markdown is formatted by hand, to the conventions in the repository's
+# CLAUDE.md: two blank lines before a heading, and paragraphs written as one
+# long line rather than hard-wrapped. Prettier disagrees with both — it
+# collapses the blank lines and, with proseWrap left alone, reflows nothing
+# while still rewriting list markers and emphasis. Keeping it away from .md
+# is simpler than fighting it.
+*.md

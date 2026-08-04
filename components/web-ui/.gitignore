@@ -1,0 +1,11 @@
+# node
+node_modules/
+dist/
+
+# vite / vitest
+.vite/
+coverage/
+
+# local overrides of the build-time configuration
+.env.local
+.env.*.local

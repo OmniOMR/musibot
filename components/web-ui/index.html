@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!--
+      This file is the whole of Musibot's SEO surface, and it is static on
+      purpose.
+
+      Musibot is a plain SPA with no server-side rendering, so a crawler that
+      does not run JavaScript sees exactly what is written here and nothing
+      more. Googlebot does run JavaScript and will index the rendered app, but
+      the scrapers behind link previews — Slack, LinkedIn, X, Mastodon,
+      Facebook — do not. Since the point of the public tier is a URL that gets
+      emailed around and shown at conferences, those previews matter at least
+      as much as ranking, and they are built from the tags below.
+
+      So: keep the description, the Open Graph block and the <noscript> body
+      truthful and in sync with what the app actually says. They are not
+      decoration.
+
+      __MUSIBOT_PUBLIC_URL__ is substituted at build time by the plugin in
+      vite.config.ts, which is also where the default lives. Override it per
+      deployment with the MUSIBOT_PUBLIC_URL environment variable.
+    -->
+
+    <title>Musibot — read sheet music with Optical Music Recognition</title>
+    <meta
+      name="description"
+      content="Musibot reads scans and photographs of sheet music and returns machine-readable MusicXML. An Optical Music Recognition service from Charles University."
+    />
+    <link rel="canonical" href="__MUSIBOT_PUBLIC_URL__/" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Musibot" />
+    <meta property="og:title" content="Musibot — read sheet music with Optical Music Recognition" />
+    <meta
+      property="og:description"
+      content="Upload a scan or photograph of a page of sheet music and get machine-readable MusicXML back. An Optical Music Recognition service from Charles University."
+    />
+    <meta property="og:url" content="__MUSIBOT_PUBLIC_URL__/" />
+    <meta property="og:image" content="__MUSIBOT_PUBLIC_URL__/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Musibot: sheet music in, MusicXML out." />
+    <meta property="og:locale" content="en_GB" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta
+      name="twitter:title"
+      content="Musibot — read sheet music with Optical Music Recognition"
+    />
+    <meta
+      name="twitter:description"
+      content="Upload a scan or photograph of a page of sheet music and get machine-readable MusicXML back."
+    />
+    <meta name="twitter:image" content="__MUSIBOT_PUBLIC_URL__/og-image.png" />
+
+    <meta name="theme-color" content="#faf9f4" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    <!--
+      The page background, set before any JavaScript runs. Without this the
+      browser paints white first and the ivory arrives with the bundle, which
+      reads as a flash on every cold load.
+    -->
+    <style>
+      html {
+        background-color: #faf9f4;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div id="root"></div>
+
+    <noscript>
+      <h1>Musibot</h1>
+      <p>
+        Musibot reads sheet music. Upload a scan or a photograph of a page of music notation and
+        Musibot returns it in a machine-readable format such as MusicXML, using Optical Music
+        Recognition models developed at Charles University.
+      </p>
+      <p>
+        Libraries and memory institutions can process whole collections through the HTTP API or the
+        python client; researchers can deploy their own recognition models to a running instance.
+      </p>
+      <p>
+        The interactive version of this page needs JavaScript. Please enable it, or use the HTTP API
+        directly.
+      </p>
+    </noscript>
+
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

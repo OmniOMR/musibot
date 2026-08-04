@@ -1,0 +1,9 @@
+{
+    // The repository root has its own recommendations, for the python side.
+    // These are this component's: it shares none of that toolchain.
+    "recommendations": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "vitest.explorer"
+    ]
+}

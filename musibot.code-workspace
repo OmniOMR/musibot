@@ -32,13 +32,19 @@
         {
             "name": "hello-model",
             "path": "components/models/hello-model"
+        },
+        {
+            "name": "web-ui",
+            "path": "components/web-ui"
         }
     ],
     "settings": {
         "search.exclude": {
             "**/.venv": true,
             "**/__pycache__": true,
-            "**/*.egg-info": true
+            "**/*.egg-info": true,
+            "**/node_modules": true,
+            "**/dist": true
         }
     }
 }

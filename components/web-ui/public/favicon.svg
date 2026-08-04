@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Musibot">
+  <!-- Placeholder mark: a quarter note on the page ivory, in cardinal red.
+       Replace once there is a real logo. -->
+  <rect width="32" height="32" rx="6" fill="#faf9f4" />
+  <path
+    d="M20 5v14.2a5 5 0 1 1-2.6-4.38V8.6l-6.8 1.7v11.9a5 5 0 1 1-2.6-4.38V8.3z"
+    fill="#d22d40"
+  />
+</svg>

@@ -1,0 +1,49 @@
+{
+    // Settings for this component when it is a workspace folder of its own,
+    // which is what `musibot.code-workspace` at the repository root arranges.
+    //
+    // This is the odd one out among the components: there is no python here,
+    // so none of the interpreter, mypy or pytest settings the others carry
+    // apply. The shape is the same though — the component's own tools, run
+    // from the component's own dependencies.
+
+    // Run eslint and prettier from node_modules rather than from whatever the
+    // extensions bundle, so the editor and `npm run lint` / `npm run format`
+    // agree. This is the same reasoning as `importStrategy: fromEnvironment`
+    // on the python side.
+    "eslint.runtime": "node",
+    "eslint.workingDirectories": [{ "mode": "auto" }],
+    "prettier.prettierPath": "./node_modules/prettier",
+
+    // Formatting is prettier's job and linting is eslint's — together they
+    // cover what ruff does alone for the python components.
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true,
+
+    "[markdown]": {
+        // Markdown is written by hand to the conventions in the repository's
+        // CLAUDE.md (two blank lines before a heading, paragraphs unwrapped),
+        // which prettier does not share. Matches .prettierignore.
+        "editor.formatOnSave": false
+    },
+
+    // Use the TypeScript version this component depends on, not the one
+    // bundled with VS Code, so the editor reports what `npm run build`
+    // reports. VS Code asks for confirmation the first time.
+    "typescript.tsdk": "node_modules/typescript/lib",
+    "typescript.enablePromptUseWorkspaceTsdk": true,
+
+    // Import paths that survive a file being moved.
+    "javascript.preferences.importModuleSpecifier": "shortest",
+    "typescript.preferences.importModuleSpecifier": "shortest",
+    "typescript.updateImportsOnFileMove.enabled": "always",
+
+    "search.exclude": {
+        "**/node_modules": true,
+        "**/dist": true
+    },
+
+    "files.exclude": {
+        "**/.vite": true
+    }
+}
