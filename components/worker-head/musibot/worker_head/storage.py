@@ -18,7 +18,7 @@ from typing import Protocol
 import boto3
 from botocore.client import Config
 from botocore.exceptions import ClientError
-from musibot.core import S3Settings, local_path, object_key, validate_page_id
+from musibot.core import S3Settings, local_path, validate_page_id
 from musibot.core.page import InvalidFilePath
 from mypy_boto3_s3.client import S3Client
 
@@ -60,6 +60,12 @@ class PageStorage:
     def __init__(self, settings: S3Settings, pages_dir: Path):
         self._bucket = settings.s3_bucket
         self._pages_dir = pages_dir
+
+        # Where in the bucket this deployment keeps its pages. It must match
+        # what the `api` service was configured with: a Worker Head rooted
+        # differently would stage nothing and upload where nobody looks, and
+        # both halves of that fail quietly.
+        self._layout = settings.object_layout
         self._client: S3Client = boto3.client(
             "s3",
             endpoint_url=settings.s3_endpoint_url,
@@ -80,7 +86,7 @@ class PageStorage:
             destination = self._local_path(page_id, file_path)
             destination.parent.mkdir(parents=True, exist_ok=True)
 
-            key = object_key(page_id, file_path)
+            key = self._layout.key(page_id, file_path)
             try:
                 self._client.download_file(self._bucket, key, str(destination))
             except ClientError as error:
@@ -138,7 +144,9 @@ class PageStorage:
                 )
                 continue
 
-            self._client.upload_file(str(source), self._bucket, object_key(page_id, file_path))
+            self._client.upload_file(
+                str(source), self._bucket, self._layout.key(page_id, file_path)
+            )
             uploaded.append(file_path)
 
         return uploaded

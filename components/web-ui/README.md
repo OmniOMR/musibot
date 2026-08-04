@@ -68,10 +68,12 @@ If more pages ever need indexing, the upgrade path is build-time prerendering (`
 `index.html` needs absolute URLs, so the origin is baked in at build time. The default is a deliberately obvious placeholder:
 
 ```bash
-MUSIBOT_PUBLIC_URL=https://musibot.example.cz npm run build
+MUSIBOT_PUBLIC_ORIGIN=https://quest.ms.mff.cuni.cz npm run build
 ```
 
-Getting this wrong means link previews and search results that point at somebody else's host.
+That is the origin and nothing more — where under it Musibot sits is the base path below, and the two are joined rather than written out twice. Getting it wrong means link previews and search results that point at somebody else's host.
+
+One limitation that comes with being served under a path prefix: crawlers read `robots.txt` from the origin root and nowhere else, so while Musibot lives at `https://<host>/musibot/` the generated `robots.txt` is served but never consulted — the rules that apply are whoever owns the hostname's. It is emitted anyway, because it costs nothing and becomes correct the day Musibot gets a host of its own. The sitemap does not share the limitation: it is found by being submitted or linked, not by its location.
 
 
 ## Theme
@@ -99,11 +101,20 @@ Fonts are **Source Serif 4** (headings) and **Source Sans 3** (body), bundled vi
 Component / unit tests with Vitest and Testing Library; optionally end-to-end (Playwright) against a compose server. `src/theme/theme.test.tsx` guards the two theme decisions above, since both are invisible until they break.
 
 
+## The base path
+
+Musibot is published at `https://<host>/musibot/`, not at the root of a host, and every URL this bundle emits has to account for it. That is one setting — `base` in `vite.config.ts` — from which Vite rewrites the asset and favicon URLs and which it hands to the app as `import.meta.env.BASE_URL`.
+
+**Nothing in `src/` may write an absolute path.** A literal `/api/pipelines` resolves against the origin root and misses the deployment entirely, while working perfectly in every test. `src/api/base.ts` builds the API's address from `BASE_URL` instead, and everything that talks to the API must go through it.
+
+The dev server serves under the same base, so the development address is http://localhost:5173/musibot/ and the proxy strips the same prefix nginx does. That is deliberate: a base path that only applies to production is a base path that is only tested in production.
+
+
 ## Deployment
 
-Built to a static bundle and served by nginx, which also reverse-proxies the Web API behind the same origin — see [docs/deployment.md](../../docs/deployment.md).
+Built to a static bundle and served by nginx, which also reverse-proxies the Web API behind the same origin — see [deploy/nginx/musibot.conf.template](../../deploy/nginx/musibot.conf.template) and [docs/deployment.md](../../docs/deployment.md).
 
-The instance is reached under a path prefix (`/musibot/`), not at the root of a host, which the build has to know about: asset URLs, the SPA fallback and the router all need it. That is not settled here yet — see the nginx configuration work in `deploy/`.
+The local stack can serve the built bundle under the real prefix, behind a stand-in for the university proxy: `npm run build`, then `docker compose up -d` in `deploy/`, then browse http://localhost:8000/musibot/. See [deploy/README.md](../../deploy/README.md).
 
 
 ## Versioning

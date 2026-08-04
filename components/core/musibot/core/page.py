@@ -10,6 +10,7 @@ file path within a page may look like, and how the two map onto object storage
 and onto the local mirror a *Worker Head* hands to its *Model*.
 """
 
+from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Annotated
 
@@ -122,6 +123,60 @@ def object_prefix(page_id: str) -> str:
 def object_key(page_id: str, file_path: str) -> str:
     """The object storage key of one *File* of one page."""
     return object_prefix(page_id) + validate_file_path(file_path)
+
+
+@dataclass(frozen=True)
+class ObjectLayout:
+    """Where a page's *Files* actually sit in the bucket.
+
+    The two functions above give the layout Musibot means: a page is a folder
+    and a *File* is a key inside it. This adds where that layout is rooted,
+    which is a deployment concern rather than a domain one — and one that no
+    part of the system may disagree about, since a key written under one
+    rooting is invisible to a reader using another. So every service builds
+    its keys through the layout its `S3Settings` hands it, and never by
+    calling `object_key` against storage directly.
+
+    The rooting exists because of how Musibot is published. A deployment
+    served under a path prefix has to fuse that prefix into its storage names:
+    presigned URLs are SigV4 and the signature covers the request path, while
+    MinIO reads the first path segment of what it receives as the bucket. For
+    a public URL of `https://host/musibot/s3/<key>`, the only arrangement
+    where the signature validates *and* the bucket resolves is a bucket named
+    `musibot` holding keys under `s3/`. Nothing may rewrite the path in
+    between, so the names have to absorb it. See `docs/deployment.md`.
+
+    `key_prefix` is empty in development, where MinIO is reached directly.
+    """
+
+    key_prefix: str = ""
+
+    def key(self, page_id: str, file_path: str) -> str:
+        """The stored key of one *File* of one page."""
+        return self.key_prefix + object_key(page_id, file_path)
+
+    def prefix(self, page_id: str | None = None) -> str:
+        """The stored prefix of one page, or of everything Musibot owns."""
+        if page_id is None:
+            return self.key_prefix
+        return self.key_prefix + object_prefix(page_id)
+
+    def page_id_of(self, key: str) -> str | None:
+        """The page a stored key belongs to, or `None` if it is under none.
+
+        A listing answers with stored keys, so reading a page ID back out of
+        one has to undo the rooting first. Keys that are not under a page
+        folder are not guessed at — nothing writes them, and a stray object is
+        not a page's weight.
+        """
+        if not key.startswith(self.key_prefix):
+            return None
+
+        page_id, separator, _ = key[len(self.key_prefix) :].partition("/")
+        if not separator or not is_well_formed_id(page_id):
+            return None
+
+        return page_id
 
 
 def local_path(pages_dir: Path, page_id: str, file_path: str) -> Path:

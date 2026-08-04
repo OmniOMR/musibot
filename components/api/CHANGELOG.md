@@ -14,6 +14,10 @@ Versions are semver on the **HTTP API**, which is the outward contract for `pyth
 - **`429` and `507` on the public tier.** A public caller over the concurrency caps gets `429` with `Retry-After`; over the page cap, `429` without one, since deleting a page helps and waiting does not; with public storage full, `507`. An expired session gets `401`, as an unknown token does; while the session has not yet been swept the message says so, but a client must not branch on that — holding a public session and receiving any `401` is what means "expired, start a new one".
 
 
+- **`root_path`**, for serving the API under a path prefix. nginx strips the prefix before a request arrives, so routing is unaffected and no ordinary call notices — but the interactive docs at `/docs` are a page that fetches its own schema, and without this they ask the origin root for it and render empty. An instance published at `https://example.org/musibot/api/` sets `root_path=/musibot/api`.
+- **`s3_key_prefix` support** (from `core`), so pages can be stored under a prefix within the bucket. Presigning, deleting a page, wiping at startup and measuring the public storage quota all honour it. Two of those changed shape rather than gaining a setting: the startup wipe now empties only what Musibot owns rather than the whole bucket, because a deployment behind a URL prefix has to name its bucket after that prefix and the bucket is therefore the deployment's rather than this service's; and the quota's per-page accounting undoes the rooting before reading a page ID out of a key, which if forgotten would charge every page's bytes to one page named after the prefix. See [Deployment](../../docs/deployment.md).
+
+
 ### Fixed
 
 - **The API token is now an OpenAPI security scheme**, so the interactive docs at `/docs` carry an **Authorize** button and the token is entered once for the whole page. It had been declared as a plain `Authorization` header parameter, which put a field to retype on every endpoint and did not authenticate requests made from the docs.

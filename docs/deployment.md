@@ -7,6 +7,55 @@ Musibot is deployed by manual installation onto plain Ubuntu VMs rather than thr
 
 nginx, the *Web API*, *MinIO* and *RabbitMQ* are installed onto the VM(s). nginx is the only public entry point; it serves the *Web UI* bundle, reverse-proxies the *Web API*, and also reverse-proxies the *MinIO* S3 endpoint — clients upload and download *Files* directly to MinIO via presigned URLs, and those URLs must point at a publicly reachable MinIO address. Services find each other through *RabbitMQ* and *MinIO* connection credentials, so the exact per-VM arrangement stays flexible.
 
+The nginx configuration is [`deploy/nginx/musibot.conf.template`](../deploy/nginx/musibot.conf.template), and the local development stack runs that same file behind a stand-in for the university proxy, so the arrangement below can be exercised without deploying it. See [deploy/README.md](../deploy/README.md).
+
+
+## Published under a path prefix
+
+Musibot is not served at the root of a host. The university proxy publishes it at `https://quest.ms.mff.cuni.cz/musibot/` and forwards to the VM on port 80, **stripping the `/musibot` prefix on the way**. Five things sit under that prefix:
+
+| Public URL | Behind it |
+| --- | --- |
+| `https://<host>/musibot/` | the *Web UI* |
+| `https://<host>/musibot/api/` | the *Web API* |
+| `https://<host>/musibot/s3/` | the *MinIO* S3 endpoint |
+| `https://<host>/musibot/minio/` | the *MinIO* Console |
+| `https://<host>/musibot/rabbitmq/` | the *RabbitMQ* management UI |
+
+The last two are operators' tools rather than public ones. They are published here because the deployment is reached only through this one prefix and there is nowhere else to put them, which is worth remembering: the only thing in front of either is its own login.
+
+Most of what the prefix costs is ordinary. nginx matches unprefixed paths because the prefix is already gone; the *Web UI* is built with a matching `base` so its asset URLs resolve; and the `api` service is given `root_path=/musibot/api` so its interactive docs can build URLs a browser can follow.
+
+The two consoles need more care, and in opposite directions. Both are told the public path they are published at — `MINIO_BROWSER_REDIRECT_URL` and RabbitMQ's `management.path_prefix` — because both build their own links from it. But they then differ on what they expect to be *asked* for:
+
+- **The MinIO Console** serves its assets at its own root and uses a `<base>` tag to point the browser back under the prefix. nginx must therefore **strip** `/minio/`. Forward it and every stylesheet and script comes back as `200 text/html`, because the Console answers unrecognised paths with its SPA fallback instead of a 404, and the page renders unstyled.
+- **The RabbitMQ management UI** expects the whole public path, so nginx **puts the prefix back**. Its UI also moves under the prefix on its direct port as a result.
+
+Both are "supports a base path", and they mean different things by it. Worth checking which kind a console is rather than assuming.
+
+The S3 endpoint is the one that is not ordinary, and it constrains how *Files* are stored.
+
+
+### Why the bucket is named after the URL
+
+Presigned URLs are SigV4, and a SigV4 signature covers the request path and the `Host` header. MinIO recomputes the signature from what it receives, so what it receives has to be, byte for byte, what was signed — and what was signed is the public URL, `https://<host>/musibot/s3/<key>`. Meanwhile MinIO reads the first segment of any path it receives as the bucket name, and its S3 API has no base-path option (only the Console does).
+
+Those two facts leave exactly one arrangement that works. If nginx strips `/musibot/s3/` so the bucket resolves, the path no longer matches what was signed and MinIO answers `SignatureDoesNotMatch`. If it forwards the path whole, MinIO looks for a bucket named `musibot`. So: **name the bucket `musibot` and store every key under `s3/`.** The whole public path then parses correctly as bucket plus key, with nothing rewritten:
+
+```
+https://quest.ms.mff.cuni.cz/musibot/s3/aBcD12345678/image.jpg
+                             └─────┘ └──────────────────────┘
+                             bucket   key
+```
+
+nginx puts back the `/musibot` the university proxy took off, and forces the `Host` header to the signed hostname — it is set literally rather than from `$host`, because the signature does not care where a value came from, only what it is, and a literal cannot drift.
+
+In configuration that is `s3_bucket=musibot`, `s3_key_prefix=s3/`, and an `s3_public_url` that is the **origin only** (`https://quest.ms.mff.cuni.cz`) — the prefix is carried by the bucket and key names, not by the URL. `core` routes every key through `ObjectLayout` so that the `api` service and every *Worker Head* cannot disagree about the rooting; two services rooted differently would fail silently, one writing where the other does not look.
+
+This fuses a storage name to a URL, which is not a nice thing to do. The alternatives are worse: switching object stores does not help, because the constraint is SigV4 and path-style addressing rather than MinIO; and putting a signature-validating proxy in front means reimplementing SigV4, where a subtle bug is either a security hole or an intermittent 403.
+
+A deployment served at the root of its own host needs none of this: leave `s3_key_prefix` empty and the bucket is an ordinary bucket again.
+
 
 ## Deploying a model
 

@@ -8,6 +8,11 @@ Versions are semver on the **IPC contract** between the worker head and a *Model
 ## Unreleased
 
 
+### Changed
+
+- **Object keys are built through `core`'s `ObjectLayout`**, so a worker head honours the deployment's `s3_key_prefix` when staging a *Model's* inputs and uploading what it produced. A head configured with a different prefix from the `api` service stages nothing and uploads where nobody looks, and neither half raises — so the prefix belongs in the same configuration file as the rest of the MinIO connection. Nothing changes for a deployment that leaves it empty. See [Service configuration](../../docs/service-configuration.md).
+
+
 ### Fixed
 
 - **Ctrl+C no longer looks like a model crash.** The *Model* is now started in a session of its own, so a terminal's `SIGINT` — which the kernel delivers to the whole foreground process group — reaches the head and not the model. The head then stops its model deliberately, over the protocol, exactly as it does when signalled on its own. Before this, a head started from a shell and stopped with Ctrl+C logged `The model exited unexpectedly with code -2` and failed whatever was in flight, because the model was killed before the head had asked it to stop.

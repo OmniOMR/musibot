@@ -35,7 +35,9 @@ The config file is a dotenv file: flat `KEY=value` lines, holding the same keys 
 MUSIBOT_RABBIT_HOST=rabbit.internal
 MUSIBOT_RABBIT_PASSWORD=hunter2
 MUSIBOT_S3_ENDPOINT_URL=http://minio.internal:9000
-MUSIBOT_S3_PUBLIC_URL=https://musibot.example.org/s3
+MUSIBOT_S3_PUBLIC_URL=https://musibot.example.org
+MUSIBOT_S3_BUCKET=musibot
+MUSIBOT_S3_KEY_PREFIX=s3/
 ```
 
 Musibot's configuration is broad but shallow — a handful of connection settings and a few knobs per service — so a flat format costs nothing, and using the same keys for the file and the environment means there is only one name to learn per setting. It also falls out neatly on the deployment side: Musibot is installed onto plain Ubuntu VMs under systemd (see [Deployment](deployment.md)), and a systemd unit can load a dotenv file directly with `EnvironmentFile=`, so the same file works whether it is passed to the process or handed to the service manager.
@@ -73,8 +75,11 @@ Connection settings are identical across services and live in `core` as mixins, 
 | `s3_secret_key` | `password` | |
 | `s3_bucket` | `musibot-pages` | The single global bucket holding all *Musicorpus Pages*. |
 | `s3_public_url` | *(same as `s3_endpoint_url`)* | The address presigned URLs are issued against. |
+| `s3_key_prefix` | *(empty)* | A prefix every object key is stored under. |
 
 `s3_public_url` exists because the `api` service issues presigned URLs that a *User* redeems from the public internet, while the service itself reaches MinIO over the internal network — the two addresses differ in production, where MinIO is reverse-proxied by nginx (see [Deployment](deployment.md)). Only the `api` service needs it; it defaults to the internal endpoint, which is correct for development, where they are the same address.
+
+`s3_bucket` and `s3_key_prefix` are ordinary-looking settings that are anything but, once a deployment is published under a path prefix rather than at the root of a host. A SigV4 signature covers the request path, and MinIO reads the first segment of the path it receives as the bucket, so an instance served at `https://host/musibot/s3/` has to be configured with `s3_bucket=musibot` and `s3_key_prefix=s3/` — the storage names absorb the URL, because nothing is allowed to rewrite the path. [Deployment](deployment.md) sets out why there is no alternative. Unlike `s3_public_url`, these are needed by **every** service that touches *Files*: two services rooted differently do not fail, they simply stop seeing each other's objects.
 
 **Logging** — `log_level` and `log_format`, needed by every service.
 

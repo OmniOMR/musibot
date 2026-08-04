@@ -123,7 +123,18 @@ def create_app(
         if broker is not None:
             await broker.close()
 
-    app = FastAPI(title="Musibot API", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(
+        title="Musibot API",
+        version="0.1.0",
+        lifespan=lifespan,
+        # Where this service is mounted as the world addresses it, which is
+        # not where it serves. Behind nginx the API answers on /musibot/api
+        # while the routes below are still declared at the root, and FastAPI
+        # builds the URLs in its interactive docs from this. Left unset, /docs
+        # renders a page that then asks for /openapi.json at the wrong place
+        # and shows nothing. Empty in development, where there is no prefix.
+        root_path=settings.root_path,
+    )
 
     app.state.settings = settings
     app.state.api_tokens = settings.load_api_tokens()

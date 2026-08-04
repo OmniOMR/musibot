@@ -15,7 +15,7 @@ from typing import Literal, Protocol
 
 import boto3
 from botocore.client import Config
-from musibot.core import S3Settings, object_key, object_prefix
+from musibot.core import S3Settings
 from mypy_boto3_s3.client import S3Client
 
 logger = logging.getLogger(__name__)
@@ -60,6 +60,11 @@ class Storage:
     def __init__(self, settings: S3Settings):
         self._bucket = settings.s3_bucket
 
+        # Where in the bucket this deployment keeps its pages. Every key below
+        # is built through this rather than from `object_key` directly, so
+        # that this service and the Worker Heads cannot disagree about it.
+        self._layout = settings.object_layout
+
         # One client for the service's own calls, over the internal endpoint.
         self._client = _make_client(settings.s3_endpoint_url, settings)
 
@@ -75,7 +80,7 @@ class Storage:
         operation = "get_object" if method == "get" else "put_object"
         return self._signing_client.generate_presigned_url(
             operation,
-            Params={"Bucket": self._bucket, "Key": object_key(page_id, file_path)},
+            Params={"Bucket": self._bucket, "Key": self._layout.key(page_id, file_path)},
             ExpiresIn=int(ttl_seconds),
         )
 
@@ -86,18 +91,28 @@ class Storage:
         after this returns, which the next startup wipe will clear. See
         `docs/rough-edges.md`.
         """
-        self._delete_prefix(object_prefix(page_id))
+        self._delete_prefix(self._layout.prefix(page_id))
 
     def wipe_bucket(self) -> None:
-        """Empty the whole bucket. Run once at service startup.
+        """Empty everything Musibot owns. Run once at service startup.
 
         The service's state is ephemeral and rebuilt empty on every start, so
         any objects MinIO still holds are stale — from a previous run that
         crashed before cleaning up — and must not be mistaken for a live page's
         *Files*.
+
+        It deletes under the configured key prefix rather than the whole
+        bucket. Where that prefix is empty the two are the same thing, but a
+        deployment behind a path prefix shares its bucket name with the
+        deployment's URL (see `ObjectLayout`), and a bucket that might hold
+        something other than pages is not one to empty wholesale on startup.
         """
-        logger.info("Wiping the MinIO bucket %r clean at startup", self._bucket)
-        self._delete_prefix("")
+        logger.info(
+            "Wiping the MinIO bucket %r clean at startup, under %r",
+            self._bucket,
+            self._layout.prefix(),
+        )
+        self._delete_prefix(self._layout.prefix())
 
     def page_sizes(self) -> dict[str, int]:
         """How many bytes each page's folder holds, keyed by page ID.
@@ -114,12 +129,19 @@ class Storage:
         sizes: dict[str, int] = {}
         paginator = self._client.get_paginator("list_objects_v2")
 
-        for listing in paginator.paginate(Bucket=self._bucket):
+        for listing in paginator.paginate(Bucket=self._bucket, Prefix=self._layout.prefix()):
             for entry in listing.get("Contents", []):
                 key = entry.get("Key")
-                if key is None or "/" not in key:
+                if key is None:
                     continue
-                page_id = key.split("/", 1)[0]
+                # A listing answers with stored keys, so the rooting has to be
+                # undone before a page ID can be read out of one. Getting this
+                # wrong is quiet: every key would look like it belonged to a
+                # single page named after the prefix, and the public storage
+                # quota would be measured against that.
+                page_id = self._layout.page_id_of(key)
+                if page_id is None:
+                    continue
                 sizes[page_id] = sizes.get(page_id, 0) + entry.get("Size", 0)
 
         return sizes

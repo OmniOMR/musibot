@@ -12,6 +12,7 @@ from musibot.core.page import (
     PageId,
     generate_page_id,
     local_path,
+    ObjectLayout,
     object_key,
     object_prefix,
     validate_file_path,
@@ -122,6 +123,54 @@ def test_object_keys_validate_both_halves() -> None:
 
     with pytest.raises(InvalidFilePath):
         object_key("7Kf2mP9xLwQa", "../other-page/image.jpg")
+
+
+def test_an_unrooted_layout_stores_keys_exactly_where_the_functions_say() -> None:
+    layout = ObjectLayout()
+
+    assert layout.key("7Kf2mP9xLwQa", "image.jpg") == object_key("7Kf2mP9xLwQa", "image.jpg")
+    assert layout.prefix("7Kf2mP9xLwQa") == object_prefix("7Kf2mP9xLwQa")
+    assert layout.prefix() == ""
+
+
+def test_a_rooted_layout_puts_everything_under_its_prefix() -> None:
+    layout = ObjectLayout("s3/")
+
+    assert layout.key("7Kf2mP9xLwQa", "Staves/1/image.jpg") == "s3/7Kf2mP9xLwQa/Staves/1/image.jpg"
+    assert layout.prefix("7Kf2mP9xLwQa") == "s3/7Kf2mP9xLwQa/"
+    assert layout.prefix() == "s3/"
+
+
+def test_a_layout_reads_the_page_id_back_out_of_a_stored_key() -> None:
+    layout = ObjectLayout("s3/")
+
+    assert layout.page_id_of("s3/7Kf2mP9xLwQa/Staves/1/image.jpg") == "7Kf2mP9xLwQa"
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        "7Kf2mP9xLwQa/image.jpg",  # written under a different rooting
+        "s3/7Kf2mP9xLwQa",  # no file inside the folder
+        "s3/not-a-page-id/image.jpg",  # a stray object, not a page
+        "s3/",
+        "",
+    ],
+)
+def test_a_layout_declines_to_guess_at_keys_that_are_not_pages(key: str) -> None:
+    # The public storage quota is measured from a listing, so a key mistaken
+    # for a page folder becomes a page that does not exist, weighing bytes
+    # against a quota. Better to ignore what nothing wrote.
+    assert ObjectLayout("s3/").page_id_of(key) is None
+
+
+def test_the_layout_is_what_keeps_two_services_from_disagreeing() -> None:
+    # The failure this guards is silent: a writer rooted one way and a reader
+    # rooted another both succeed, and the reader simply finds nothing.
+    written = ObjectLayout("s3/").key("7Kf2mP9xLwQa", "image.jpg")
+
+    assert ObjectLayout().page_id_of(written) is None
+    assert ObjectLayout("other/").page_id_of(written) is None
 
 
 def test_local_paths_land_inside_the_page_folder(tmp_path: Path) -> None:

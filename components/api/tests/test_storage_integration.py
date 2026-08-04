@@ -26,9 +26,18 @@ def minio_is_up() -> bool:
 pytestmark = pytest.mark.skipif(not minio_is_up(), reason="MinIO is not running")
 
 
-@pytest.fixture
-def storage() -> Storage:
-    settings = ApiSettings.for_testing(s3_bucket=TEST_BUCKET)
+@pytest.fixture(params=["", "s3/"], ids=["unrooted", "rooted"])
+def storage(request: pytest.FixtureRequest) -> Storage:
+    """Storage under both rootings, because production runs the second one.
+
+    A deployment served from a path prefix keeps its pages under a key prefix
+    (see `ObjectLayout`), and every behaviour below — presigning, deleting a
+    page, measuring the quota, wiping at startup — reads or writes keys. Each
+    one is a place where the rooting could be applied on the way in and
+    forgotten on the way out, which fails by finding nothing rather than by
+    raising.
+    """
+    settings = ApiSettings.for_testing(s3_bucket=TEST_BUCKET, s3_key_prefix=request.param)
     store = Storage(settings)
     # A dedicated bucket, so the test never disturbs real page data.
     client = store._client
@@ -36,7 +45,9 @@ def storage() -> Storage:
         client.create_bucket(Bucket=TEST_BUCKET)
     except client.exceptions.BucketAlreadyOwnedByYou:
         pass
-    store.wipe_bucket()
+    # Everything, not just this rooting's prefix — otherwise the two
+    # parametrisations leave objects lying in wait for each other.
+    store._delete_prefix("")
     return store
 
 
@@ -90,3 +101,39 @@ def test_wipe_empties_the_bucket(storage: Storage) -> None:
     storage.wipe_bucket()
 
     assert httpx.get(storage.presign("pageAAAAAAAA", "image.jpg", "get", 300)).status_code == 404
+
+
+def test_the_rooting_is_where_the_object_actually_lands(storage: Storage) -> None:
+    """The presigned URL and the stored key have to agree, and only MinIO knows.
+
+    Everything else here would pass just as well if the prefix were applied
+    consistently but wrongly; this reads the raw listing to say where the
+    bytes went.
+    """
+    httpx.put(storage.presign("pageAAAAAAAA", "image.jpg", "put", 300), content=b"a")
+
+    listing = storage._client.list_objects_v2(Bucket=TEST_BUCKET)
+    keys = [entry["Key"] for entry in listing.get("Contents", [])]
+
+    assert keys == [storage._layout.prefix() + "pageAAAAAAAA/image.jpg"]
+
+
+def test_wiping_leaves_alone_what_is_not_ours(storage: Storage) -> None:
+    """Why startup no longer empties the whole bucket.
+
+    A deployment behind a path prefix has to name its bucket after that
+    prefix's first segment, so the bucket is the deployment's, not this
+    service's. Emptying all of it on startup would be reaching outside.
+    """
+    if not storage._layout.prefix():
+        pytest.skip("with no rooting the bucket is entirely ours")
+
+    storage._client.put_object(Bucket=TEST_BUCKET, Key="somebody-elses/thing.txt", Body=b"keep me")
+    httpx.put(storage.presign("pageAAAAAAAA", "image.jpg", "put", 300), content=b"a")
+
+    storage.wipe_bucket()
+
+    survivors = [
+        entry["Key"] for entry in storage._client.list_objects_v2(Bucket=TEST_BUCKET)["Contents"]
+    ]
+    assert survivors == ["somebody-elses/thing.txt"]

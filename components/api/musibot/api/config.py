@@ -29,6 +29,14 @@ class ApiSettings(RabbitSettings, S3Settings, LoggingSettings):
     host: str = "127.0.0.1"
     port: int = 8080
 
+    # The path prefix this service is reached under from the outside, when it
+    # is not served at the root of its host. nginx strips it before the
+    # request arrives, so it changes nothing about routing — it exists so the
+    # interactive docs at `/docs` can build URLs the browser can follow. An
+    # instance published at https://example.org/musibot/api/ sets this to
+    # "/musibot/api". See docs/deployment.md.
+    root_path: str = ""
+
     # A JSON file mapping API token to the user it identifies:
     #   { "s3cr3t-token": "alice", "other-token": "bob" }
     # Kept out of the main config so the tokens are not mixed in with ordinary

@@ -131,16 +131,39 @@ def test_the_public_s3_url_defaults_to_the_endpoint() -> None:
 
 
 def test_the_public_s3_url_may_differ_from_the_endpoint() -> None:
+    # Note that the public URL is an origin, not a path: MinIO reads the first
+    # path segment of what reaches it as the bucket, so a deployment behind a
+    # path prefix spends that prefix on the bucket name and puts the rest into
+    # s3_key_prefix. See docs/deployment.md.
     settings = ExampleSettings.load(
         argv=[
             "--s3-endpoint-url=http://minio.internal:9000",
-            "--s3-public-url=https://musibot.example.org/s3",
+            "--s3-public-url=https://musibot.example.org",
+            "--s3-bucket=musibot",
+            "--s3-key-prefix=s3/",
         ],
         env={},
     )
 
     assert settings.s3_endpoint_url == "http://minio.internal:9000"
-    assert settings.s3_public_url == "https://musibot.example.org/s3"
+    assert settings.s3_public_url == "https://musibot.example.org"
+    assert settings.object_layout.key("7Kf2mP9xLwQa", "image.jpg") == ("s3/7Kf2mP9xLwQa/image.jpg")
+
+
+def test_the_key_prefix_is_empty_by_default() -> None:
+    settings = ExampleSettings.load(argv=[], env={})
+
+    assert settings.s3_key_prefix == ""
+    assert settings.object_layout.key("7Kf2mP9xLwQa", "image.jpg") == "7Kf2mP9xLwQa/image.jpg"
+
+
+@pytest.mark.parametrize("given", ["s3", "/s3", "s3/", "/s3/"])
+def test_the_key_prefix_is_normalised_however_it_is_written(given: str) -> None:
+    # A stray slash in a config file must not be the difference between
+    # finding a page's Files and not finding them.
+    settings = ExampleSettings.load(argv=[f"--s3-key-prefix={given}"], env={})
+
+    assert settings.s3_key_prefix == "s3/"
 
 
 def test_secrets_are_held_as_secrets() -> None:

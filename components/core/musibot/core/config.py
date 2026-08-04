@@ -24,6 +24,8 @@ from typing import Literal, Self
 from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from musibot.core.page import ObjectLayout
+
 ENV_PREFIX = "MUSIBOT_"
 
 CONFIG_FILE_ENV_VAR = ENV_PREFIX + "CONFIG_FILE"
@@ -139,6 +141,16 @@ class S3Settings(MusibotSettings):
         ),
     )
 
+    s3_key_prefix: str = Field(
+        default="",
+        description=(
+            "A prefix every object key is stored under. Needed when the "
+            "deployment is served from a path prefix, whose first segment has "
+            "to become the bucket name and whose rest has to become this. "
+            "Empty when MinIO is reached directly."
+        ),
+    )
+
     @model_validator(mode="after")
     def _default_public_url_to_endpoint(self) -> Self:
         # In production the two differ: MinIO is reached internally by the
@@ -147,6 +159,25 @@ class S3Settings(MusibotSettings):
         if self.s3_public_url is None:
             self.s3_public_url = self.s3_endpoint_url
         return self
+
+    @model_validator(mode="after")
+    def _normalise_key_prefix(self) -> Self:
+        # Accept "s3", "/s3", "s3/" and "/s3/" alike and store one form, so
+        # that a stray slash in a config file is not the difference between
+        # finding a page's Files and not finding them.
+        stripped = self.s3_key_prefix.strip("/")
+        self.s3_key_prefix = f"{stripped}/" if stripped else ""
+        return self
+
+    @property
+    def object_layout(self) -> ObjectLayout:
+        """How this service builds and reads object keys.
+
+        Every service must build keys through this rather than calling
+        `object_key` directly, or two of them disagree about where a page's
+        *Files* live and one writes objects the other cannot see.
+        """
+        return ObjectLayout(self.s3_key_prefix)
 
 
 class LoggingSettings(MusibotSettings):

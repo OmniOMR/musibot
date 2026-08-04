@@ -1,0 +1,249 @@
+# nginx — the single entry point of a Musibot deployment.
+#
+# It serves the Web UI bundle and reverse-proxies the Web API, the MinIO S3
+# endpoint and the MinIO Console. They share an origin because they must:
+# presigned URLs are signed against a host, and a browser holding one origin
+# needs no CORS handling anywhere.
+#
+# A template, not a finished file. The official nginx image substitutes
+# ${NAME} from the environment on startup (see the compose stack); on a VM,
+# run it through `envsubst` or fill the values in by hand. Only the deployment
+# addresses are variables — everything else is the same everywhere, which is
+# the point: the local stack exercises this file and not a copy of it.
+#
+#   MUSIBOT_LISTEN_PORT      what this server listens on
+#   MUSIBOT_PUBLIC_HOST      the hostname users type, e.g. quest.ms.mff.cuni.cz
+#   MUSIBOT_PUBLIC_PREFIX    the path prefix users reach it under, e.g. /musibot
+#   MUSIBOT_WEB_ROOT         where the Web UI bundle is unpacked
+#   MUSIBOT_API_UPSTREAM     host:port of the api service
+#   MUSIBOT_S3_UPSTREAM      host:port of the MinIO S3 API
+#   MUSIBOT_CONSOLE_UPSTREAM host:port of the MinIO Console
+#   MUSIBOT_RABBITMQ_UPSTREAM host:port of the RabbitMQ management UI
+#
+#
+# THE PREFIX IS ALREADY GONE BY THE TIME A REQUEST ARRIVES.
+#
+# Musibot is published at https://${MUSIBOT_PUBLIC_HOST}${MUSIBOT_PUBLIC_PREFIX}/
+# by a proxy that is not ours — the university's — and that proxy strips the
+# prefix before forwarding. So every location below matches an unprefixed
+# path: `/api/`, not `/musibot/api/`. Where the prefix still matters it is
+# written back on, and there is exactly one place that needs it. Read on.
+
+# Websocket upgrades pass through only when the client asked for one; a
+# Connection: upgrade header on an ordinary request confuses some upstreams.
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    ''      close;
+}
+
+server {
+    listen ${MUSIBOT_LISTEN_PORT};
+    server_name _;
+
+    # Redirects go out as paths rather than absolute URLs. nginx would
+    # otherwise build them from its own scheme, hostname and listening port —
+    # none of which are the public ones, since it sits behind two proxies. A
+    # relative Location is resolved by the browser against the address it
+    # actually used, which is the only one that is right.
+    absolute_redirect off;
+
+    # The single-upload limit: the nginx half of bounding the public tier. The
+    # api service caps concurrency, storage and session lifetime; the size of
+    # any one page scan is bounded here, in front of everything. A 300 DPI
+    # page scan sits comfortably under this. See docs/public-access.md.
+    client_max_body_size 32m;
+
+    # --- the Web UI bundle ------------------------------------------------
+
+    root ${MUSIBOT_WEB_ROOT};
+    index index.html;
+
+    location / {
+        # The SPA fallback. Every route the app owns is served the same
+        # index.html and resolved client-side; without this, reloading on any
+        # path but the root is a 404 from nginx.
+        try_files $uri $uri/ /index.html;
+    }
+
+    # Vite fingerprints everything under assets/ with a content hash, so those
+    # files are immutable — a change produces a new name. index.html is the
+    # opposite: it names the current hashes, so a cached copy pins a visitor
+    # to a bundle that may no longer exist.
+    location /assets/ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        access_log off;
+    }
+
+    location = /index.html {
+        add_header Cache-Control "no-cache";
+    }
+
+    location = /robots.txt {
+        expires 1d;
+        access_log off;
+    }
+
+    location = /sitemap.xml {
+        expires 1d;
+    }
+
+    # --- the Web API ------------------------------------------------------
+
+    location /api/ {
+        # The service mounts its routes at the root, so the /api/ segment is
+        # this deployment's and is stripped here. The service is told where it
+        # really sits through its `root_path` setting, which is what lets the
+        # interactive docs at /api/docs load their own schema.
+        proxy_pass http://${MUSIBOT_API_UPSTREAM}/;
+        proxy_http_version 1.1;
+
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Prefix ${MUSIBOT_PUBLIC_PREFIX}/api;
+
+        # Server-Sent Events: the API streams pipeline execution progress, and
+        # buffering holds a stream back to deliver it all at the end, which is
+        # precisely not the point of a progress stream.
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_read_timeout 1h;
+    }
+
+    location = /api {
+        return 301 ${MUSIBOT_PUBLIC_PREFIX}/api/;
+    }
+
+    # --- MinIO, the S3 endpoint -------------------------------------------
+    #
+    # This block is the one that has to reconstruct the prefix, and the reason
+    # is worth understanding before editing it.
+    #
+    # File bytes never pass through the api service; clients redeem presigned
+    # URLs directly against object storage. Those URLs are SigV4, and a SigV4
+    # signature covers the request path and the Host header. MinIO recomputes
+    # the signature from what it receives, so what it receives must be, byte
+    # for byte, what was signed — and what was signed is the public URL:
+    #
+    #     https://${MUSIBOT_PUBLIC_HOST}${MUSIBOT_PUBLIC_PREFIX}/s3/<key>
+    #
+    # Two consequences, and both are load-bearing:
+    #
+    # 1. The path must be whole again. The university proxy stripped the
+    #    prefix, so it is put back below. MinIO then reads the first segment
+    #    of that path as the bucket — which is why the bucket is named after
+    #    the prefix's first segment and the rest of the prefix is the key
+    #    prefix (`s3_bucket=musibot`, `s3_key_prefix=s3/`). Nothing here
+    #    rewrites the key; the storage names were chosen to make the whole
+    #    public path parse correctly as bucket + key. See ObjectLayout in core.
+    #
+    # 2. The Host must be the signed one. It is set literally rather than from
+    #    $host, because $host is whatever the upstream proxy chose to send and
+    #    the signature does not care where a value came from, only what it is.
+    #    A literal cannot drift; $host fails as a 403 the day the proxy
+    #    changes.
+    #
+    # A note on percent-encoding, because it is the thing most likely to be
+    # "fixed" into breakage. A page's file path may contain spaces and
+    # non-ASCII characters, and their encoding is part of what was signed —
+    # `Staves/1/scan ěščřž.jpg` is signed as `.../scan%20%C4%9B...`. nginx
+    # decodes the path it receives and re-encodes it when forwarding, and that
+    # round trip is byte-identical to what SigV4 produced, so the signature
+    # survives. This was verified against the local stack rather than assumed.
+    #
+    # Do not be tempted to rebuild the target from $request_uri to "preserve"
+    # the encoding: a variable substituted into proxy_pass is escaped by
+    # nginx, which turns `%20` into `%2520` and `?` into `%3F`, and MinIO then
+    # receives an object whose name has the signature glued onto it.
+    location /s3/ {
+        proxy_pass http://${MUSIBOT_S3_UPSTREAM}${MUSIBOT_PUBLIC_PREFIX}/s3/;
+        proxy_http_version 1.1;
+
+        proxy_set_header Host ${MUSIBOT_PUBLIC_HOST};
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Uploads stream through rather than being buffered to disk first. The
+        # body limit above still applies.
+        proxy_request_buffering off;
+        proxy_buffering off;
+    }
+
+    # --- MinIO, the Console -----------------------------------------------
+    #
+    # The Console, unlike the S3 API, can be published under a base path:
+    # MINIO_BROWSER_REDIRECT_URL names the public URL of this location, and
+    # the Console emits `<base href="…/musibot/minio/">` with every asset
+    # referenced relative to it. That is the whole of its base-path support.
+    #
+    # So the prefix is stripped here and NOT reconstructed. The Console serves
+    # its assets at its own root — `/styles/root-styles.css`, not
+    # `/minio/styles/root-styles.css` — and the `<base>` tag is what puts them
+    # back under this location for the browser. Forwarding the `/minio/`
+    # segment gets a 200 and an HTML page for every stylesheet and script,
+    # because the Console answers paths it does not recognise with its SPA
+    # fallback rather than a 404. The page then renders unstyled.
+    #
+    # This is the exact opposite of the RabbitMQ block below, which must be
+    # asked for the whole public path. Worth checking which kind a console is
+    # before assuming: both are "supports a base path", and they mean
+    # different things by it.
+    location /minio/ {
+        proxy_pass http://${MUSIBOT_CONSOLE_UPSTREAM}/;
+        proxy_http_version 1.1;
+
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # The Console sets its session cookie on Path=/, which it is entitled
+        # to think is its own — it does not know it is sharing an origin. Left
+        # alone, an operator's console token would be attached to every
+        # request a member of the public makes to the Web UI and the Web API.
+        # Scoping it to this location keeps it where it belongs.
+        proxy_cookie_path / ${MUSIBOT_PUBLIC_PREFIX}/minio/;
+
+        # The Console uses websockets for its live views.
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+
+        proxy_buffering off;
+        chunked_transfer_encoding off;
+    }
+
+    # --- RabbitMQ, the management UI --------------------------------------
+    #
+    # The prefix is reconstructed here, as it is for the S3 endpoint, but for
+    # an unrelated reason: RabbitMQ is configured with
+    # `management.path_prefix = ${MUSIBOT_PUBLIC_PREFIX}/rabbitmq` (see
+    # ../rabbitmq/20-musibot.conf), which is the path it builds its own asset
+    # and API links from *and* the path it therefore expects to be asked for.
+    # Handing it the stripped `/rabbitmq/...` gets a 404 from RabbitMQ itself.
+    #
+    # This is an operator's tool rather than a public one. It is exposed
+    # because the deployment is reached only through the one public prefix and
+    # there is nowhere else to put it — so it is worth remembering that the
+    # only thing in front of it is RabbitMQ's own login.
+    location /rabbitmq/ {
+        proxy_pass http://${MUSIBOT_RABBITMQ_UPSTREAM}${MUSIBOT_PUBLIC_PREFIX}/rabbitmq/;
+        proxy_http_version 1.1;
+
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Definitions can be uploaded through the UI, and some of its views
+        # stream.
+        proxy_buffering off;
+        proxy_read_timeout 10m;
+    }
+
+    location = /rabbitmq {
+        return 301 ${MUSIBOT_PUBLIC_PREFIX}/rabbitmq/;
+    }
+}

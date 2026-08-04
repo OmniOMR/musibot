@@ -11,6 +11,7 @@ from musibot.core.logging import configure_logging
 from musibot.core.page import (
     InvalidFilePath,
     InvalidPageId,
+    ObjectLayout,
     PageFilePath,
     PageId,
     generate_page_id,
@@ -39,6 +40,7 @@ __all__ = [
     "InvalidPageId",
     "LoggingSettings",
     "MusibotSettings",
+    "ObjectLayout",
     "PageFilePath",
     "PageFilePattern",
     "PageId",
