@@ -1,5 +1,4 @@
 import Box from "@mui/material/Box";
-import CircularProgress from "@mui/material/CircularProgress";
 import Link from "@mui/material/Link";
 import Typography from "@mui/material/Typography";
 import { useMemo, useState } from "react";
@@ -14,9 +13,10 @@ import { usePageState } from "../page/usePageState";
 import * as paths from "../paths";
 import { find, outputsAmong } from "../pipelines";
 import { useSession } from "../session/useSession";
-import { mono, paper, serif } from "../theme";
+import { paper, serif } from "../theme";
 import OverviewPanel from "./page/OverviewPanel";
 import PageHeader from "./page/PageHeader";
+import ScenePanel from "./page/ScenePanel";
 
 /**
  * One *MusicorpusPage* — the screen the work happens on.
@@ -81,6 +81,13 @@ export default function MusicorpusPageScreen() {
     [sections],
   );
 
+  /** The row the canvas is showing, which is the selection made whole. */
+  const selectedRow = useMemo(
+    () =>
+      sections.flatMap((section) => section.rows).find((row) => row.key === selectedKey) ?? null,
+    [sections, selectedKey],
+  );
+
   async function download(toDownload: string[]) {
     if (token === null) {
       return;
@@ -139,27 +146,8 @@ export default function MusicorpusPageScreen() {
           onToggleLog={() => {}}
         />
 
-        {/* ScenePanel and TranscriptionPanel go here. */}
-        <Box
-          sx={{
-            flex: 1,
-            minWidth: 0,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            bgcolor: paper["150"],
-            color: paper["600"],
-            fontSize: "0.875rem",
-          }}
-        >
-          {state.loading ? (
-            <CircularProgress size={20} />
-          ) : selectedKey === null ? (
-            "Choose a file on the left to see it."
-          ) : (
-            <Box sx={{ fontFamily: mono, fontSize: "0.8125rem" }}>{selectedKey}</Box>
-          )}
-        </Box>
+        {/* TranscriptionPanel will sit beside this one. */}
+        <ScenePanel pageId={pageId} token={token} selected={selectedRow} files={state.files} />
       </Box>
     </Box>
   );

@@ -76,6 +76,21 @@ The workspace behind an upload: full height, panels rather than a content column
 **A page is only reachable in the browser that uploaded it**, since it is fetched with the token it was created under. The screen says so rather than showing an empty workspace.
 
 
+### The canvas
+
+SVG, with React rendering its contents and d3 supplying only behaviour. `src/scene/` holds it. Two coordinate spaces meet there and the whole design is about keeping them apart.
+
+**The transform is never React state.** Put it there and every frame of a pan re-renders the panel and walks a thousand memoised boxes to confirm they have not moved. Instead `useZoom` writes it straight onto the world `<g>` through a ref, so a gesture reaches no component at all — the boxes re-render only when the selected layer changes.
+
+**Screen-space things follow from that.** The rulers and the crop labels have to be recomputed every frame, and since there is no per-frame state change for them to react to, they are updated from the same callback. That is why they are imperative — not because React is too slow for a dozen ticks. A box's stroke is screen-space too, and SVG solves that one natively with `vector-effect="non-scaling-stroke"`. Crop labels sit at world coordinates inside the world group and carry the inverse scale, so the transform places them and they keep their type size.
+
+`src/scene/ruler.ts` is the one place d3 renders DOM itself, into a `<g>` React creates empty. **That `<g>` must never gain a React child** — React has nothing to diff there and leaves it alone, which is exactly what makes it safe.
+
+**Files are fetched into memory, not linked.** Presigned URLs live fifteen minutes and a page lives about an hour, so an `<image href>` pointing at one turns into a 403 while somebody is looking at it. Fetching into a blob removes the problem rather than scheduling a repair for it; the cache is keyed by path *and* `last_modified`, so a *File* a later execution rewrote is re-read while an untouched one is free to return to; and streaming will need an in-memory buffer anyway, since object storage only holds a *File* once it is complete. Only the selected layer is fetched, and object URLs are revoked when it changes.
+
+**Boxes come from `bbox` and nothing else.** Both spatial layers are COCO — `layout.json` for staff regions in the university red, `coco-object-detection.json` for symbols in the blue — so one reader serves both. Every annotation also carries `segmentation`, as polygon arrays in one file and run-length encoding in another; drawing it would mean an RLE decoder for shapes the boxes already locate, and polygons are the one thing that makes an SVG scene slow where thousands of rectangles do not.
+
+
 ## Sessions
 
 The public tier has no accounts. A visitor gets a bearer token from `POST /public-sessions`, it lives about an hour, and a page created under it is deleted when it expires. `src/session/` holds the app's side of that, and it is more than a variable holding a token — for one reason.
