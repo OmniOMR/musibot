@@ -20,7 +20,12 @@ import {
 } from "../../pipelines";
 import { useSession } from "../../session/useSession";
 import { mono, paper, serif } from "../../theme";
-import { guessExplanation, looksLikeSingleStaff, type ChosenImage } from "../../upload/chosenImage";
+import {
+  guessExplanation,
+  looksLikeSingleStaff,
+  thumbnailOf,
+  type ChosenImage,
+} from "../../upload/chosenImage";
 import { startRecognition } from "../../upload/startRecognition";
 import AllPipelines from "./AllPipelines";
 import PipelineOption from "./PipelineOption";
@@ -112,7 +117,15 @@ export default function PipelineChoice({
         uploadPath,
         pipeline: selected,
       });
-      session.rememberPage({ pageId, token, fileName: image.file.name });
+      session.rememberPage({
+        pageId,
+        token,
+        fileName: image.file.name,
+        // Made from the bytes already in hand. Once this card closes the file
+        // is gone, and the session list would otherwise have to fetch the
+        // whole scan back to draw it small.
+        thumbnail: await thumbnailOf(image),
+      });
       session.notePipeline(pageId, selected.name, selected.version);
       void navigate(paths.musicorpusPagePath(pageId));
     } catch (error) {

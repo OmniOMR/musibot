@@ -60,6 +60,13 @@ export interface TrackedPage {
   /** The pipeline started on it, once one has been. */
   pipelineName: string | null;
   pipelineVersion: string | null;
+  /**
+   * A small data-URL copy of the uploaded image, made in the browser at upload
+   * time so that the session list can show what a page is without fetching
+   * several megabytes of scan to draw it forty pixels wide. `null` for a page
+   * recorded before this was kept, or if the canvas refused.
+   */
+  thumbnail?: string | null;
 }
 
 export interface Ledger {

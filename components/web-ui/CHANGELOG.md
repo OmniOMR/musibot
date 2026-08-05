@@ -20,6 +20,10 @@ The Web UI has no outward contract of its own: nothing depends on it, and it dep
 - **The theme** — printed paper: a warm ivory page, Source Serif 4 headings over Source Sans 3 body text, flat surfaces divided by hairline rules, and Charles University's cardinal red as the one saturated colour. Fonts are bundled rather than fetched from a CDN. Colour choices and their measured contrast ratios are recorded in `src/theme/palette.ts`.
 
 
+- **The session overview** at `/session`, which the floating pill has been pointing at since it existed. Every page this browser has uploaded and can still reach: a thumbnail, the filename, which *Pipeline* ran and how it went, and how long is left. It says plainly that nothing is stored under an account and that closing the tab does not extend the hour — a visitor who takes this for a library of their work is going to lose it, and saying so once at the top is cheaper than explaining afterwards. The list is drawn from the ledger with no network; only the reading's outcome is asked of the server, once per page.
+- **A thumbnail is kept for each uploaded page**, made in the browser from bytes already in hand rather than fetched back — a few kilobytes against several megabytes of scan per row.
+
+
 - **The recognition log panel**, collapsed by default and opened from the pill at the foot of the overview. One log for the whole page rather than one per *Pipeline Execution*, since a page can be read twice and the story is easier to follow in the order it happened. It is empty — the API has no log endpoint yet — so it says so; what is built is the paper it will be printed on: continuous-feed dot-matrix stock with sprocket holes down both edges that scroll with the lines rather than framing them.
 
 
@@ -55,6 +59,6 @@ The Web UI has no outward contract of its own: nothing depends on it, and it dep
 
 ### Not yet implemented
 
-What goes in the recognition log. The panel is built and says "To be added", because the API has no log endpoint and the SSE protocol behind it is not designed yet. A page also cannot have a further *Pipeline* run on it from the screen, so the *+ Run pipeline* button is absent rather than dead, and the session overview at `/session` is still a placeholder.
+A real recognition log. The panel is built and its lines are a stand-in played back on a timer, labelled as one, because the API has no log endpoint and the SSE protocol behind it is not designed yet. A page also cannot have a further *Pipeline* run on it from the screen, so the *+ Run pipeline* button is absent rather than dead. And the error states — a wrong file type, the public allowance spent, a reading that finished having found nothing — are plain text rather than the cards the design draws.
 
 Two things on the landing page are stubs rather than features. The four sample pages are drawn stand-ins and clicking one reports that the sample could not be loaded, because `public/samples/` is empty; the code that fetches them is the real code, what is missing is four JPEGs. And errors in the upload flow are shown as plain text rather than as the designed cards.

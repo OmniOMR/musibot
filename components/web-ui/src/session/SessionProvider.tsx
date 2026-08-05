@@ -67,6 +67,7 @@ export default function SessionProvider({ children }: { children: ReactNode }) {
           createdAt: new Date().toISOString(),
           pipelineName: null,
           pipelineVersion: null,
+          thumbnail: page.thumbnail ?? null,
         }),
       );
     },

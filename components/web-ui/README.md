@@ -138,6 +138,10 @@ The one thing beyond the clock that *drops* a session is a **`401`**, which is p
 
 The ledger lives in `localStorage` under one key, because the API has no endpoint that lists a user's pages: if the app does not write down what it uploaded, nothing does. It is read tolerantly — a stored value that will not parse is discarded rather than thrown over, since losing the record of an ephemeral hour beats a landing page that will not render.
 
+It also holds a **thumbnail per page**, a two-kilobyte data URL made in the browser at upload time from bytes already in memory. That is what lets `/session` draw its list with no network at all; the alternative is fetching several megabytes of scan per row to render it forty pixels wide. The thumbnail is centre-cropped to the list's own shape rather than fitted to it, because a staff crop is nineteen times wider than it is tall and fitted becomes a two-pixel line in an empty box — which reads as a broken image rather than as a wide one.
+
+`/session` asks the server once per page for how the reading went, since that is the part the ledger cannot know. Once, not polled: it is a list somebody glances at on the way back to a page, and watching a recognition finish is what the page's own screen is for.
+
 One limitation follows from all of this and is worth knowing: **a page's URL is not shareable.** Reaching a page needs the token it was created under, which lives in one browser's `localStorage` and is deliberately never in the URL.
 
 

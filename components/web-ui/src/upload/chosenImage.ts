@@ -47,6 +47,77 @@ export function readChosenImage(file: File): Promise<ChosenImage> {
 }
 
 /**
+ * The shape the session list draws a thumbnail in, from the design: 38 by 52.
+ * Doubled here so the picture is still sharp on a dense screen.
+ */
+const THUMBNAIL = { width: 76, height: 104 };
+
+/**
+ * A small copy of the image, as a data URL, for the session list.
+ *
+ * Made here in the browser from bytes already in memory, never fetched back. A
+ * page scan is several megabytes, so drawing the list from the real images
+ * would mean pulling every one of them each time somebody glances at their
+ * pages, in order to render each at forty pixels wide. It is kept in the ledger
+ * beside the page it belongs to, which is what lets the list render with no
+ * network at all — two or three kilobytes each, against a `localStorage` budget
+ * of a few megabytes.
+ *
+ * It is **centre-cropped to the list's own shape rather than fitted to it**,
+ * and that is not a matter of taste. Fitted, a staff crop — nineteen times
+ * wider than it is tall — becomes a two-pixel line across an otherwise empty
+ * box, which reads as a broken image rather than as a wide one. Cropping is
+ * also the sharper of the two, because the window is taken from the original
+ * at full resolution and scaled once, instead of a whole strip being reduced
+ * to a few pixels of height and then blown back up to fill anything.
+ *
+ * What is lost is that a thumbnail no longer shows an image's proportions. The
+ * row says the filename and the pipeline beside it, which is where that
+ * belongs anyway, and the design draws every row's thumbnail the same size.
+ *
+ * Returns `null` rather than throwing if the canvas refuses: a missing
+ * thumbnail is a duller list, not a failed upload.
+ */
+export async function thumbnailOf(image: ChosenImage): Promise<string | null> {
+  try {
+    const canvas = document.createElement("canvas");
+    canvas.width = THUMBNAIL.width;
+    canvas.height = THUMBNAIL.height;
+
+    const context = canvas.getContext("2d");
+    if (context === null) {
+      return null;
+    }
+
+    // The largest window of the source that has the thumbnail's proportions,
+    // taken from the middle.
+    const wanted = THUMBNAIL.width / THUMBNAIL.height;
+    const source =
+      image.width / image.height > wanted
+        ? { width: image.height * wanted, height: image.height }
+        : { width: image.width, height: image.width / wanted };
+
+    const bitmap = await createImageBitmap(image.file);
+    context.drawImage(
+      bitmap,
+      (image.width - source.width) / 2,
+      (image.height - source.height) / 2,
+      source.width,
+      source.height,
+      0,
+      0,
+      canvas.width,
+      canvas.height,
+    );
+    bitmap.close();
+
+    return canvas.toDataURL("image/jpeg", 0.6);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Where a page stops being a page and starts being a staff, as a ratio of
  * width to height.
  *

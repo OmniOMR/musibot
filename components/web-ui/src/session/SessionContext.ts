@@ -7,6 +7,8 @@ export interface NewPage {
   pageId: string;
   token: string;
   fileName: string;
+  /** A small local copy for the session list. See `upload/chosenImage.ts`. */
+  thumbnail?: string | null;
 }
 
 export interface SessionState {
