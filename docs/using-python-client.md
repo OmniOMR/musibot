@@ -77,6 +77,40 @@ for pipeline in listing.pipelines:
 `instances` is the number of live providers behind an entry. It is worth reading when executions time out for no apparent reason: an entry with zero instances is listed only because something announced it moments before going away.
 
 
+## Finding out what was produced
+
+`process_page` asks for `output` files by name, which works when you know what to expect. Often you do not: a page-level pipeline finds the staves itself, so how many `Staves/{n}/` folders come back is the recognition's answer rather than yours.
+
+For that, hold the page open and ask what it holds.
+
+```py
+with MusibotClient(musibot_api_url="http://localhost:8080", api_token="secret") as client:
+    page = client.create_page()
+    client.upload_files(page.page_id, {"image.jpg": Path("my-page-scan.jpg").read_bytes()})
+
+    execution = client.start_execution(page.page_id, "hello-model", "1.0.0", ["image.jpg"])
+    client.wait_for_execution(page.page_id, execution.execution_id)
+
+    for file in client.list_files(page.page_id):
+        print(f"{file.path}  {file.size} bytes")
+    # image.jpg  918273 bytes
+    # layout.json  2143 bytes
+    # Staves/1/transcription.musicxml  4021 bytes
+    # Staves/2/transcription.musicxml  3877 bytes
+
+    transcriptions = client.download_files(
+        page.page_id,
+        [file.path for file in client.list_files(page.page_id) if file.path.endswith(".musicxml")],
+    )
+
+    client.delete_page(page.page_id)
+```
+
+`list_files` answers from object storage each time rather than from a list the server keeps, so it is also what to poll while an execution runs: files appear as they are written. Note that it reports the page's folder as it is now — a second execution may overwrite a file the first produced, and what you get back is the newer one.
+
+Delete the page when you are done. `process_page` does it for you; holding a page open yourself makes it yours to clean up.
+
+
 ## Batch processing of many pages
 
 TODO

@@ -180,6 +180,37 @@ def test_listing_pipelines_includes_implicit_ones() -> None:
     assert listing.warnings == []
 
 
+def test_listing_files_discovers_what_a_pipeline_produced() -> None:
+    """The output *Files* of a page-level run are not knowable in advance —
+    how many staves a page has is what the recognition found out — so they are
+    discovered and then downloaded by the paths that came back."""
+    server = FakeServer(
+        stored={
+            f"{PAGE_ID}/image.jpg": SCAN,
+            f"{PAGE_ID}/Staves/1/transcription.musicxml": TRANSCRIPTION,
+        }
+    )
+
+    with a_client(server) as client:
+        files = client.list_files(PAGE_ID)
+
+        assert [file.path for file in files] == [
+            "Staves/1/transcription.musicxml",
+            "image.jpg",
+        ]
+        assert [file.size for file in files] == [len(TRANSCRIPTION), len(SCAN)]
+
+        downloaded = client.download_files(PAGE_ID, [file.path for file in files])
+        assert downloaded["Staves/1/transcription.musicxml"] == TRANSCRIPTION
+
+
+def test_listing_files_of_an_empty_page_finds_nothing() -> None:
+    server = FakeServer()
+
+    with a_client(server) as client:
+        assert client.list_files(PAGE_ID) == []
+
+
 def test_the_steps_are_available_on_their_own() -> None:
     """A caller may hold a page open rather than using `process_page`."""
     server = FakeServer(stored={f"{PAGE_ID}/out.txt": b"x"})

@@ -25,7 +25,7 @@ from musibot.client.errors import (
     PipelineExecutionTimedOut,
     PipelineNotAvailable,
 )
-from musibot.client.models import MusicorpusPage, PipelineExecution, PipelineListing
+from musibot.client.models import MusicorpusPage, PageFile, PipelineExecution, PipelineListing
 
 logger = logging.getLogger(__name__)
 
@@ -157,6 +157,22 @@ class MusibotClient:
         self._request("DELETE", f"/musicorpus-pages/{page_id}")
 
     # --- files ---------------------------------------------------------------
+
+    def list_files(self, page_id: str) -> list[PageFile]:
+        """The *Files* the page currently holds.
+
+        What a *Pipeline* produced is not known in advance — a page-level run
+        writes a `Staves/{n}/` folder whose size depends on the page — so this
+        is how outputs are discovered before they are downloaded:
+
+            for file in client.list_files(page_id):
+                print(file.path, file.size)
+
+        Answered from storage rather than from anything the server remembers, so
+        it stays true across a *File* a later execution overwrote.
+        """
+        response = self._request("GET", f"/musicorpus-pages/{page_id}/files").json()
+        return [PageFile.model_validate(file) for file in response.get("files", [])]
 
     def file_urls(
         self,

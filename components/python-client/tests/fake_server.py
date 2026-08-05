@@ -67,6 +67,9 @@ class FakeServer:
             self.deleted_pages.append(path.rsplit("/", 1)[-1])
             return httpx.Response(204)
 
+        if request.method == "GET" and re.fullmatch(r"/api/musicorpus-pages/[^/]+/files", path):
+            return self._list_files(path.split("/")[-2])
+
         if request.method == "POST" and path.endswith("/file-urls"):
             return self._file_urls(request)
 
@@ -100,6 +103,25 @@ class FakeServer:
         return httpx.Response(404, json={"detail": f"No route for {request.method} {path}"})
 
     # --- handlers ------------------------------------------------------------
+
+    def _list_files(self, page_id: str) -> httpx.Response:
+        # Answered from the objects storage actually holds, which is how the
+        # real service answers it too — it keeps no list of its own.
+        prefix = f"{page_id}/"
+        return httpx.Response(
+            200,
+            json={
+                "files": [
+                    {
+                        "path": key[len(prefix) :],
+                        "size": len(content),
+                        "last_modified": "2026-07-25T16:00:00Z",
+                    }
+                    for key, content in sorted(self.objects.items())
+                    if key.startswith(prefix)
+                ]
+            },
+        )
 
     def _file_urls(self, request: httpx.Request) -> httpx.Response:
         body = json.loads(request.content)

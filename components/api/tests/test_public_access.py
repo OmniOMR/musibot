@@ -250,7 +250,7 @@ def test_public_storage_quota_refuses_new_pages(
         # never sees — it only learns of them at the next sweep. Until then the
         # quota is over and page creation still succeeds, which is the lag the
         # design accepts and `docs/rough-edges.md` records.
-        storage.sizes[page_id] = 5000
+        storage.put(page_id, "image.jpg", 5000)
         assert client.post("/musicorpus-pages", headers=headers).status_code == 201
 
         sweep(client)
@@ -263,7 +263,7 @@ def test_a_library_users_bytes_are_not_charged_to_the_public_quota(
     build_client: ClientBuilder, storage: FakeStorage, alice: dict[str, str]
 ) -> None:
     with build_client(public_access_enabled=True, public_storage_quota_bytes=1000) as client:
-        storage.sizes[new_page(client, alice)] = 999_999
+        storage.put(new_page(client, alice), "image.jpg", 999_999)
 
         sweep(client)
 

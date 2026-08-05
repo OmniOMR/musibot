@@ -28,7 +28,7 @@ output_files = client.process_page(
 
 `process_page` creates a page, uploads the input, starts the *Pipeline Execution*, waits for it, downloads what was asked for, and deletes the page — including when the execution fails, since a failure is no reason to leave a page behind on the server.
 
-Every step is also a method of its own (`create_page`, `upload_files`, `start_execution`, `wait_for_execution`, `download_files`, `delete_page`), for callers who want to hold a page open across several executions or watch progress themselves. `list_pipelines()` answers what is currently available, *ImplicitPipelines* included.
+Every step is also a method of its own (`create_page`, `upload_files`, `start_execution`, `wait_for_execution`, `download_files`, `delete_page`), for callers who want to hold a page open across several executions or watch progress themselves. `list_pipelines()` answers what is currently available, *ImplicitPipelines* included, and `list_files(page_id)` answers what a page holds — which is how outputs are discovered when they cannot be named in advance, a page-level pipeline finding its own staves.
 
 *File* bytes never pass through the `api` service: it issues short-lived presigned URLs and this client transfers directly to and from object storage, which is what keeps the one non-scaling service out of the byte path.
 

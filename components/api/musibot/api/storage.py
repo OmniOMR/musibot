@@ -1,9 +1,9 @@
 """Object storage: the `api` service's view of MinIO.
 
 The service is never in the file byte-path — *Users* upload and download *Files*
-straight to and from MinIO through presigned URLs. So this module does only
-three things: hand out those presigned URLs, delete a page's folder when the
-page is deleted, and wipe the bucket clean at startup.
+straight to and from MinIO through presigned URLs. So this module does only a
+few things: hand out those presigned URLs, say what a page holds, delete a
+page's folder when the page is deleted, and wipe the bucket clean at startup.
 
 Presigned URLs are signed against the *public* MinIO address (`s3_public_url`),
 which is where a *User* redeems them, while the service's own operations use the
@@ -11,6 +11,8 @@ internal address (`s3_endpoint_url`). In development the two are the same.
 """
 
 import logging
+from dataclasses import dataclass
+from datetime import datetime
 from typing import Literal, Protocol
 
 import boto3
@@ -23,6 +25,22 @@ logger = logging.getLogger(__name__)
 HttpMethod = Literal["get", "put"]
 
 
+@dataclass(frozen=True)
+class StoredFile:
+    """One *File* of a page, as storage reports it.
+
+    `path` is relative to the page's folder and is what the *Signature* and the
+    [Musicorpus Specification] call the file — `image.jpg`, `Staves/3/image.jpg`
+    — with neither the page ID nor the deployment's key prefix on the front.
+
+    [Musicorpus Specification]: https://github.com/OmniOMR/musicorpus
+    """
+
+    path: str
+    size: int
+    last_modified: datetime
+
+
 class StoragePort(Protocol):
     """What the rest of the service needs from object storage.
 
@@ -33,6 +51,8 @@ class StoragePort(Protocol):
     def presign(
         self, page_id: str, file_path: str, method: HttpMethod, ttl_seconds: float
     ) -> str: ...
+
+    def list_page_files(self, page_id: str) -> list[StoredFile]: ...
 
     def delete_page(self, page_id: str) -> None: ...
 
@@ -83,6 +103,45 @@ class Storage:
             Params={"Bucket": self._bucket, "Key": self._layout.key(page_id, file_path)},
             ExpiresIn=int(ttl_seconds),
         )
+
+    def list_page_files(self, page_id: str) -> list[StoredFile]:
+        """Everything one page's folder holds, in the storage's own key order.
+
+        This is the only way anyone can learn what a page contains. The service
+        is not in the byte-path and keeps no list of its own: *Files* arrive
+        over presigned URLs it merely signed, and a *Pipeline Execution* writes
+        its outputs from a *Worker* it never hears the bytes of. So the answer
+        is asked of MinIO each time rather than remembered, and it is the truth
+        by construction — including for a *File* an execution overwrote.
+
+        The order is lexicographic by stored key, which is what a listing
+        returns and what S3 guarantees. That puts `Staves/10/` before
+        `Staves/2/`; a caller wanting staves in numeric order sorts them itself.
+        """
+        prefix = self._layout.prefix(page_id)
+        files: list[StoredFile] = []
+        paginator = self._client.get_paginator("list_objects_v2")
+
+        for listing in paginator.paginate(Bucket=self._bucket, Prefix=prefix):
+            for entry in listing.get("Contents", []):
+                key = entry.get("Key")
+                # The rooting goes on when a key is built and has to come back
+                # off here, or every path would carry the deployment's prefix
+                # and none of them would match a *Signature*.
+                if key is None or not key.startswith(prefix):
+                    continue
+                path = key[len(prefix) :]
+                if not path:
+                    continue
+                files.append(
+                    StoredFile(
+                        path=path,
+                        size=entry.get("Size", 0),
+                        last_modified=entry["LastModified"],
+                    )
+                )
+
+        return files
 
     def delete_page(self, page_id: str) -> None:
         """Remove everything stored under a page's folder.

@@ -6,11 +6,26 @@ about fields they do not know, so that a client keeps working against a server
 that has grown new ones.
 """
 
+from datetime import datetime
+
 from pydantic import BaseModel, ConfigDict
 
 
 class Model(BaseModel):
     model_config = ConfigDict(extra="ignore")
+
+
+class PageFile(Model):
+    """One *File* a *MusicorpusPage* currently holds.
+
+    `path` is the name the *Signature* and the Musicorpus Specification use —
+    `image.jpg`, `Staves/3/image.jpg` — so it can be handed straight to
+    `download_files` or named as an execution's input.
+    """
+
+    path: str
+    size: int = 0
+    last_modified: datetime | None = None
 
 
 class PipelineExecution(Model):
@@ -36,7 +51,7 @@ class MusicorpusPage(Model):
     """A page as the server holds it — its identity and its executions.
 
     The *Files* are not listed here: they live in object storage and are reached
-    through presigned URLs.
+    through presigned URLs. `MusibotClient.list_files` asks for them.
     """
 
     page_id: str

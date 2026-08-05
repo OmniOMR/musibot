@@ -24,6 +24,27 @@ Working with *Musicorpus Pages*:
 
 Working with *Files*:
 
+- `GET /musicorpus-pages/{id}/files` Lists the *Files* the page currently holds — each with its path, size in bytes and last-modified time. Paths are the ones the [Musicorpus Specification](https://github.com/OmniOMR/musicorpus/blob/main/docs/musicorpus-specification/musicorpus-specification.md) and the *Signature* use (`image.jpg`, `Staves/3/image.jpg`), so a path from here can be handed straight to `file-urls` or named as an execution's `input`.
+
+This is the only way to learn what a *PipelineExecution* produced: how many staves a page has is what the recognition found out, so the output *File* set is not knowable in advance. It is answered by listing object storage rather than from anything the service remembers — the service is not in the byte-path and keeps no list of its own — which also makes it true across a *File* that a later execution overwrote. The order is storage's own, lexicographic by key, which puts `Staves/10/` before `Staves/2/`.
+
+It is also how progress is watched: poll it while an execution runs and *Files* appear as they are written. Until the SSE stream below exists, polling is the whole of the mechanism, and a caller sees a finished execution's outputs arrive together rather than one at a time.
+
+```
+GET /musicorpus-pages/{id}/files
+
+200 OK
+{
+  "files": [
+    { "path": "Staves/1/image.jpg", "size": 40213, "last_modified": "2026-07-22T16:03:11Z" },
+    { "path": "image.jpg", "size": 918273, "last_modified": "2026-07-22T16:01:52Z" },
+    { "path": "layout.json", "size": 2143, "last_modified": "2026-07-22T16:03:09Z" }
+  ]
+}
+```
+
+A *File* is not attributed to the execution that wrote it. A page's folder is flat storage that any number of executions have written into, and a later one may overwrite what an earlier one produced, so the attribution would be a guess that goes stale; a caller wanting the connection reads it from the executions' *Signatures*.
+
 - `POST /musicorpus-pages/{id}/file-urls` Issues short-lived, presigned MinIO URLs for uploading and/or downloading *Files* directly to and from object storage — this keeps the non-scaling `api` service out of the file byte-path. The request body lists the *Files* to upload (`put`) and/or download (`get`); the response maps each path to a presigned URL plus an expiry. The client then transfers the bytes straight to/from MinIO.
 
 ```

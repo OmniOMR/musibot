@@ -36,6 +36,64 @@ def test_an_empty_request_yields_empty_maps(client: TestClient, alice: dict[str,
     assert response.json()["get"] == {}
 
 
+def test_listing_a_fresh_page_finds_nothing(client: TestClient, alice: dict[str, str]) -> None:
+    page_id = make_page(client, alice)
+
+    response = client.get(f"/musicorpus-pages/{page_id}/files", headers=alice)
+
+    assert response.status_code == 200
+    assert response.json()["files"] == []
+
+
+def test_listing_reports_what_storage_holds(
+    client: TestClient, alice: dict[str, str], storage: FakeStorage
+) -> None:
+    page_id = make_page(client, alice)
+    storage.put(page_id, "image.jpg", 4096)
+    storage.put(page_id, "Staves/1/image.jpg", 512)
+
+    response = client.get(f"/musicorpus-pages/{page_id}/files", headers=alice)
+
+    files = response.json()["files"]
+    assert [file["path"] for file in files] == ["Staves/1/image.jpg", "image.jpg"]
+    assert [file["size"] for file in files] == [512, 4096]
+    assert all("last_modified" in file for file in files)
+
+
+def test_listing_shows_only_this_pages_files(
+    client: TestClient, alice: dict[str, str], storage: FakeStorage
+) -> None:
+    """A page's folder is its own. The listing must not leak the neighbour's,
+    which is the failure a prefix applied loosely would produce."""
+    page_id = make_page(client, alice)
+    other_page_id = make_page(client, alice)
+    storage.put(page_id, "image.jpg", 1)
+    storage.put(other_page_id, "transcription.musicxml", 2)
+
+    response = client.get(f"/musicorpus-pages/{page_id}/files", headers=alice)
+
+    assert [file["path"] for file in response.json()["files"]] == ["image.jpg"]
+
+
+def test_listing_requires_ownership(
+    client: TestClient, alice: dict[str, str], bob: dict[str, str], storage: FakeStorage
+) -> None:
+    page_id = make_page(client, alice)
+    storage.put(page_id, "image.jpg", 1)
+
+    response = client.get(f"/musicorpus-pages/{page_id}/files", headers=bob)
+
+    assert response.status_code == 404
+
+
+def test_listing_requires_auth(client: TestClient, alice: dict[str, str]) -> None:
+    page_id = make_page(client, alice)
+
+    response = client.get(f"/musicorpus-pages/{page_id}/files")
+
+    assert response.status_code == 401
+
+
 def test_a_traversing_path_is_rejected(client: TestClient, alice: dict[str, str]) -> None:
     page_id = make_page(client, alice)
 
@@ -96,3 +154,4 @@ def test_file_urls_are_unavailable_without_storage(
     )
 
     assert response.status_code == 503
+    assert client.get(f"/musicorpus-pages/{page_id}/files", headers=alice).status_code == 503

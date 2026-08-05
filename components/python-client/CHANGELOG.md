@@ -8,6 +8,11 @@ Versions are semver, independent of the `api` service's release cadence. This is
 ## Unreleased
 
 
+### Added
+
+- **`list_files`** — the *Files* a page currently holds, as `PageFile` objects carrying `path`, `size` and `last_modified`. What a *Pipeline* produced is not knowable in advance (a page-level run writes a `Staves/{n}/` folder whose size depends on the page), so this is how outputs are discovered before `download_files` is called with their paths. It can also be polled while an execution runs to watch *Files* appear.
+
+
 ### Changed
 
 - **`start_execution` takes an `input` list** naming the *Files* to process. It is explicit because the server cannot supply it — it keeps no list of a page's *Files* and never learns which presigned upload URLs were used. A caller holding one page open across several executions names the *Files* for each of them.

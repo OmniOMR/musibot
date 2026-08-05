@@ -1,8 +1,14 @@
 """Test doubles for the service's external collaborators."""
 
 from dataclasses import dataclass
+from datetime import UTC, datetime
 
-from musibot.api.storage import HttpMethod
+from musibot.api.storage import HttpMethod, StoredFile
+
+# Every file the fake holds is stamped with this. Nothing under test reads a
+# timestamp for its meaning — it exists so a poller can tell a rewritten *File*
+# from an untouched one — so one fixed instant keeps the fake deterministic.
+FAKE_MTIME = datetime(2026, 1, 1, tzinfo=UTC)
 
 
 class FakeStorage:
@@ -15,24 +21,35 @@ class FakeStorage:
     def __init__(self) -> None:
         self.deleted_pages: list[str] = []
         self.wiped = False
-        # What each page is pretending to hold. A test sets this to stand in for
-        # bytes a *User* uploaded straight to MinIO, which this service never
-        # sees and can only measure afterwards.
-        self.sizes: dict[str, int] = {}
+        # What each page is pretending to hold, as path to size. A test fills
+        # this through `put` to stand in for bytes that went straight to MinIO,
+        # which this service never sees and can only ask about afterwards.
+        self.files: dict[str, dict[str, int]] = {}
+
+    def put(self, page_id: str, file_path: str, size: int = 1) -> None:
+        """Pretend a *User* or a *Worker* wrote one *File* of a page."""
+        self.files.setdefault(page_id, {})[file_path] = size
 
     def presign(self, page_id: str, file_path: str, method: HttpMethod, ttl_seconds: float) -> str:
         return f"https://minio.test/{page_id}/{file_path}?method={method}&ttl={int(ttl_seconds)}"
 
+    def list_page_files(self, page_id: str) -> list[StoredFile]:
+        # Sorted by path, as a real listing is sorted by key.
+        return [
+            StoredFile(path=path, size=size, last_modified=FAKE_MTIME)
+            for path, size in sorted(self.files.get(page_id, {}).items())
+        ]
+
     def delete_page(self, page_id: str) -> None:
         self.deleted_pages.append(page_id)
-        self.sizes.pop(page_id, None)
+        self.files.pop(page_id, None)
 
     def wipe_bucket(self) -> None:
         self.wiped = True
-        self.sizes.clear()
+        self.files.clear()
 
     def page_sizes(self) -> dict[str, int]:
-        return dict(self.sizes)
+        return {page_id: sum(files.values()) for page_id, files in self.files.items()}
 
 
 @dataclass

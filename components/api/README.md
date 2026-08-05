@@ -5,7 +5,7 @@ The Web API: the python service that serves the public HTTP API. Every external 
 
 ## Responsibilities
 
-- Public HTTP API — upload a page, start a pipeline execution, poll or stream status, download the result.
+- Public HTTP API — upload a page, start a pipeline execution, poll or stream status, list what the page now holds, download the result.
 - SSE stream to the Web UI for live progress.
 - Holds all system state, which is entirely ephemeral (a page is received, processed within minutes, downloaded, then forgotten).
 - Authenticates *Library* users via API tokens kept in a config file, and the *General public* via throwaway session tokens capped as one pool — see [Public access](../../docs/public-access.md).

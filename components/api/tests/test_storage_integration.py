@@ -72,6 +72,47 @@ def test_deleting_a_page_removes_only_its_files(storage: Storage) -> None:
     assert httpx.get(storage.presign("pageBBBBBBBB", "image.jpg", "get", 300)).status_code == 200
 
 
+def test_listing_a_page_names_files_as_a_signature_would(storage: Storage) -> None:
+    """The paths that come back have to be the ones a *Signature* is written in.
+
+    Both the deployment's key prefix and the page ID go on when a key is built,
+    and both have to come back off here. Leaving either on fails quietly: every
+    path would still look plausible and none of them would match a *File* the
+    *User* asked to be processed.
+    """
+    httpx.put(storage.presign("pageAAAAAAAA", "image.jpg", "put", 300), content=b"12345")
+    httpx.put(storage.presign("pageAAAAAAAA", "Staves/1/image.jpg", "put", 300), content=b"678")
+    httpx.put(storage.presign("pageBBBBBBBB", "image.jpg", "put", 300), content=b"b")
+
+    files = storage.list_page_files("pageAAAAAAAA")
+
+    assert [(file.path, file.size) for file in files] == [
+        ("Staves/1/image.jpg", 3),
+        ("image.jpg", 5),
+    ]
+
+
+def test_listing_an_empty_page_finds_nothing(storage: Storage) -> None:
+    assert storage.list_page_files("pageAAAAAAAA") == []
+
+
+def test_listing_sees_a_file_that_was_overwritten(storage: Storage) -> None:
+    """Why the answer is asked of storage every time rather than remembered.
+
+    A second *Pipeline Execution* may rewrite a *File* the first one produced,
+    and a listing reports what is there now — the new size, and a timestamp that
+    moved — where a remembered list would report the first execution's.
+    """
+    httpx.put(storage.presign("pageAAAAAAAA", "layout.json", "put", 300), content=b"first")
+    before = storage.list_page_files("pageAAAAAAAA")[0]
+
+    httpx.put(storage.presign("pageAAAAAAAA", "layout.json", "put", 300), content=b"second write")
+    after = storage.list_page_files("pageAAAAAAAA")[0]
+
+    assert (before.size, after.size) == (5, 12)
+    assert after.last_modified >= before.last_modified
+
+
 def test_page_sizes_totals_each_page_folder(storage: Storage) -> None:
     """What the public storage quota is read against.
 

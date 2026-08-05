@@ -10,6 +10,7 @@ from musibot.client.errors import (
 )
 from musibot.client.models import (
     MusicorpusPage,
+    PageFile,
     Pipeline,
     PipelineExecution,
     PipelineListing,
@@ -21,6 +22,7 @@ __all__ = [
     "MusibotClient",
     "MusibotError",
     "MusicorpusPage",
+    "PageFile",
     "Pipeline",
     "PipelineExecution",
     "PipelineExecutionFailed",

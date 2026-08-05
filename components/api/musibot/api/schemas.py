@@ -12,6 +12,7 @@ from pydantic import BaseModel
 
 from musibot.api.discovery import DiscoveryWarning, Listing, PipelineListing, WarningType
 from musibot.api.domain import MusicorpusPage, PipelineExecution
+from musibot.api.storage import StoredFile
 
 
 class PipelineExecutionView(BaseModel):
@@ -99,6 +100,40 @@ class FileUrlsResponse(BaseModel):
     put: dict[str, str] = {}
     get: dict[str, str] = {}
     expires_at: datetime
+
+
+class FileView(BaseModel):
+    """One *File* of a page, as the API presents it.
+
+    `path` is what the *Signature* and the Musicorpus Specification call the
+    file — `image.jpg`, `Staves/3/image.jpg` — so it is what a
+    *Pipeline Execution*'s `input` is written in and what a URL is asked for.
+    """
+
+    path: str
+    size: int
+    last_modified: datetime
+
+    @classmethod
+    def of(cls, file: StoredFile) -> "FileView":
+        return cls(path=file.path, size=file.size, last_modified=file.last_modified)
+
+
+class FileListingResponse(BaseModel):
+    """What a page currently holds.
+
+    A *File* and nothing about who wrote it: a page's folder is flat storage
+    that any number of *Pipeline Executions* have written into, and a later one
+    may overwrite what an earlier one produced. Attributing a *File* to an
+    execution would therefore be a guess, and one that goes stale. A caller that
+    wants the connection reads it from the executions' *Signatures*.
+    """
+
+    files: list[FileView]
+
+    @classmethod
+    def of(cls, files: list[StoredFile]) -> "FileListingResponse":
+        return cls(files=[FileView.of(file) for file in files])
 
 
 class NameAndVersionView(BaseModel):
