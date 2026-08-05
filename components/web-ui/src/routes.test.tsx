@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { musicorpusPagePath } from "./paths";
 import { routes } from "./routes";
+import SessionProvider from "./session/SessionProvider";
 
 /**
  * The routing, checked where it is easy to get wrong: which address reaches
@@ -16,7 +17,13 @@ import { routes } from "./routes";
  */
 function renderAt(path: string) {
   const router = createMemoryRouter(routes, { initialEntries: [path] });
-  return render(<RouterProvider router={router} />);
+  // The same composition as `App.tsx`: screens reach for the session, so a
+  // router mounted without the provider around it is not the app.
+  return render(
+    <SessionProvider>
+      <RouterProvider router={router} />
+    </SessionProvider>,
+  );
 }
 
 describe("routes", () => {

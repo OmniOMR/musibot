@@ -52,6 +52,26 @@ Two placeholders are still in the landing page and both are meant to be noticed:
 - **Nothing is uploaded yet.** The drop zone and the samples both call back with what was chosen and the landing screen drops it; that callback is the seam the upload flow plugs into.
 
 
+## Sessions
+
+The public tier has no accounts. A visitor gets a bearer token from `POST /public-sessions`, it lives about an hour, and a page created under it is deleted when it expires. `src/session/` holds the app's side of that, and it is more than a variable holding a token — for one reason.
+
+**A token's expiry is fixed at minting and is never extended.** So a visitor who uploads at minute 55 of a token's life gets a page that lives five minutes, which is not a limit anyone chose. The app therefore keeps *several* sessions rather than one: before a page is created, the current token is checked, and if it has **20 minutes or less** left a new one is minted and becomes current. Every page gets at least that much life.
+
+The consequence reaches everywhere else in the app: **a page's token is a property of the page**. Asking about last hour's page with this hour's token answers `404` — to the service that is somebody else's page — so every call in `src/api/client.ts` takes its token as an argument rather than reading an ambient one, and `useSession().tokenForPage(pageId)` is what a screen asks. A page's expiry is its session's expiry.
+
+Two things deliberately do **not** mint:
+
+- **`429`.** The caps are on the public tier as one pool, and the per-session ones are courtesy caps meant to be hit rather than routed around. A fresh token buys nothing globally and would defeat the per-session ones, so the refusal is shown to the visitor and nothing else happens.
+- **A timer, a page load, or anything else on a schedule.** Only an upload about to happen mints, and only when the clock says it must.
+
+The one thing beyond the clock that *drops* a session is a **`401`**, which is proof the token is dead however much life was recorded for it — the api service keeps all state in memory and rebuilds it empty on every start, so a restart invalidates live tokens without the clock moving. That session and its pages are forgotten, since they are genuinely gone.
+
+The ledger lives in `localStorage` under one key, because the API has no endpoint that lists a user's pages: if the app does not write down what it uploaded, nothing does. It is read tolerantly — a stored value that will not parse is discarded rather than thrown over, since losing the record of an ephemeral hour beats a landing page that will not render.
+
+One limitation follows from all of this and is worth knowing: **a page's URL is not shareable.** Reaching a page needs the token it was created under, which lives in one browser's `localStorage` and is deliberately never in the URL.
+
+
 ## Development
 
 Requires **Node 22.12+ or 24+** (Vite 8's floor; the test runner's jsdom wants 22.22+, so 24 is the comfortable choice).
@@ -63,6 +83,8 @@ npm start
 ```
 
 The dev server comes up on http://localhost:5173 and proxies `/api/*` to `127.0.0.1:8080`, which is where `musibot-api` runs with no configuration (see [../api/README.md](../api/README.md)). Point it elsewhere with `MUSIBOT_API_URL`.
+
+**The api service needs `public_access_enabled` turned on**, or nothing in this app works past the landing page: it is off by default so that a Libraries-only deployment does not acquire a public demo by accident, and with it off `POST /public-sessions` answers `404` and the UI reports that the instance offers no public access. See [Public access](../../docs/public-access.md).
 
 Proxying rather than calling an absolute URL keeps the browser on a single origin, which is what production is too — nginx serves this bundle and reverse-proxies the API behind the same host — so no CORS handling is needed in either place and no code differs between them.
 

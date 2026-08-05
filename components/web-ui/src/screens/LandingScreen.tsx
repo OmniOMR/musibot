@@ -3,6 +3,7 @@ import Link from "@mui/material/Link";
 import Typography from "@mui/material/Typography";
 
 import ContentWidth from "../components/ContentWidth";
+import SessionPill from "../components/SessionPill";
 import SiteFooter from "../components/SiteFooter";
 import SiteHeader from "../components/SiteHeader";
 import * as links from "../links";
@@ -93,6 +94,7 @@ export default function LandingScreen() {
 
       <HowItWorks />
       <SiteFooter />
+      <SessionPill />
     </>
   );
 }

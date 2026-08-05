@@ -1,6 +1,7 @@
 import { createBrowserRouter, RouterProvider } from "react-router";
 
 import { routes } from "./routes";
+import SessionProvider from "./session/SessionProvider";
 
 /**
  * The app: a router over the screens in `routes.tsx`, and nothing else yet.
@@ -24,5 +25,9 @@ const router = createBrowserRouter(routes, {
 });
 
 export default function App() {
-  return <RouterProvider router={router} />;
+  return (
+    <SessionProvider>
+      <RouterProvider router={router} />
+    </SessionProvider>
+  );
 }
