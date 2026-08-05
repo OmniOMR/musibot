@@ -20,6 +20,9 @@ The Web UI has no outward contract of its own: nothing depends on it, and it dep
 - **The theme** — printed paper: a warm ivory page, Source Serif 4 headings over Source Sans 3 body text, flat surfaces divided by hairline rules, and Charles University's cardinal red as the one saturated colour. Fonts are bundled rather than fetched from a CDN. Colour choices and their measured contrast ratios are recorded in `src/theme/palette.ts`.
 
 
+- **The recognition log panel**, collapsed by default and opened from the pill at the foot of the overview. One log for the whole page rather than one per *Pipeline Execution*, since a page can be read twice and the story is easier to follow in the order it happened. It is empty — the API has no log endpoint yet — so it says so; what is built is the paper it will be printed on: continuous-feed dot-matrix stock with sprocket holes down both edges that scroll with the lines rather than framing them.
+
+
 - **The transcription, beside the scan.** Selecting a transcription opens a panel showing what Musibot read: the notation engraved from MusicXML, and the LMX token sequence underneath it. One reading per staff for a staff-level file, matching what the canvas is showing, since comparing the reading against the crop is the point of having both. The renderer is loaded only when somebody actually opens a transcription — it is larger than the whole of the rest of the app, and the landing page should not pay for it.
 - **Third-party notices.** The bundle redistributes every library compiled into it, and their licences require their notices to travel with it — which nothing did, since the build strips comments. `THIRD-PARTY-NOTICES.md` now carries them, generated from the dependency tree rather than maintained by hand. It also records that Musibot elects MIT for the one dual-licensed dependency, and carries the Open Font License for the two bundled typefaces.
 
@@ -52,6 +55,6 @@ The Web UI has no outward contract of its own: nothing depends on it, and it dep
 
 ### Not yet implemented
 
-The recognition log — the pill opens nothing, and the API has no log endpoint to open it onto. A page also cannot yet have a further *Pipeline* run on it from the screen, so the *+ Run pipeline* button is absent rather than dead, and the session overview at `/session` is still a placeholder.
+What goes in the recognition log. The panel is built and says "To be added", because the API has no log endpoint and the SSE protocol behind it is not designed yet. A page also cannot have a further *Pipeline* run on it from the screen, so the *+ Run pipeline* button is absent rather than dead, and the session overview at `/session` is still a placeholder.
 
 Two things on the landing page are stubs rather than features. The four sample pages are drawn stand-ins and clicking one reports that the sample could not be loaded, because `public/samples/` is empty; the code that fetches them is the real code, what is missing is four JPEGs. And errors in the upload flow are shown as plain text rather than as the designed cards.

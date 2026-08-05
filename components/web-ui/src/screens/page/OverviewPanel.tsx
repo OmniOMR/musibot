@@ -23,6 +23,7 @@ export default function OverviewPanel({
   onSelect,
   onDownload,
   logLineCount,
+  logOpen,
   onToggleLog,
 }: {
   executions: PipelineExecutionView[];
@@ -30,7 +31,9 @@ export default function OverviewPanel({
   selectedKey: string | null;
   onSelect: (key: string) => void;
   onDownload: (paths: string[]) => void;
+  /** Shown on the pill, so the log announces itself without being opened. */
   logLineCount: number;
+  logOpen: boolean;
   onToggleLog: () => void;
 }) {
   return (
@@ -94,7 +97,7 @@ export default function OverviewPanel({
         >
           <span>Recognition log</span>
           <Box component="span" sx={{ color: paper["500"] }}>
-            {logLineCount} lines ›
+            {logLineCount} {logLineCount === 1 ? "line" : "lines"} {logOpen ? "‹" : "›"}
           </Box>
         </ButtonBase>
       </Box>

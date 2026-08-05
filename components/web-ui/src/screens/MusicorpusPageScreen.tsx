@@ -9,11 +9,13 @@ import { SessionExpired } from "../api/errors";
 import ContentWidth from "../components/ContentWidth";
 import { useNow } from "../page/expiry";
 import { groupFiles } from "../page/files";
+import { usePageLog } from "../page/log";
 import { usePageState } from "../page/usePageState";
 import * as paths from "../paths";
 import { find, outputsAmong } from "../pipelines";
 import { useSession } from "../session/useSession";
 import { paper, serif } from "../theme";
+import LogPanel from "./page/LogPanel";
 import OverviewPanel from "./page/OverviewPanel";
 import PageHeader from "./page/PageHeader";
 import ScenePanel from "./page/ScenePanel";
@@ -40,9 +42,12 @@ export default function MusicorpusPageScreen() {
   const token = session.tokenForPage(pageId);
   const tracked = session.pages.find((page) => page.pageId === pageId);
   const state = usePageState(pageId, token);
+  const log = usePageLog(pageId, token);
 
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
+  /** Collapsed by default — the log is for a reader who has gone looking. */
+  const [logOpen, setLogOpen] = useState(false);
 
   /**
    * Which of the page's *Files* a running execution is about to replace.
@@ -144,8 +149,9 @@ export default function MusicorpusPageScreen() {
           selectedKey={selectedKey}
           onSelect={setSelectedKey}
           onDownload={(toDownload) => void download(toDownload)}
-          logLineCount={0}
-          onToggleLog={() => {}}
+          logLineCount={log.lines.length}
+          logOpen={logOpen}
+          onToggleLog={() => setLogOpen((open) => !open)}
         />
 
         <ScenePanel pageId={pageId} token={token} selected={selectedRow} files={state.files} />
@@ -160,6 +166,17 @@ export default function MusicorpusPageScreen() {
           />
         )}
       </Box>
+
+      {/* Across the full width, under every panel: the log is about the page,
+          not about whichever one of them is in focus. */}
+      {logOpen && (
+        <LogPanel
+          lines={log.lines}
+          streaming={log.streaming}
+          real={log.real}
+          onCollapse={() => setLogOpen(false)}
+        />
+      )}
     </Box>
   );
 }
