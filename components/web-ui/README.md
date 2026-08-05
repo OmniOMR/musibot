@@ -63,6 +63,19 @@ A file arrives three ways — dropped, chosen from the picker, or taken from the
 A pipeline this app cannot drive from a single upload — one needing a *File* an earlier execution must produce, or one nothing is currently running — is listed and disabled with the reason. Hiding it would leave a visitor hunting for something they read about elsewhere.
 
 
+## The MusicorpusPage screen
+
+The workspace behind an upload: full height, panels rather than a content column. `src/page/` holds its logic and `src/screens/page/` its parts.
+
+**Progress is polled, not streamed.** [The HTTP API](../../docs/http-api.md) promises an SSE stream and it is not implemented, so `usePageState` asks every 1.5 seconds while an execution is running and stops the moment nothing is. The consequence is visible and deliberate: a finished execution's outputs appear together rather than one at a time, so a running execution shows a spinner and never a count. **Nothing here may show a percentage** — an image-to-sequence model does not know how long its own output will be, so there is no figure to report even once streaming exists. Stopping when idle matters too: the public tier is one shared pool, and every open tab polling forever would be a permanent load on it.
+
+**The file list is the page's contents, not any execution's outputs.** A page's folder is flat storage that several executions have written into, and a later one may overwrite what an earlier one produced — so grouping files under the run that wrote them would put one path under two headings and make one of them wrong. Executions are the page's history; files are its present. A file a *running* execution declares among its outputs is flagged *will be replaced*, read from the pipeline's *Signature* rather than guessed.
+
+**Files inside a subdivision collapse into one row.** Twelve staves is twenty-four files, which would bury the page-level ones. They also behave as one thing downstream — selecting staff transcriptions shows all of them at once rather than isolating a staff — so one row is what the selection means. Which folders are subdivisions is not written down: `<folder>/<instance>/<name>` is the rule, and the folder names its own section, because Musibot treats paths purely syntactically so that a new subdivision level is not a change to Musibot.
+
+**A page is only reachable in the browser that uploaded it**, since it is fetched with the token it was created under. The screen says so rather than showing an empty workspace.
+
+
 ## Sessions
 
 The public tier has no accounts. A visitor gets a bearer token from `POST /public-sessions`, it lives about an hour, and a page created under it is deleted when it expires. `src/session/` holds the app's side of that, and it is more than a variable holding a token — for one reason.

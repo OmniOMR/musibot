@@ -94,6 +94,34 @@ export function unsupportedReason(pipeline: PipelineView): string | null {
   return null;
 }
 
+/**
+ * Whether a concrete path is one of the *Files* a pattern describes.
+ *
+ * The reverse of `instantiate`, and the same rule read the other way: a slot
+ * occupies a whole segment, so matching is segment by segment with slots
+ * matching anything. `{s}` and `{*s}` are the same here — how *many* instances
+ * a pattern admits is not a question about one path.
+ *
+ * Used to say which of a page's existing *Files* a running execution is about
+ * to overwrite, which is worth flagging before it happens rather than
+ * explaining afterwards.
+ */
+export function matchesPattern(path: string, pattern: string): boolean {
+  const patternSegments = pattern.replace(/\?$/, "").split("/");
+  const pathSegments = path.split("/");
+  if (patternSegments.length !== pathSegments.length) {
+    return false;
+  }
+  return patternSegments.every(
+    (segment, index) => isSlot(segment) || segment === pathSegments[index],
+  );
+}
+
+/** Which of these paths the pipeline says it will write. */
+export function outputsAmong(paths: string[], signature: SignatureView): string[] {
+  return paths.filter((path) => signature.output.some((pattern) => matchesPattern(path, pattern)));
+}
+
 /** A pattern with its slots filled in — `Staves/{s}/image.jpg` → `Staves/1/image.jpg`. */
 function instantiate(pattern: string): string {
   return pattern

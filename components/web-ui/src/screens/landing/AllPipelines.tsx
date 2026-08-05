@@ -78,7 +78,9 @@ export default function AllPipelines({
                 // above, but as an edge rather than a full border: a ring round
                 // one row of a bordered list reads as a nested box.
                 borderLeft: `3px solid ${isSelected ? cuni.red : "transparent"}`,
-                bgcolor: isSelected ? paper["000"] : "transparent",
+                // Darker than the list it sits in, like every selected row —
+                // the red edge is what separates it from a row merely hovered.
+                bgcolor: isSelected ? paper["150"] : "transparent",
                 "&:hover": { bgcolor: paper["150"] },
                 "&.Mui-disabled": { opacity: 0.55 },
               }}
