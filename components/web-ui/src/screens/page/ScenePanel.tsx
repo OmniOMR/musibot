@@ -150,6 +150,12 @@ export default function ScenePanel({
    * arrive is the one that lands.
    */
   const framed = useRef("");
+  /**
+   * The transform the last `fit` produced, so that a re-frame can tell a view
+   * nobody has touched from one somebody has arranged.
+   */
+  const fitted = useRef<Transform | null>(null);
+
   useEffect(() => {
     if (bounds === null || viewport.width === 0) {
       return;
@@ -157,11 +163,24 @@ export default function ScenePanel({
     const key = placed.plates
       .map((plate) => `${plate.path}:${data.images.get(plate.path)?.height ?? 0}`)
       .join("|");
-    if (key !== "" && key !== framed.current) {
+
+    // The panel's width halves the moment a transcription is selected, which
+    // leaves a scene framed for the old width sitting off to one side. Re-frame
+    // for the new one — but only while the view is still exactly as `fit` left
+    // it, because re-framing a view somebody has panned or zoomed would throw
+    // away the thing they were looking at.
+    const untouched =
+      fitted.current !== null &&
+      fitted.current.k === current().k &&
+      fitted.current.x === current().x &&
+      fitted.current.y === current().y;
+
+    if (key !== "" && (key !== framed.current || untouched)) {
       framed.current = key;
       fit(bounds, viewport);
+      fitted.current = current();
     }
-  }, [bounds, viewport, placed, data.images, fit]);
+  }, [bounds, viewport, placed, data.images, fit, current]);
 
   return (
     <Box sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", minHeight: 0 }}>

@@ -15,6 +15,10 @@ The Web UI has no outward contract of its own: nothing depends on it, and it dep
 - **The theme** — printed paper: a warm ivory page, Source Serif 4 headings over Source Sans 3 body text, flat surfaces divided by hairline rules, and Charles University's cardinal red as the one saturated colour. Fonts are bundled rather than fetched from a CDN. Colour choices and their measured contrast ratios are recorded in `src/theme/palette.ts`.
 
 
+- **The transcription, beside the scan.** Selecting a transcription opens a panel showing what Musibot read: the notation engraved from MusicXML, and the LMX token sequence underneath it. One reading per staff for a staff-level file, matching what the canvas is showing, since comparing the reading against the crop is the point of having both. The renderer is loaded only when somebody actually opens a transcription — it is larger than the whole of the rest of the app, and the landing page should not pay for it.
+- **Third-party notices.** The bundle redistributes every library compiled into it, and their licences require their notices to travel with it — which nothing did, since the build strips comments. `THIRD-PARTY-NOTICES.md` now carries them, generated from the dependency tree rather than maintained by hand. It also records that Musibot elects MIT for the one dual-licensed dependency, and carries the Open Font License for the two bundled typefaces.
+
+
 - **The canvas.** The scan, pannable and zoomable, with whatever has been found on it drawn over the top: staff regions from `layout.json` in the university red, symbol detections from `coco-object-detection.json` in the blue, and a class name on hover. Selecting a staff-level layer shows *every* staff at once, stacked and labelled, because what a reader is checking is whether the reading holds across the page. Rulers down two edges say how big a thing actually is, which the zoom percentage cannot. A transcription gets no boxes: there is no coordinate in a MusicXML file.
 - **Layers are read into memory rather than linked.** A presigned URL outlives neither the page nor a long look at it, so files are fetched once and shown from memory — which also means a *File* a later execution rewrote is re-read, while one that has not changed is free to return to.
 
@@ -43,6 +47,6 @@ The Web UI has no outward contract of its own: nothing depends on it, and it dep
 
 ### Not yet implemented
 
-Reading the notation rather than looking at the scan. The MusicorpusPage screen has its overview and its canvas, but not the transcription panel beside them, and not the recognition log — the log pill opens nothing, and the API has no log endpoint to open it onto. A page also cannot yet have a further *Pipeline* run on it from the screen, so the *+ Run pipeline* button is absent rather than dead.
+The recognition log — the pill opens nothing, and the API has no log endpoint to open it onto. A page also cannot yet have a further *Pipeline* run on it from the screen, so the *+ Run pipeline* button is absent rather than dead, and the session overview at `/session` is still a placeholder.
 
 Two things on the landing page are stubs rather than features. The four sample pages are drawn stand-ins and clicking one reports that the sample could not be loaded, because `public/samples/` is empty; the code that fetches them is the real code, what is missing is four JPEGs. And errors in the upload flow are shown as plain text rather than as the designed cards.

@@ -91,6 +91,36 @@ SVG, with React rendering its contents and d3 supplying only behaviour. `src/sce
 **Boxes come from `bbox` and nothing else.** Both spatial layers are COCO — `layout.json` for staff regions in the university red, `coco-object-detection.json` for symbols in the blue — so one reader serves both. Every annotation also carries `segmentation`, as polygon arrays in one file and run-length encoding in another; drawing it would mean an RLE decoder for shapes the boxes already locate, and polygons are the one thing that makes an SVG scene slow where thousands of rectangles do not.
 
 
+### The transcription
+
+Beside the canvas, and only while a transcription is selected — the panel would have nothing to say about a `layout.json`, and half a canvas is worth more than a column explaining that it is empty. It shows one reading per instance, the same set the canvas is showing, because comparing the reading against the crop it came from is the point of having both.
+
+Each reading is the notation engraved from `transcription.musicxml`, with the `transcription.lmx` tokens underneath. The second is not a fallback for the first: a musician checks whether the notation looks right, while somebody working on the model reads the token sequence, where a wrong duration is a wrong token rather than a subtly wrong stem. Selecting either file shows both, since they are two views of one answer.
+
+**OpenSheetMusicDisplay is loaded on demand.** It ships as a single prebuilt file of about 1.3 MB with VexFlow and JSZip already inside it, so it cannot be tree-shaken, and bundling it would charge every visitor to the landing page for a renderer most of them never open. A dynamic `import()` puts it in a chunk of its own — the main bundle is ~580 kB, the renderer ~1.3 MB (335 kB gzipped) and separate.
+
+Like the ruler on the canvas, OSMD writes its own DOM into a container React renders empty and never gives a child to. It is re-rendered on width changes, since engraving decides line breaks and is a layout decision rather than a style.
+
+LMX is split on whitespace and nothing else. It is Linearized MusicXML — a flat token sequence a model can emit — and anything cleverer than a whitespace split would be this app's opinion about a format it does not own.
+
+
+## Third-party notices
+
+The bundle is a redistribution of every library compiled into it, and permissive licences — BSD, MIT, the SIL Open Font License — require their notices to accompany it. Nothing does that by itself: Vite strips comments, so a licence header in a dependency's source does not survive into `dist/`.
+
+[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) is that file, and it is **generated**:
+
+```bash
+npm run notices       # after adding or upgrading any dependency
+```
+
+It is committed, so a diff shows what changed. A hand-maintained list is accurate exactly once.
+
+Two things it settles that would otherwise be left ambiguous. **JSZip** is offered as `MIT OR GPL-3.0-or-later` and Musibot elects MIT — an unstated election is how a dual-licensed dependency comes to be read as putting GPL in a web UI. And the **fonts** are bundled rather than fetched from a CDN, so the Open Font License travels with them rather than staying on somebody else's server.
+
+The generator excludes what demonstrably never reaches the bundle: `@types/*`, and optional dependencies — OpenSheetMusicDisplay's `gl`, which it uses only to render headlessly under Node, and the native toolchain beneath it. Everything else is listed even where it is arguably build-time only, because over-attributing costs a paragraph and under-attributing breaches a licence.
+
+
 ## Sessions
 
 The public tier has no accounts. A visitor gets a bearer token from `POST /public-sessions`, it lives about an hour, and a page created under it is deleted when it expires. `src/session/` holds the app's side of that, and it is more than a variable holding a token — for one reason.

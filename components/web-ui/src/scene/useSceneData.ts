@@ -43,6 +43,8 @@ export interface SceneData {
   images: Map<string, SceneImage>;
   /** Parsed COCO layers, by path. */
   overlays: Map<string, CocoLayer>;
+  /** Anything textual — MusicXML, LMX — as it came off the wire. */
+  texts: Map<string, string>;
   loading: boolean;
   error: string | null;
 }
@@ -52,14 +54,33 @@ interface CacheEntry {
   version: string;
   image?: SceneImage;
   coco?: CocoLayer;
+  text?: string;
 }
 
 const EMPTY: SceneData = {
   images: new Map(),
   overlays: new Map(),
+  texts: new Map(),
   loading: false,
   error: null,
 };
+
+/**
+ * What to make of a *File*, decided by its name.
+ *
+ * Musibot itself never parses a *File* — it moves opaque bytes with a path —
+ * so this is the app's own reading of the Musicorpus Specification's
+ * vocabulary, and it is deliberately shallow: an image to draw, a COCO
+ * document to take boxes from, or text to show. Anything else is text too,
+ * which is wrong for a `.mscz` but is never asked for.
+ */
+function kindOf(path: string): "image" | "coco" | "text" {
+  const name = fileNameOf(path);
+  if (name.endsWith(".json")) {
+    return "coco";
+  }
+  return /\.(jpe?g|png|webp|gif)$/i.test(name) ? "image" : "text";
+}
 
 export function useSceneData(
   pageId: string,
@@ -125,10 +146,15 @@ export function useSceneData(
               // unreachable, so it is released here rather than leaked.
               revoke(cache.current.get(path));
 
-              if (fileNameOf(path).endsWith(".json")) {
-                cache.current.set(path, { version, coco: readCoco(await response.json()) });
-              } else {
-                cache.current.set(path, { version, image: await measure(await response.blob()) });
+              switch (kindOf(path)) {
+                case "coco":
+                  cache.current.set(path, { version, coco: readCoco(await response.json()) });
+                  break;
+                case "image":
+                  cache.current.set(path, { version, image: await measure(await response.blob()) });
+                  break;
+                default:
+                  cache.current.set(path, { version, text: await response.text() });
               }
             }),
           );
@@ -140,6 +166,7 @@ export function useSceneData(
 
         const images = new Map<string, SceneImage>();
         const overlays = new Map<string, CocoLayer>();
+        const texts = new Map<string, string>();
         for (const { path } of wanted) {
           const entry = cache.current.get(path);
           if (entry?.image !== undefined) {
@@ -148,13 +175,17 @@ export function useSceneData(
           if (entry?.coco !== undefined) {
             overlays.set(path, entry.coco);
           }
+          if (entry?.text !== undefined) {
+            texts.set(path, entry.text);
+          }
         }
-        setData({ images, overlays, loading: false, error: null });
+        setData({ images, overlays, texts, loading: false, error: null });
       } catch (error) {
         if (!cancelled) {
           setData({
             images: new Map(),
             overlays: new Map(),
+            texts: new Map(),
             loading: false,
             error: error instanceof Error ? error.message : "That layer could not be read.",
           });

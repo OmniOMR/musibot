@@ -17,6 +17,8 @@ import { paper, serif } from "../theme";
 import OverviewPanel from "./page/OverviewPanel";
 import PageHeader from "./page/PageHeader";
 import ScenePanel from "./page/ScenePanel";
+import TranscriptionPanel from "./page/TranscriptionPanel";
+import { opensTranscription } from "../transcription/transcription";
 
 /**
  * One *MusicorpusPage* — the screen the work happens on.
@@ -146,8 +148,17 @@ export default function MusicorpusPageScreen() {
           onToggleLog={() => {}}
         />
 
-        {/* TranscriptionPanel will sit beside this one. */}
         <ScenePanel pageId={pageId} token={token} selected={selectedRow} files={state.files} />
+
+        {/* Only while there is a reading to put beside the scan. */}
+        {opensTranscription(selectedRow) && (
+          <TranscriptionPanel
+            pageId={pageId}
+            token={token}
+            selected={selectedRow}
+            files={state.files}
+          />
+        )}
       </Box>
     </Box>
   );
