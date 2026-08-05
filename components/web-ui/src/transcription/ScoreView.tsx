@@ -66,6 +66,7 @@ export default function ScoreView({ musicXml }: { musicXml: string }) {
           // Musibot already says whose page this is, in the header and in the
           // panel's own label. A title block and part names above every staff
           // would be the file repeating it, several times down a column.
+          drawingParameters: "compacttight",
           drawTitle: false,
           drawSubtitle: false,
           drawComposer: false,
