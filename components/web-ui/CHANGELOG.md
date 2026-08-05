@@ -8,6 +8,11 @@ The Web UI has no outward contract of its own: nothing depends on it, and it dep
 ## Unreleased
 
 
+### Fixed
+
+- **Two pages in five were being taken for a single staff.** The guess that picks a default *Pipeline* asked whether an image was wider than it was tall, and 41 of the 100 pages in the `UFAL.OmniOMR` corpus are landscape — so a page was handed to a model that reads one line of music, which transcribes the whole sheet as though it were one. The threshold is now a width-to-height ratio of 3.0, measured across those 100 pages and 1184 staff crops: the two populations are separated by an empty band, nothing in the corpus falling between 1.5 and 4.6. The histogram is in the source beside the number. The explanation shown to the visitor no longer claims a page is "tall and narrow" either, which was untrue of it in plain sight.
+
+
 ### Added
 
 - **The toolchain.** Vite, React, TypeScript and MUI, built to a static bundle that nginx serves. No server-side rendering: the deployment is files behind a web server, and stays that way.
@@ -28,7 +33,7 @@ The Web UI has no outward contract of its own: nothing depends on it, and it dep
 - **A page that is not this browser's says so.** Reaching a page needs the token it was created under, so a pasted link, or the same link on another machine, gets an explanation rather than an empty workspace. An expired page gets its own.
 
 
-- **Upload, and the pipeline choice.** A dropped, chosen or sampled JPEG is measured in the browser, and its shape decides which of two *Pipelines* is offered first — a tall image is assumed to be a whole page, a wide one a single staff — with the assumption stated as one and overridable in a click. Underneath, *All pipelines* lists everything the instance announces, *ImplicitPipelines* included. Then the page is created, the bytes go straight to object storage over a presigned URL, and the execution starts.
+- **Upload, and the pipeline choice.** A dropped, chosen or sampled JPEG is measured in the browser, and its shape decides which of two *Pipelines* is offered first — a page-shaped image is assumed to be a whole page, a long strip a single staff — with the assumption stated as one and overridable in a click. Underneath, *All pipelines* lists everything the instance announces, *ImplicitPipelines* included. Then the page is created, the bytes go straight to object storage over a presigned URL, and the execution starts.
 - **The upload path comes from the pipeline's *Signature*.** A page-level pipeline reads `image.jpg`; a staff-level one reads `Staves/1/image.jpg`, and the api service rejects an input list that does not fit the signature. So the destination is derived per pipeline rather than assumed, and a pipeline needing more than the one file a visitor uploads is listed and disabled rather than offered and then refused.
 - **The two default pipelines are named in the UI** — `mzk-page` and `mzk-staff`, both v1. When an instance does not announce them, both primary choices are disabled with a note and the full list is opened instead, so the app is usable on an instance running only a model or two.
 
