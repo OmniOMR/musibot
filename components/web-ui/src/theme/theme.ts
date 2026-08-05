@@ -17,7 +17,15 @@ import { cuni, paper } from "./palette";
 
 const SERIF = '"Source Serif 4 Variable", Georgia, "Times New Roman", serif';
 const SANS = '"Source Sans 3 Variable", system-ui, -apple-system, "Segoe UI", sans-serif';
-const MONO = 'ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace';
+
+/**
+ * The monospace stack, exported because the design reaches for it far outside
+ * `<code>`: file paths, page IDs, pipeline versions, log lines, image
+ * dimensions — anything the user might have to read character by character or
+ * type back. Setting it on a MUI component means naming it, since the class
+ * that component generates outranks the element rule in `CssBaseline`.
+ */
+export const mono = 'ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace';
 
 export const theme = createTheme({
   cssVariables: true,
@@ -130,8 +138,8 @@ export const theme = createTheme({
           "--measure-body": "65ch",
           "--measure-prose": "80ch",
         },
-        code: { fontFamily: MONO, fontSize: "0.9em" },
-        pre: { fontFamily: MONO },
+        code: { fontFamily: mono, fontSize: "0.9em" },
+        pre: { fontFamily: mono },
       },
     },
 

@@ -115,8 +115,8 @@ function publicUrlPlugin(): Plugin {
         source: [
           "User-agent: *",
           `Allow: ${BASE}$`,
-          `Disallow: ${BASE}app/`,
           `Disallow: ${BASE}musicorpus-pages/`,
+          `Disallow: ${BASE}session`,
           `Disallow: ${BASE}api/`,
           "",
           `Sitemap: ${PUBLIC_URL}/sitemap.xml`,

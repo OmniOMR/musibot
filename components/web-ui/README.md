@@ -16,6 +16,28 @@ React single-page app, written in TypeScript, using MUI (Material UI) components
 No server-side rendering and no SSG framework. The build produces static files that nginx serves, which is the whole of the deployment story — see [Search engines](#search-engines) for why that is enough.
 
 
+## Routes
+
+There are four, and they are declared in `src/routes.tsx` against the path constants in `src/paths.ts`:
+
+| Route | Screen | |
+| --- | --- | --- |
+| `/` | `LandingScreen` | The pitch and the upload. The only screen meant to be indexed. |
+| `/musicorpus-pages/:pageId` | `MusicorpusPageScreen` | One *MusicorpusPage* — the four-panel screen the recognition happens on. |
+| `/session` | `SessionScreen` | Everything this browser has uploaded while its session lasts. |
+| `*` | `NotFoundScreen` | An address nothing claimed. |
+
+The names follow the domain and the HTTP API rather than being shortened, because `page` is the most overloaded word in this project — a page of sheet music, a *MusicorpusPage*, a screen of the app. For the same reason the components live in `src/screens/` rather than the usual `src/pages/`.
+
+Three things are worth knowing before adding a route.
+
+**Paths are written with a leading slash, and that is not a contradiction of [The base path](#the-base-path).** The rule there is about URLs the *browser* resolves, which resolve against the origin root and miss the deployment. A react-router path is resolved against the router's `basename`, which `src/App.tsx` sets from `import.meta.env.BASE_URL`. So the app is written as though it sat at the root of a host and one setting moves all of it. Navigate with `<Link to={...}>` and `useNavigate` rather than with `<a href>`, or the basename is bypassed and the browser's rule applies again.
+
+**A deep link only survives a reload because nginx says so.** `try_files $uri $uri/ /index.html` in [deploy/nginx/musibot.conf.template](../../deploy/nginx/musibot.conf.template) is what answers `/musibot/session` with the app instead of a 404. That line and the routes above are one mechanism in two files.
+
+**A route that is not the landing page probably belongs in `robots.txt`.** It is generated in `vite.config.ts` and lists what crawlers should leave alone: per-user pages behind an upload, and the API. A new route is either public and indexable, or it needs a line there.
+
+
 ## Development
 
 Requires **Node 22.12+ or 24+** (Vite 8's floor; the test runner's jsdom wants 22.22+, so 24 is the comfortable choice).
@@ -93,7 +115,7 @@ Light only, deliberately. The paper metaphor does not survive inversion, so rath
 
 Fonts are **Source Serif 4** (headings) and **Source Sans 3** (body), bundled via `@fontsource` rather than loaded from the Google Fonts CDN — a German court has found that CDN font loading, which discloses the visitor's IP to a third party, breaches the GDPR, and this is an EU university service.
 
-`src/App.tsx` is a placeholder swatch, not the landing page. It exists so the theme can be looked at rather than read; replace it when the real layout is built.
+`src/theme/theme.ts` also exports `mono`, the monospace stack, because the design reaches for it well outside `<code>` — file paths, page IDs, pipeline versions, log lines, image dimensions, anything a user might have to read character by character. A MUI component needs it named, since the class it generates outranks the element rule `CssBaseline` sets.
 
 
 ## Testing
