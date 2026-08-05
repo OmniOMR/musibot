@@ -52,6 +52,17 @@ Two placeholders are still in the landing page and both are meant to be noticed:
 - **Nothing is uploaded yet.** The drop zone and the samples both call back with what was chosen and the landing screen drops it; that callback is the seam the upload flow plugs into.
 
 
+## The upload flow
+
+A file arrives three ways — dropped, chosen from the picker, or taken from the samples — and all three end in `LandingScreen`, which asks two questions: is it a JPEG, and how should it be read. The second is `PipelineChoice`, a card that opens over the landing page. It is a step and not a route, because nothing exists on the server yet for an address to name.
+
+**The two defaults are hardcoded**, in `src/pipelines.ts`: `mzk-page` v1 for a whole page and `mzk-staff` v1 for a single cropped staff (MZK is the Moravian Library, Moravská zemská knihovna). "The one we recommend" is a product decision and there is nothing in a *Pipeline's* announcement that could carry it. Nothing guarantees they are deployed — pipelines are announced over RabbitMQ by whatever is connected — so when one is missing its option is disabled, the card says so, and the *All pipelines* list is opened rather than left for the visitor to find.
+
+**Where the upload lands is decided by the chosen pipeline's *Signature*, not by a constant.** A *Signature* declares patterns and an execution names concrete paths, and the api service rejects an input list that does not fit with a `400`. So a page-level pipeline wants `image.jpg` while a staff-level one wants the same bytes at `Staves/1/image.jpg`; `uploadPathFor` instantiates the one required input pattern, filling any slot with `1`. This is not a detail that can be skipped — the only model currently deployed for testing declares `Staves/{staff}/image.jpg`, and uploading to `image.jpg` for it fails at the edge. See [Signatures](../../docs/signatures.md).
+
+A pipeline this app cannot drive from a single upload — one needing a *File* an earlier execution must produce, or one nothing is currently running — is listed and disabled with the reason. Hiding it would leave a visitor hunting for something they read about elsewhere.
+
+
 ## Sessions
 
 The public tier has no accounts. A visitor gets a bearer token from `POST /public-sessions`, it lives about an hour, and a page created under it is deleted when it expires. `src/session/` holds the app's side of that, and it is more than a variable holding a token — for one reason.

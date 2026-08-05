@@ -15,6 +15,11 @@ The Web UI has no outward contract of its own: nothing depends on it, and it dep
 - **The theme** — printed paper: a warm ivory page, Source Serif 4 headings over Source Sans 3 body text, flat surfaces divided by hairline rules, and Charles University's cardinal red as the one saturated colour. Fonts are bundled rather than fetched from a CDN. Colour choices and their measured contrast ratios are recorded in `src/theme/palette.ts`.
 
 
+- **Upload, and the pipeline choice.** A dropped, chosen or sampled JPEG is measured in the browser, and its shape decides which of two *Pipelines* is offered first — a tall image is assumed to be a whole page, a wide one a single staff — with the assumption stated as one and overridable in a click. Underneath, *All pipelines* lists everything the instance announces, *ImplicitPipelines* included. Then the page is created, the bytes go straight to object storage over a presigned URL, and the execution starts.
+- **The upload path comes from the pipeline's *Signature*.** A page-level pipeline reads `image.jpg`; a staff-level one reads `Staves/1/image.jpg`, and the api service rejects an input list that does not fit the signature. So the destination is derived per pipeline rather than assumed, and a pipeline needing more than the one file a visitor uploads is listed and disabled rather than offered and then refused.
+- **The two default pipelines are named in the UI** — `mzk-page` and `mzk-staff`, both v1. When an instance does not announce them, both primary choices are disabled with a note and the full list is opened instead, so the app is usable on an instance running only a model or two.
+
+
 - **Sessions, and a typed client for the HTTP API.** A visitor's bearer token is minted on demand and kept with the pages created under it, in `localStorage`, since the API has no endpoint that lists a user's pages. A token's hour is fixed at minting and never extended, so the app holds several rather than one: a new page is only ever created under a token with more than 20 minutes left, and a token with less is replaced. That makes a page's lifetime something decided before it exists rather than an accident of when the visitor arrived — and it makes a page's token a property of the page, which every call carries and by which a page's expiry is read. Being refused for load never mints; only the clock does. A `401` forgets the session and its pages, because that is what a `401` means once the service has rebuilt its state empty.
 - **The floating session pill** on the landing page, once there is something in the session to go back to. Absent, not empty, on a first visit.
 
@@ -29,4 +34,6 @@ The Web UI has no outward contract of its own: nothing depends on it, and it dep
 
 ### Not yet implemented
 
-Everything past the front door. The landing page is real and the session and API layers beneath it are real, but the screens behind them are still placeholders: there is no upload, no pipeline picker, no progress view and no results view, so nothing yet calls most of the client. The four sample pages are drawn stand-ins until real scans exist.
+The results. A page can be uploaded and a *Pipeline* started on it, but the screen it then navigates to is still a placeholder — there is no progress view, no file list, no transcription and no log. Progress will be polled rather than streamed until the API's SSE stream exists.
+
+Two things on the landing page are stubs rather than features. The four sample pages are drawn stand-ins and clicking one reports that the sample could not be loaded, because `public/samples/` is empty; the code that fetches them is the real code, what is missing is four JPEGs. And errors in the upload flow are shown as plain text rather than as the designed cards.

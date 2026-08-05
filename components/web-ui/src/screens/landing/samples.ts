@@ -20,6 +20,24 @@ export interface SampleSheet {
   art: "printed" | "handwritten" | "staff" | "photo";
 }
 
+/**
+ * Fetch a sample as though the visitor had chosen it from their own disk, so
+ * that every route into the upload flow arrives carrying a `File`.
+ *
+ * The four JPEGs are not in `public/samples/` yet, so this currently fails and
+ * the landing page says the sample could not be loaded. That is the intended
+ * shape of the code; what is missing is four files.
+ */
+export async function fetchSample(fileName: string): Promise<File> {
+  // Relative to the deployment's base path, like everything else this app
+  // addresses — see `api/base.ts` for why a leading slash would be wrong.
+  const response = await fetch(`${import.meta.env.BASE_URL}samples/${fileName}`);
+  if (!response.ok) {
+    throw new Error(`The sample ${fileName} is not there (${response.status}).`);
+  }
+  return new File([await response.blob()], fileName, { type: "image/jpeg" });
+}
+
 export const SAMPLE_SHEETS: SampleSheet[] = [
   { id: "printed-page", label: "Printed page", fileName: "kyrie-p3.jpg", art: "printed" },
   {

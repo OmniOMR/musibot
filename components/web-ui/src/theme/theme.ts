@@ -192,8 +192,14 @@ export const theme = createTheme({
         root: {
           paddingInline: "1.1em",
         },
+        // The design has exactly one loud button per view and everything
+        // beside it is quiet: a hairline border and ink-coloured text. MUI's
+        // default paints an outlined button in `primary`, which would put a
+        // second red control next to the first and split the eye between them.
         outlined: {
           borderColor: paper["300"],
+          color: paper["900"],
+          "&:hover": { borderColor: paper["400"], backgroundColor: paper["100"] },
         },
       },
     },
