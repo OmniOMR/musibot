@@ -75,6 +75,8 @@ The workspace behind an upload: full height, panels rather than a content column
 
 **A page is only reachable in the browser that uploaded it**, since it is fetched with the token it was created under. The screen says so rather than showing an empty workspace.
 
+**A page can be read more than once.** *+ Run pipeline* offers whatever can be run on the *Files* the page already holds, worked out by matching each announced *Signature* against them — the api service passes an input list through and expands nothing, so deciding which files to name is this app's job. Three shapes are handled, which cover every example in [Signatures](../../docs/signatures.md): patterns with no slots (one way to run it, if the files are there), one pattern with a single-instance slot (one way *per* matching file, since that is what `{s}` means), and one pattern with a set slot (one way, over the whole set). Anything needing slots bound across several patterns is refused with a reason rather than guessed at — that is the fan-out the api service deliberately does not do, and doing it here would mean inventing a partial-failure policy nothing else in Musibot has.
+
 
 ### The canvas
 
@@ -119,6 +121,17 @@ It is committed, so a diff shows what changed. A hand-maintained list is accurat
 Two things it settles that would otherwise be left ambiguous. **JSZip** is offered as `MIT OR GPL-3.0-or-later` and Musibot elects MIT — an unstated election is how a dual-licensed dependency comes to be read as putting GPL in a web UI. And the **fonts** are bundled rather than fetched from a CDN, so the Open Font License travels with them rather than staying on somebody else's server.
 
 The generator excludes what demonstrably never reaches the bundle: `@types/*`, and optional dependencies — OpenSheetMusicDisplay's `gl`, which it uses only to render headlessly under Node, and the native toolchain beneath it. Everything else is listed even where it is arguably build-time only, because over-attributing costs a paragraph and under-attributing breaches a licence.
+
+
+### When it goes wrong
+
+`src/components/NoticeCard.tsx` is the one shape for all of them — say what happened, say what caused it if that is knowable, offer what to do next. No icon, no red panel: a refused upload is not an emergency, and the red in this app fills the button somebody is meant to press.
+
+Two of these carry a decision rather than just wording.
+
+**A refusal for load says whether waiting will help.** Over the concurrency cap it will, and the service says for how long; over the per-session page cap it will not, and the service sends no `Retry-After` precisely because deleting a page is the thing that helps. Telling somebody to wait when waiting cannot work is worse than saying nothing.
+
+**A reading can finish, succeed, and produce nothing.** That is the unhappiest outcome Musibot has, because none of it looks like a failure: `completed`, no error, and a file list that has not changed — which reads as a broken service rather than as a page with no music on it. `src/page/outcome.ts` detects it by comparing what the *Pipeline* declared it would write against what the page now holds, ignoring optional outputs, and says nothing whenever the question cannot be answered. A false "nothing was found" on a page that has results would be worse than no message at all.
 
 
 ## Sessions

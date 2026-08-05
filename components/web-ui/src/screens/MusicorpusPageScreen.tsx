@@ -1,4 +1,5 @@
 import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
 import Typography from "@mui/material/Typography";
 import { useMemo, useState } from "react";
@@ -7,8 +8,10 @@ import { Link as RouterLink, useParams } from "react-router";
 import { downloadFiles } from "../api/download";
 import { SessionExpired } from "../api/errors";
 import ContentWidth from "../components/ContentWidth";
+import NoticeCard from "../components/NoticeCard";
 import { useNow } from "../page/expiry";
 import { groupFiles } from "../page/files";
+import { finishedEmpty } from "../page/outcome";
 import { usePageLog } from "../page/log";
 import { usePageState } from "../page/usePageState";
 import * as paths from "../paths";
@@ -18,6 +21,7 @@ import { paper, serif } from "../theme";
 import LogPanel from "./page/LogPanel";
 import OverviewPanel from "./page/OverviewPanel";
 import PageHeader from "./page/PageHeader";
+import RunPipelineDialog from "./page/RunPipelineDialog";
 import ScenePanel from "./page/ScenePanel";
 import TranscriptionPanel from "./page/TranscriptionPanel";
 import { opensTranscription } from "../transcription/transcription";
@@ -48,6 +52,7 @@ export default function MusicorpusPageScreen() {
   const [problem, setProblem] = useState<string | null>(null);
   /** Collapsed by default — the log is for a reader who has gone looking. */
   const [logOpen, setLogOpen] = useState(false);
+  const [running, setRunning] = useState(false);
 
   /**
    * Which of the page's *Files* a running execution is about to replace.
@@ -86,6 +91,11 @@ export default function MusicorpusPageScreen() {
         .flatMap((section) => section.rows.filter((row) => !row.isSource))
         .flatMap((row) => row.paths),
     [sections],
+  );
+
+  const empty = useMemo(
+    () => finishedEmpty(state.executions, state.pipelines, state.files),
+    [state.executions, state.pipelines, state.files],
   );
 
   /** The row the canvas is showing, which is the selection made whole. */
@@ -142,6 +152,34 @@ export default function MusicorpusPageScreen() {
         </Box>
       )}
 
+      {/* Finished, succeeded, and produced nothing — the outcome that looks
+          like no outcome at all. Said here rather than left to be inferred
+          from a file list that has not changed. */}
+      {empty !== null && (
+        <Box
+          sx={{ px: 2.5, py: 2, borderBottom: `1px solid ${paper["200"]}`, bgcolor: paper["100"] }}
+        >
+          <NoticeCard
+            title="No music found on this page"
+            actions={
+              <>
+                <Button variant="contained" onClick={() => setRunning(true)}>
+                  Try another pipeline
+                </Button>
+                <Button variant="outlined" onClick={() => setLogOpen(true)}>
+                  See the log
+                </Button>
+              </>
+            }
+          >
+            {empty.pipeline_name} v{empty.pipeline_version} finished without error, but wrote
+            nothing it said it would. Pages photographed at an angle, or scanned at a low
+            resolution, are the usual cause — as is asking a pipeline to read a whole page when the
+            image is one cropped staff, or the other way round.
+          </NoticeCard>
+        </Box>
+      )}
+
       <Box sx={{ flex: 1, display: "flex", alignItems: "stretch", minHeight: 0 }}>
         <OverviewPanel
           executions={state.executions}
@@ -149,6 +187,7 @@ export default function MusicorpusPageScreen() {
           selectedKey={selectedKey}
           onSelect={setSelectedKey}
           onDownload={(toDownload) => void download(toDownload)}
+          onRunPipeline={() => setRunning(true)}
           logLineCount={log.lines.length}
           logOpen={logOpen}
           onToggleLog={() => setLogOpen((open) => !open)}
@@ -175,6 +214,20 @@ export default function MusicorpusPageScreen() {
           streaming={log.streaming}
           real={log.real}
           onCollapse={() => setLogOpen(false)}
+        />
+      )}
+
+      {running && (
+        <RunPipelineDialog
+          pageId={pageId}
+          token={token}
+          pipelines={state.pipelines}
+          files={state.files}
+          onClose={() => setRunning(false)}
+          // Ask again immediately rather than waiting for the next poll: the
+          // new execution is the thing the visitor is now watching for, and it
+          // also restarts polling, which had stopped when the page went idle.
+          onStarted={state.refresh}
         />
       )}
     </Box>

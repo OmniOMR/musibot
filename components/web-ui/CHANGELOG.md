@@ -20,6 +20,13 @@ The Web UI has no outward contract of its own: nothing depends on it, and it dep
 - **The theme** — printed paper: a warm ivory page, Source Serif 4 headings over Source Sans 3 body text, flat surfaces divided by hairline rules, and Charles University's cardinal red as the one saturated colour. Fonts are bundled rather than fetched from a CDN. Colour choices and their measured contrast ratios are recorded in `src/theme/palette.ts`.
 
 
+- **The error and edge states**, as cards rather than as a line of text: a file that is not a JPEG, an allowance that is spent, an instance that offers no public access, and a reading that finished without error having produced nothing. The last of those had no handling at all, and is the unhappiest outcome Musibot has — the execution says `completed`, nothing is reported wrong, and the file list has not changed, which a visitor reads as a broken service rather than as a page with no music on it. It is detected from what the *Pipeline* declared it would write, and offers the two things worth doing next: another pipeline, or the log.
+- **A refusal for load says whether waiting will help.** Over the concurrency cap it will, and the card counts down; over the per-session page cap it will not, and the card says to delete a page instead — which is why the service deliberately sends no `Retry-After` there.
+
+
+- **Running another *Pipeline* on a page that already has one.** Mostly for somebody developing a model — try a second pipeline against the same scan, or run one model alone on a staff the first pipeline cut out — and the reason the file list is not grouped by execution. What can be offered is worked out by matching each announced *Signature* against the *Files* the page actually holds, so a pipeline that reads one staff at a time is listed once per staff, and one that needs a *File* the page does not have says which.
+
+
 - **The session overview** at `/session`, which the floating pill has been pointing at since it existed. Every page this browser has uploaded and can still reach: a thumbnail, the filename, which *Pipeline* ran and how it went, and how long is left. It says plainly that nothing is stored under an account and that closing the tab does not extend the hour — a visitor who takes this for a library of their work is going to lose it, and saying so once at the top is cheaper than explaining afterwards. The list is drawn from the ledger with no network; only the reading's outcome is asked of the server, once per page.
 - **A thumbnail is kept for each uploaded page**, made in the browser from bytes already in hand rather than fetched back — a few kilobytes against several megabytes of scan per row.
 
@@ -59,6 +66,10 @@ The Web UI has no outward contract of its own: nothing depends on it, and it dep
 
 ### Not yet implemented
 
-A real recognition log. The panel is built and its lines are a stand-in played back on a timer, labelled as one, because the API has no log endpoint and the SSE protocol behind it is not designed yet. A page also cannot have a further *Pipeline* run on it from the screen, so the *+ Run pipeline* button is absent rather than dead. And the error states — a wrong file type, the public allowance spent, a reading that finished having found nothing — are plain text rather than the cards the design draws.
+A real recognition log. The panel is built and its lines are a stand-in played back on a timer, labelled as one, because the API has no log endpoint and the SSE protocol behind it is not designed yet.
+
+Live progress. Until the API streams, a running execution is polled and its outputs appear together when it finishes rather than one at a time.
+
+The four sample pages on the landing page, which are drawn stand-ins until real scans exist in `public/samples/`.
 
 Two things on the landing page are stubs rather than features. The four sample pages are drawn stand-ins and clicking one reports that the sample could not be loaded, because `public/samples/` is empty; the code that fetches them is the real code, what is missing is four JPEGs. And errors in the upload flow are shown as plain text rather than as the designed cards.

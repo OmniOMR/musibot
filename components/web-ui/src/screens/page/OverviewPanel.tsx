@@ -22,6 +22,7 @@ export default function OverviewPanel({
   selectedKey,
   onSelect,
   onDownload,
+  onRunPipeline,
   logLineCount,
   logOpen,
   onToggleLog,
@@ -31,6 +32,7 @@ export default function OverviewPanel({
   selectedKey: string | null;
   onSelect: (key: string) => void;
   onDownload: (paths: string[]) => void;
+  onRunPipeline: () => void;
   /** Shown on the pill, so the log announces itself without being opened. */
   logLineCount: number;
   logOpen: boolean;
@@ -52,8 +54,37 @@ export default function OverviewPanel({
       }}
     >
       <Box sx={{ borderBottom: `1px solid ${paper["200"]}` }}>
-        <Box sx={{ px: 2.25, pt: 1.75, pb: 1 }}>
+        <Box
+          sx={{
+            px: 2.25,
+            pt: 1.75,
+            pb: 1,
+            display: "flex",
+            alignItems: "baseline",
+            justifyContent: "space-between",
+            gap: 1,
+          }}
+        >
           <SectionLabel>Executions</SectionLabel>
+          {/* Quiet on purpose. Reading a page is the visitor's business and
+              happens on the way in; running a second pipeline is a developer's,
+              and belongs beside the history rather than beside the results. */}
+          <ButtonBase
+            onClick={onRunPipeline}
+            sx={{
+              flex: "none",
+              border: `1px solid ${paper["300"]}`,
+              borderRadius: 1.25,
+              color: paper["600"],
+              fontSize: "0.71875rem",
+              lineHeight: 1,
+              px: 1,
+              py: 0.5,
+              "&:hover": { bgcolor: paper["100"], color: paper["900"] },
+            }}
+          >
+            + Run pipeline
+          </ButtonBase>
         </Box>
         <ExecutionList executions={executions} />
       </Box>

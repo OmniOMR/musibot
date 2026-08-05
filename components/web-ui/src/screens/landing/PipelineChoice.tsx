@@ -2,14 +2,18 @@ import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import CircularProgress from "@mui/material/CircularProgress";
 import Dialog from "@mui/material/Dialog";
+import Link from "@mui/material/Link";
 import Typography from "@mui/material/Typography";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 
 import { listPipelines } from "../../api/client";
 import { ApiError, RateLimited } from "../../api/errors";
+import { PublicAccessUnavailable, PublicStorageFull } from "../../api/errors";
 import type { PipelineView } from "../../api/types";
 import * as paths from "../../paths";
+import NoticeCard from "../../components/NoticeCard";
+import * as links from "../../links";
 import {
   find,
   PAGE_PIPELINE,
@@ -59,7 +63,7 @@ export default function PipelineChoice({
   const [selected, setSelected] = useState<PipelineRef | null>(null);
   const [showAll, setShowAll] = useState(false);
   const [starting, setStarting] = useState(false);
-  const [problem, setProblem] = useState<string | null>(null);
+  const [problem, setProblem] = useState<Problem | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -277,23 +281,18 @@ export default function PipelineChoice({
       )}
 
       {problem !== null && (
-        <Typography
-          role="alert"
-          sx={{
-            mx: 3.75,
-            mt: 2,
-            px: 1.75,
-            py: 1.25,
-            border: `1px solid ${paper["300"]}`,
-            borderRadius: 1.5,
-            bgcolor: paper["100"],
-            fontSize: "0.84375rem",
-            lineHeight: 1.55,
-            color: paper["900"],
-          }}
-        >
-          {problem}
-        </Typography>
+        <Box sx={{ mx: 3.75, mt: 2 }}>
+          <NoticeCard title={problem.title}>
+            {problem.body}
+            {problem.overLimit && (
+              <Box sx={{ mt: 1.25 }}>
+                Reading a whole collection? The <Link href={links.HTTP_API_DOCS}>HTTP API</Link> can
+                be given a higher limit — write to{" "}
+                <Link href={`mailto:${links.CONTACT_EMAIL}`}>{links.CONTACT_EMAIL}</Link>.
+              </Box>
+            )}
+          </NoticeCard>
+        </Box>
       )}
 
       <Box
@@ -328,15 +327,59 @@ export default function PipelineChoice({
   );
 }
 
-/** What to tell the visitor, given what went wrong. */
-function messageFor(error: unknown): string {
+interface Problem {
+  title: string;
+  body: string;
+  /** True when the refusal was about load, which the API pointer answers. */
+  overLimit: boolean;
+}
+
+/**
+ * What to tell the visitor, given what went wrong.
+ *
+ * The two rate-limit refusals read differently on purpose. Over the concurrency
+ * cap, waiting genuinely works and the service says for how long; over the
+ * per-session page cap it does not, and the service sends no `Retry-After`
+ * precisely because deleting a page is the thing that helps. Telling somebody
+ * to wait when waiting will not work is worse than saying nothing.
+ */
+function messageFor(error: unknown): Problem {
   if (error instanceof RateLimited) {
-    return error.retryAfterSeconds === null
-      ? "Musibot is at its public limit just now. Deleting a page you have finished with will make room."
-      : `Musibot is at its public limit just now. Try again in about ${Math.ceil(error.retryAfterSeconds / 60)} minutes.`;
+    const minutes =
+      error.retryAfterSeconds === null ? null : Math.ceil(error.retryAfterSeconds / 60);
+    return {
+      title: "You’ve used this hour’s allowance",
+      body:
+        minutes === null
+          ? "The public service keeps only a few pages per visitor so it stays available to everyone. Deleting a page you have finished with will make room for another."
+          : `The public service allows a few pages an hour so it stays available to everyone. Your next upload will go through in about ${minutes} ${minutes === 1 ? "minute" : "minutes"}.`,
+      overLimit: true,
+    };
+  }
+  if (error instanceof PublicStorageFull) {
+    return {
+      title: "There is no room for another page",
+      body: "The public tier's storage is full just now. Pages are deleted about an hour after they are uploaded, so room comes back on its own.",
+      overLimit: true,
+    };
+  }
+  if (error instanceof PublicAccessUnavailable) {
+    return {
+      title: "This instance does not offer public access",
+      body: "Musibot is running here, but not for the general public. An API token from whoever operates it is the way in.",
+      overLimit: false,
+    };
   }
   if (error instanceof ApiError) {
-    return error.detail ?? error.message;
+    return {
+      title: "Musibot could not start the reading",
+      body: error.detail ?? error.message,
+      overLimit: false,
+    };
   }
-  return "Something went wrong talking to Musibot.";
+  return {
+    title: "Something went wrong talking to Musibot",
+    body: "The service could not be reached. It may be restarting; trying again in a moment usually works.",
+    overLimit: false,
+  };
 }

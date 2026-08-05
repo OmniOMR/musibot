@@ -1,9 +1,11 @@
 import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
 import Typography from "@mui/material/Typography";
 import { useState } from "react";
 
 import ContentWidth from "../components/ContentWidth";
+import NoticeCard from "../components/NoticeCard";
 import SessionPill from "../components/SessionPill";
 import SiteFooter from "../components/SiteFooter";
 import SiteHeader from "../components/SiteHeader";
@@ -43,20 +45,24 @@ import SampleSheets from "./landing/SampleSheets";
  */
 export default function LandingScreen() {
   const [image, setImage] = useState<ChosenImage | null>(null);
-  const [problem, setProblem] = useState<string | null>(null);
+  const [problem, setProblem] = useState<{ title: string; body: string } | null>(null);
 
   async function choose(file: File) {
     if (!isJpeg(file)) {
-      setProblem(
-        "That file isn’t a JPEG. Musibot reads JPEG scans and photographs; a PDF needs exporting to one JPEG per page first.",
-      );
+      setProblem({
+        title: "That file isn’t a JPEG",
+        body: "Musibot reads JPEG scans and photographs. PDFs need to be exported to one JPEG per page first.",
+      });
       return;
     }
     setProblem(null);
     try {
       setImage(await readChosenImage(file));
     } catch {
-      setProblem("That image could not be read.");
+      setProblem({
+        title: "That image could not be opened",
+        body: "The file is named like a JPEG but could not be read as one. It may be truncated, or saved in another format under a .jpg name.",
+      });
     }
   }
 
@@ -65,7 +71,10 @@ export default function LandingScreen() {
     try {
       await choose(await fetchSample(fileName));
     } catch {
-      setProblem("That sample page could not be loaded.");
+      setProblem({
+        title: "That sample could not be loaded",
+        body: "Musibot could not fetch its own example page, which is a fault on this instance rather than anything you did. Your own file will still work.",
+      });
     }
   }
 
@@ -128,22 +137,18 @@ export default function LandingScreen() {
           <Box sx={{ flex: "1 1 0", minWidth: 0, width: "100%" }}>
             <DropZone onChoose={(file) => void choose(file)} />
             {problem !== null && (
-              <Typography
-                role="alert"
-                sx={{
-                  mt: 1.5,
-                  px: 1.75,
-                  py: 1.25,
-                  border: `1px solid ${paper["300"]}`,
-                  borderRadius: 1.5,
-                  bgcolor: paper["100"],
-                  fontSize: "0.84375rem",
-                  lineHeight: 1.55,
-                  color: paper["900"],
-                }}
-              >
-                {problem}
-              </Typography>
+              <Box sx={{ mt: 1.5 }}>
+                <NoticeCard
+                  title={problem.title}
+                  actions={
+                    <Button variant="outlined" onClick={() => setProblem(null)}>
+                      Choose another file
+                    </Button>
+                  }
+                >
+                  {problem.body}
+                </NoticeCard>
+              </Box>
             )}
             <SampleSheets onChoose={(sample) => void chooseSample(sample.fileName)} />
           </Box>
