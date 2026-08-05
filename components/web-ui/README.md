@@ -38,6 +38,20 @@ Three things are worth knowing before adding a route.
 **A route that is not the landing page probably belongs in `robots.txt`.** It is generated in `vite.config.ts` and lists what crawlers should leave alone: per-user pages behind an upload, and the API. A new route is either public and indexable, or it needs a line there.
 
 
+## Screens
+
+They live in `src/screens/`, one file per route, with a folder of parts beside any screen big enough to need one (`src/screens/landing/`). Anything used by more than one screen — the header, the footer, the column their content is set in — is in `src/components/`.
+
+The page is **full-bleed**: the ivory runs edge to edge with no card or frame around it, and only the *content* is bounded, by `src/components/ContentWidth.tsx`. So a section that carries a hairline rule is a full-width band with a `ContentWidth` inside it, not the other way round — the rule spans the window while the words stop where the eye does.
+
+`src/links.ts` holds every address pointing outside the app: the interactive HTTP API docs, the python client, the project, and the address libraries are told to write to. They name things outside this repository and go stale without anything here failing to build, so they are in one file rather than scattered through the markup.
+
+Two placeholders are still in the landing page and both are meant to be noticed:
+
+- **The four sample pages are drawn, not photographed.** `src/screens/landing/SampleArt.tsx` renders ruled lines standing in for a scan, exactly as the design file did. Real JPEGs go in `public/samples/`, after which that file goes away. The stand-ins are obviously not photographs on purpose — a placeholder that looked real would ship unnoticed.
+- **Nothing is uploaded yet.** The drop zone and the samples both call back with what was chosen and the landing screen drops it; that callback is the seam the upload flow plugs into.
+
+
 ## Development
 
 Requires **Node 22.12+ or 24+** (Vite 8's floor; the test runner's jsdom wants 22.22+, so 24 is the comfortable choice).
@@ -115,7 +129,7 @@ Light only, deliberately. The paper metaphor does not survive inversion, so rath
 
 Fonts are **Source Serif 4** (headings) and **Source Sans 3** (body), bundled via `@fontsource` rather than loaded from the Google Fonts CDN — a German court has found that CDN font loading, which discloses the visitor's IP to a third party, breaches the GDPR, and this is an EU university service.
 
-`src/theme/theme.ts` also exports `mono`, the monospace stack, because the design reaches for it well outside `<code>` — file paths, page IDs, pipeline versions, log lines, image dimensions, anything a user might have to read character by character. A MUI component needs it named, since the class it generates outranks the element rule `CssBaseline` sets.
+`src/theme/theme.ts` also exports `mono` and `serif` as bare font stacks, because the design reaches for both well outside where MUI would apply them — monospace for file paths, page IDs, pipeline versions, log lines and image dimensions, anything a user might have to read character by character; the serif for the wordmark and the affiliation line, which are not headings. A MUI component needs the stack named, since the class it generates outranks the element rule `CssBaseline` sets.
 
 
 ## Testing

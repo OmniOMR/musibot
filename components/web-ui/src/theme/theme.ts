@@ -15,7 +15,13 @@ import { cuni, paper } from "./palette";
  * there is one. See `README.md`.
  */
 
-const SERIF = '"Source Serif 4 Variable", Georgia, "Times New Roman", serif';
+/**
+ * The heading face, exported alongside `mono` for the same reason: the design
+ * uses it for things MUI does not consider headings — the wordmark, an
+ * affiliation line — and setting it on a component means naming it.
+ */
+export const serif = '"Source Serif 4 Variable", Georgia, "Times New Roman", serif';
+
 const SANS = '"Source Sans 3 Variable", system-ui, -apple-system, "Segoe UI", sans-serif';
 
 /**
@@ -71,6 +77,11 @@ export const theme = createTheme({
       A700: paper["700"],
     },
 
+    // The app is full-bleed: this ivory is the page itself, edge to edge, with
+    // nothing framing it. Surfaces raised off it — cards, panels, a selected
+    // row — go up to white, and the steps in between (`paper.100` for a
+    // recessed panel, `paper.150` for a hover) are reached for directly rather
+    // than through the palette.
     background: {
       default: paper["050"],
       paper: paper["000"],
@@ -96,12 +107,12 @@ export const theme = createTheme({
     // Headings are the serif. Weights stay moderate — Source Serif at 700 on
     // a warm background is heavier than the design wants; 600 reads as
     // "printed" where 700 reads as "shouted".
-    h1: { fontFamily: SERIF, fontWeight: 600, fontSize: "3rem", lineHeight: 1.15, letterSpacing: "-0.02em" },
-    h2: { fontFamily: SERIF, fontWeight: 600, fontSize: "2.25rem", lineHeight: 1.2, letterSpacing: "-0.015em" },
-    h3: { fontFamily: SERIF, fontWeight: 600, fontSize: "1.75rem", lineHeight: 1.25, letterSpacing: "-0.01em" },
-    h4: { fontFamily: SERIF, fontWeight: 600, fontSize: "1.4rem", lineHeight: 1.3 },
-    h5: { fontFamily: SERIF, fontWeight: 600, fontSize: "1.2rem", lineHeight: 1.35 },
-    h6: { fontFamily: SERIF, fontWeight: 600, fontSize: "1.05rem", lineHeight: 1.4 },
+    h1: { fontFamily: serif, fontWeight: 600, fontSize: "3rem", lineHeight: 1.15, letterSpacing: "-0.02em" },
+    h2: { fontFamily: serif, fontWeight: 600, fontSize: "2.25rem", lineHeight: 1.2, letterSpacing: "-0.015em" },
+    h3: { fontFamily: serif, fontWeight: 600, fontSize: "1.75rem", lineHeight: 1.25, letterSpacing: "-0.01em" },
+    h4: { fontFamily: serif, fontWeight: 600, fontSize: "1.4rem", lineHeight: 1.3 },
+    h5: { fontFamily: serif, fontWeight: 600, fontSize: "1.2rem", lineHeight: 1.35 },
+    h6: { fontFamily: serif, fontWeight: 600, fontSize: "1.05rem", lineHeight: 1.4 },
 
     body1: { fontSize: "1rem", lineHeight: 1.65 },
     body2: { fontSize: "0.9375rem", lineHeight: 1.6 },
