@@ -12,7 +12,7 @@ Musibot is a monorepo. Every deployable piece lives under `components/`, and eac
 - `components/orchestrator-head` — the Musibot-provided interface layer that an *Orchestrator* runs inside; connects pipeline code to RabbitMQ and MinIO.
 - `components/orchestrators` — *Orchestrators* (sets of *Pipelines*) that ship in-repo; others live in their own repositories and depend only on `orchestrator-head`.
 - `components/worker-head` — the OpenFaaS-watchdog-like process that runs one *Model* as an isolated subprocess over IPC.
-- `components/models` — *Models* that ship in-repo; others live in their own repositories.
+- `components/models` — *Models* that ship in-repo; others live in their own repositories. It also holds the deployment configuration of external models this deployment runs, which is code-less by nature — see its README for why that is not the same kind of entry.
 
 
 ## The two head + plugin pairs
@@ -28,5 +28,5 @@ Musibot is extensible along two axes that share a shape: a Musibot-owned *head* 
 ## Other top-level folders
 
 - `docs/` — architecture, domain model, deployment, and this document.
-- `deploy/` — nginx config, docker-compose, and deployment notes.
+- `deploy/` — how a running system is assembled: the nginx config and its renderer, the RabbitMQ and MinIO drop-ins, the systemd units, and the docker-compose stack that stands the whole topology up locally.
 - `.vscode/` and `musibot.code-workspace` — editor setup. Each component has its own virtual environment and its own tool configuration, and VS Code binds an interpreter per workspace *folder*, so opening `musibot.code-workspace` (which makes every component a folder of its own) is what keeps them apart. Opening the repository as a plain folder works too and is wired to `core`.

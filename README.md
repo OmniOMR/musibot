@@ -47,4 +47,5 @@ Technical documentation:
 - [Service configuration](docs/service-configuration.md)
 - [Versioning and releases](docs/versioning-and-releases.md)
 - [Deployment](docs/deployment.md)
+- [Deploying onto a VM](docs/deploying-to-a-vm.md)
 - [Rough edges](docs/rough-edges.md)

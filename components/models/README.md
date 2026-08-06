@@ -11,6 +11,9 @@ A model is a subprocess that speaks the worker head's IPC contract (instructions
 ## Models in this folder
 
 - **[hello-model](hello-model/)** — transcribes nothing; reads `image.jpg` and writes a fixed `transcription.musicxml`. It is the worked example of the [worker IPC contract](../../docs/worker-ipc.md) and what the rest of Musibot is exercised against without any machine learning in the way.
+- **[zeus](zeus/)** — *no code here.* Zeus lives in [its own repository](https://github.com/OmniOMR/zeus); this folder holds how our instance deploys it — the environment file its systemd unit reads, and the steps that produce it.
+
+That second entry is a different kind of thing from the first, and the difference is worth stating. A model's *code* is here only when it ships in this monorepo. A model's *deployment* is here whenever we are the ones running it, external repository or not: Musibot's design keeps deploying a model from touching this repository, and that stays true — Zeus is installed from a git link and reached only over the IPC — but the deployment of the one instance we operate has to be written down somewhere, and one place beats one per model repository. The division is that a model's own repository documents deploying it in general, while this folder documents deploying it onto our VM under systemd.
 
 
 ## Layout (per reference model in this folder)

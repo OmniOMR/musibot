@@ -1,0 +1,104 @@
+# One Musibot Worker: a Worker Head plus the one Model it runs.
+#
+# A template unit, so that one file serves every deployed model. The instance
+# name — the part after the @ — names the worker, and everything that differs
+# between models is reached through it:
+#
+#   systemctl enable --now musibot-worker@solo26-zod-bw-auth-ft-2026-07-20
+#     ExecStart       /opt/musibot/workers/<instance>/venv/bin/musibot-worker-head
+#     EnvironmentFile /etc/musibot/worker-<instance>.env
+#     StateDirectory  /var/lib/musibot/<instance>
+#
+# Name an instance after the snapshot it serves, not after the model's code —
+# see "Naming a worker instance" in ../../docs/deploying-to-a-vm.md. Nothing
+# here reads the name as an identity: what a Pipeline pins is announced by the
+# Model itself, so this is a label for whoever operates the machine.
+#
+# Which model this worker runs is therefore not in this file. It is
+# MUSIBOT_MODEL_COMMAND in the environment file, because a Model may live in a
+# virtual environment of its own on its own python version — see
+# ../../docs/deployment.md and ../../components/models/zeus/README.md for the
+# worked case of that.
+#
+# Scaling a model horizontally means more instances of this unit against the
+# same model command, suffixed `_2`, `_3`. Workers announcing the same model
+# name and version are taken to be one model scaled, which is exactly what that
+# is. Their environment files may be symlinks to one original — nothing in them
+# is per-instance, since the one thing that is comes from %i below.
+#
+# Copied to /etc/systemd/system/musibot-worker@.service. The whole installation
+# is in ../../docs/deploying-to-a-vm.md.
+
+[Unit]
+Description=Musibot Worker (%i)
+Documentation=https://github.com/OmniOMR/musibot/blob/main/docs/deploying-to-a-vm.md
+Wants=network-online.target
+After=network-online.target rabbitmq-server.service minio.service
+
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=exec
+User=musibot
+Group=musibot
+
+EnvironmentFile=/etc/musibot/worker-%i.env
+
+# Derived from the instance name rather than written into the environment file,
+# so that the mirror cannot end up pointing at another instance's directory
+# when a worker is renamed or its configuration copied. %S is the state
+# directory root, so this is StateDirectory= below spelled out.
+#
+# It must NOT also appear in the environment file. EnvironmentFile= overrides
+# Environment= regardless of the order they are written in here, so a leftover
+# copy there silently wins over this. Worse, `systemctl show -p Environment`
+# reports only this line and never the file's contents, so it is not how to
+# check which one took effect — read the service's own startup log, which
+# prints its effective configuration.
+Environment=MUSIBOT_PAGES_DIR=%S/musibot/%i/pages
+
+ExecStart=/opt/musibot/workers/%i/venv/bin/musibot-worker-head
+
+Restart=on-failure
+
+# Longer than the api service's, because a model that fails at startup —
+# missing weights, a CUDA library that is not there — fails only after it has
+# tried to load, and a tight restart loop turns that into a log nobody can read.
+RestartSec=30s
+
+# A stopped Worker says goodbye to the registry and shuts its Model down
+# through the IPC protocol rather than being killed out from under it, and a
+# model in the middle of a forward pass takes a moment to get there.
+TimeoutStopSec=120
+
+# /var/lib/musibot/%i, created and owned by systemd. It holds the local mirror
+# of the Musicorpus Pages this worker is currently reading and writing —
+# scratch space for one execution at a time, not a cache. It is here rather
+# than in a private /tmp because /tmp is a tmpfs on Ubuntu 24.10 and later, and
+# page scans are large enough that staging them there would spend RAM on them.
+StateDirectory=musibot/%i
+
+NoNewPrivileges=yes
+PrivateTmp=yes
+
+# The Model inherits this environment and these restrictions — it is a child of
+# this process — and that is the point rather than a side effect. A Model has
+# its pages directory to write into and nothing else: weights, dependencies and
+# every other file it needs are put on the machine at deployment time, by a
+# human, and a model that reaches for the network or for a cache under $HOME at
+# runtime is doing something that should have happened before it started. It
+# fails here, loudly, on the first execution, instead of being discovered the
+# day the download is slow or the mirror is gone.
+#
+# So a model failing on one of these is a deployment to fix, not a restriction
+# to widen. Adding ReadWritePaths= in a drop-in is available and is the wrong
+# first move.
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+
+[Install]
+WantedBy=multi-user.target

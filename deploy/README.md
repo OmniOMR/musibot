@@ -7,12 +7,14 @@ How a running Musibot system is assembled from its components. Full narrative in
 
 - **[docker-compose.yml](docker-compose.yml)** — the local development stack (see below).
 - **[nginx/musibot.conf.template](nginx/musibot.conf.template)** — the public entry point: serves the Web UI bundle and reverse-proxies the Web API, the MinIO S3 endpoint and the MinIO Console. Also where the single-upload size limit lives (see [Public access](../docs/public-access.md)). A template because the deployment addresses differ between a VM and the local stack; everything else is identical, so the local stack exercises this file rather than a copy of it.
+- **[nginx/render-config.sh](nginx/render-config.sh)** — renders that template on a VM, which is the job the nginx image's entrypoint does for the compose stack. It substitutes only the `MUSIBOT_*` names the template mentions, because a bare `envsubst` would also eat nginx's own `$host` and `$remote_addr` and produce a configuration that still starts.
+- **[nginx/nginx.env.example](nginx/nginx.env.example)** — the addresses that fill that template in.
 - **[nginx/university-proxy.conf](nginx/university-proxy.conf)** — local stack only. A stand-in for the university's proxy, which publishes Musibot under a path prefix and strips that prefix before forwarding. It exists to be the thing we do not control.
 - **[rabbitmq/20-musibot.conf](rabbitmq/20-musibot.conf)** — publishes the RabbitMQ management UI under the deployment's path prefix. Dropped into RabbitMQ's `conf.d` alongside the image's own defaults.
+- **[minio/minio.env.example](minio/minio.env.example)** — VM only. What the .deb's own `minio.service` reads out of `/etc/default/minio`.
+- **[systemd/](systemd/)** — the units the VM runs Musibot's own services under: `musibot-api.service`, the templated `musibot-worker@.service` (one unit, any model), and an example environment file for each. Model-specific configuration lives with the model — see [components/models/zeus](../components/models/zeus/README.md).
 
-Planned:
-
-- **deployment notes** — installing the core services onto Ubuntu VMs, and deploying models (clone + venv + worker head).
+The runbook that uses all of them is [Deploying onto a VM](../docs/deploying-to-a-vm.md).
 
 
 ## Local development stack

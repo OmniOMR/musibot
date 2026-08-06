@@ -2,6 +2,8 @@
 
 Musibot is deployed by manual installation onto plain Ubuntu VMs rather than through a container orchestrator such as Kubernetes. This matches the university infrastructure it runs on, where machine provisioning and lifecycle are handled separately, so from Musibot's point of view a deployment is simply an installation onto a blank VM.
 
+This page is the *why*. The step-by-step is [Deploying onto a VM](deploying-to-a-vm.md) — the commands that bring an instance up on a blank machine, and how to update each piece when the source changes.
+
 
 ## Core services
 
@@ -77,8 +79,8 @@ The two-venv arrangement is what makes the other cases possible. The worker head
 
 ```bash
 # the worker head, running from its own python 3.11 venv
-/opt/musibot/worker-head/.venv/bin/musibot-worker-head \
-    --model-command "/opt/musibot/models/staff-detector/.venv/bin/python -m staff_detector" \
+/opt/musibot/worker-head/venv/bin/musibot-worker-head \
+    --model-command "/opt/musibot/models/staff-detector/venv/bin/python -m staff_detector" \
     --rabbit-host rabbit.internal \
     --s3-endpoint-url http://minio.internal:9000
 ```

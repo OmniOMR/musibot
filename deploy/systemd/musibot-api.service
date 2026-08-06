@@ -1,0 +1,53 @@
+# The Musibot Web API, as it runs on a VM.
+#
+# Copied to /etc/systemd/system/musibot-api.service. The whole installation is
+# in ../../docs/deploying-to-a-vm.md.
+#
+# Restarting this unit is not transparent. The service holds all of Musibot's
+# state in memory and wipes its MinIO key prefix on startup (see
+# ../../docs/user-request-dataflow.md), so pages being worked on are lost and
+# their Users get 404s. That is by design — the state is ephemeral — but it
+# makes a restart an announced act rather than a routine one.
+
+[Unit]
+Description=Musibot Web API
+Documentation=https://github.com/OmniOMR/musibot/blob/main/docs/deploying-to-a-vm.md
+Wants=network-online.target
+After=network-online.target rabbitmq-server.service minio.service
+
+# A service that cannot reach RabbitMQ fails fast and would otherwise restart
+# forever at RestartSec intervals; five attempts a minute is enough to ride out
+# a broker still coming up, and enough to give up visibly if it never does.
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=exec
+User=musibot
+Group=musibot
+
+# The dotenv file holding this deployment's MUSIBOT_* settings. Configuration
+# could equally be passed as --config-file (the service reads dotenv itself),
+# but handing it to systemd means one file describes the process to the service
+# manager and to the process alike. See ../../docs/service-configuration.md.
+EnvironmentFile=/etc/musibot/api.env
+
+ExecStart=/opt/musibot/api/venv/bin/musibot-api
+
+Restart=on-failure
+RestartSec=5s
+
+# The service writes nothing to disk — Files travel over presigned URLs
+# straight to MinIO and never through here — so it can run against a read-only
+# filesystem. If that ever stops being true, the fix is a ReadWritePaths= line
+# and not a weaker ProtectSystem=.
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+
+[Install]
+WantedBy=multi-user.target
