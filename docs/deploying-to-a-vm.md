@@ -260,6 +260,7 @@ Should a future release lag behind, Team RabbitMQ's [installation page](https://
 One configuration drop-in, the same file the local stack uses: it publishes the management UI under the deployment's path prefix, which is the path the UI builds its own links from and therefore the path it expects to be asked for. Everything else about the broker is left at its defaults.
 
 ```bash
+sudo mkdir -p /etc/rabbitmq/conf.d
 sudo cp /opt/musibot/repo/deploy/rabbitmq/20-musibot.conf /etc/rabbitmq/conf.d/
 
 sudo rabbitmq-plugins enable rabbitmq_management
@@ -372,7 +373,7 @@ sudo cp /opt/musibot/repo/deploy/systemd/musibot-api.service /etc/systemd/system
 sudo systemctl daemon-reload
 sudo systemctl enable --now musibot-api
 
-journalctl -u musibot-api -f
+sudo journalctl -u musibot-api -f
 ```
 
 The first thing it logs is its effective configuration with the secrets masked, which is the single most useful line in this log when a service turns out to be talking to the wrong host. The second is that it wiped its MinIO prefix, which it does on every start.
