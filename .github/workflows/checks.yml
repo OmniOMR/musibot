@@ -55,7 +55,7 @@ jobs:
             install: -e '.[dev]'
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # hatch-vcs derives every component's version by running `git
           # describe`, so the build needs the history *and the tags*. A shallow
@@ -65,7 +65,7 @@ jobs:
           # all. See docs/versioning-and-releases.md, "When the build needs git".
           fetch-depth: 0
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           # The version the components are developed on. `core` requires 3.11+
           # and that floor is not exercised here.
@@ -110,11 +110,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
 
@@ -149,9 +149,9 @@ jobs:
 
     steps:
       # No `fetch-depth: 0` here: nothing in the Node build reads git history.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           # What the lockfile was resolved on. `package.json` allows 20.19+ and
           # that floor is not exercised here.
