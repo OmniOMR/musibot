@@ -13,12 +13,21 @@ internal address (`s3_endpoint_url`). In development the two are the same.
 import logging
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Literal, Protocol
+from typing import TYPE_CHECKING, Literal, Protocol
 
 import boto3
 from botocore.client import Config
 from musibot.core import S3Settings
-from mypy_boto3_s3.client import S3Client
+
+if TYPE_CHECKING:
+    # Type stubs only. They come from `boto3-stubs[s3]`, which is a *dev*
+    # dependency and is therefore absent beside a deployed service — so
+    # importing this at module scope crashes the process on startup, and does
+    # it only in production, because every development environment has the
+    # stubs installed and nothing local ever notices. Annotations mentioning
+    # `S3Client` are quoted for the same reason: an annotation on a return
+    # type is evaluated when the function is defined.
+    from mypy_boto3_s3.client import S3Client
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +70,7 @@ class StoragePort(Protocol):
     def page_sizes(self) -> dict[str, int]: ...
 
 
-def _make_client(endpoint_url: str, settings: S3Settings) -> S3Client:
+def _make_client(endpoint_url: str, settings: S3Settings) -> "S3Client":
     return boto3.client(
         "s3",
         endpoint_url=endpoint_url,

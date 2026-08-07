@@ -13,14 +13,25 @@ included, since a model is free to create those.
 import logging
 import shutil
 from pathlib import Path
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 import boto3
 from botocore.client import Config
 from botocore.exceptions import ClientError
 from musibot.core import S3Settings, local_path, validate_page_id
 from musibot.core.page import InvalidFilePath
-from mypy_boto3_s3.client import S3Client
+
+if TYPE_CHECKING:
+    # Type stubs only. They come from `boto3-stubs[s3]`, which is a *dev*
+    # dependency and is therefore absent beside a deployed worker — so
+    # importing this at module scope crashes the process on startup, and does
+    # it only in production, because every development environment has the
+    # stubs installed and nothing local ever notices.
+    #
+    # The one annotation using it needs no quotes: it sits in a function body,
+    # and those are never evaluated. A *signature* annotation would need them,
+    # which is why the `api` service's copy of this quotes its return type.
+    from mypy_boto3_s3.client import S3Client
 
 logger = logging.getLogger(__name__)
 

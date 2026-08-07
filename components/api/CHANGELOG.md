@@ -8,6 +8,11 @@ Versions are semver on the **HTTP API**, which is the outward contract for `pyth
 ## Unreleased
 
 
+### Fixed
+
+- **The service starts in a virtual environment that has only its runtime dependencies.** `storage.py` imported `S3Client` from `mypy_boto3_s3` at module scope — that package is `boto3-stubs[s3]`, which is declared under `dev` and is not installed beside a deployed service. So the service crash-looped on `ModuleNotFoundError` before it had read its own configuration, and it did so *only* in production: every development environment has the stubs, and nothing local, including the whole test suite, ever noticed. The import now sits under `TYPE_CHECKING`, and the annotation naming it is quoted because a signature annotation is evaluated when the function is defined.
+
+
 ## 0.2.0 — 2026-08-07
 
 The public tier, a way to see what a page holds, and input lists checked against the announced *Signature*. Also everything the path-prefixed deployment needs, since this is the service whose presigned URLs the prefix is visible in.
