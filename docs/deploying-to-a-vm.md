@@ -379,7 +379,7 @@ sudo journalctl -u musibot-api -f
 The first thing it logs is its effective configuration with the secrets masked, which is the single most useful line in this log when a service turns out to be talking to the wrong host. The second is that it wiped its MinIO prefix, which it does on every start.
 
 ```bash
-curl -s http://127.0.0.1:8080/pipelines
+curl -s -H "Authorization: Bearer {aliceToken}" http://127.0.0.1:8080/pipelines
 # {"pipelines":[]}   ← no Workers yet; that comes in section 7
 ```
 
@@ -438,7 +438,7 @@ The instance should now answer, and this is the first point at which the whole p
 
 ```bash
 curl -sI http://127.0.0.1/                    # the Web UI
-curl -s  http://127.0.0.1/api/pipelines       # the Web API, prefix stripped by the proxy
+curl -s -H "Authorization: Bearer {aliceToken}" http://127.0.0.1/api/pipelines       # the Web API, prefix stripped by the proxy
 ```
 
 Browse `https://quest.ms.mff.cuni.cz/musibot/` and check all five addresses from [Deployment](deployment.md): the UI, `api/docs`, the MinIO Console at `minio/` (styled, not a wall of unstyled text), and the RabbitMQ UI at `rabbitmq/`.
