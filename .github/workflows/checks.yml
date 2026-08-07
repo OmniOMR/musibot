@@ -1,0 +1,180 @@
+# What runs on every push to main and every pull request.
+#
+# The per-component jobs are exactly what that component's README tells a
+# developer to run, which is deliberate: CI that checks something other than
+# what you check locally is CI you learn to distrust. The one job with no local
+# equivalent is `production-install`, and it is here because the thing it
+# catches is invisible from inside a development environment — see the comment
+# on it, and `.github/scripts/import_every_module.py`.
+#
+# One component is deliberately not covered. `components/models/dvorak-ola`
+# pulls torch, which would dominate every run, and it wraps a frozen external
+# checkpoint — there is not much there to change. Its checks are in its README
+# and are run by hand. `hello-model` stays: it has no dependencies at all, so
+# it costs nothing, and it is the reference implementation of the worker IPC
+# contract that everything else is exercised against.
+
+name: checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+# A newer push to a branch makes the older answer uninteresting.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    name: ${{ matrix.component }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - component: core
+            path: components/core
+            install: -e '.[dev]'
+          - component: api
+            path: components/api
+            install: -e ../core -e '.[dev]'
+            stack: true
+          - component: worker-head
+            path: components/worker-head
+            install: -e ../core -e '.[dev]'
+          - component: python-client
+            path: components/python-client
+            install: -e ../core -e '.[dev]'
+          - component: hello-model
+            path: components/models/hello-model
+            install: -e '.[dev]'
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # hatch-vcs derives every component's version by running `git
+          # describe`, so the build needs the history *and the tags*. A shallow
+          # clone — the CI default — builds core as something PEP 440 orders
+          # below 0.1.0, and the `musibot-core>=0.1.0` floor that api,
+          # worker-head and python-client declare then cannot be satisfied at
+          # all. See docs/versioning-and-releases.md, "When the build needs git".
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          # The version the components are developed on. `core` requires 3.11+
+          # and that floor is not exercised here.
+          python-version: '3.12'
+
+      # Only `api` has tests that reach a broker and object storage. They skip
+      # themselves when nothing is listening, which is precisely how a gap goes
+      # unnoticed, so CI starts the real thing rather than accepting the skip.
+      # The buckets are not created here because those tests make their own.
+      - name: Start RabbitMQ and MinIO
+        if: matrix.stack
+        run: docker compose -f deploy/docker-compose.yml up -d --wait rabbitmq minio
+
+      - name: Create the virtual environment
+        working-directory: ${{ matrix.path }}
+        run: python -m venv .venv
+
+      - name: Install
+        working-directory: ${{ matrix.path }}
+        run: .venv/bin/pip install ${{ matrix.install }}
+
+      - name: Tests
+        working-directory: ${{ matrix.path }}
+        run: .venv/bin/python -m pytest
+
+      - name: Lint
+        working-directory: ${{ matrix.path }}
+        run: |
+          .venv/bin/python -m ruff check .
+          .venv/bin/python -m ruff format --check .
+
+      - name: Types
+        working-directory: ${{ matrix.path }}
+        run: .venv/bin/python -m mypy
+
+  # The job with no local equivalent: build the services the way a *deployment*
+  # builds them — runtime dependencies only, no `dev` extra — and import
+  # everything. A dev-only import is invisible to every other job in this file,
+  # because they all install the dev extra and therefore have it.
+  production-install:
+    name: production install
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # Not editable, and not from a git link: a plain install of the four
+      # distributions a deployment installs, resolved the same way.
+      - name: Install with runtime dependencies only
+        run: |
+          python -m venv .venv
+          .venv/bin/pip install \
+            ./components/core \
+            ./components/api \
+            ./components/worker-head \
+            ./components/python-client
+
+      - name: Import every module
+        run: .venv/bin/python .github/scripts/import_every_module.py
+
+      # The console scripts are what systemd actually executes, and they reach
+      # the code by a different path from an `import` — through the entry point
+      # metadata. `--help` is enough to run it and exit.
+      - name: Run the console scripts
+        run: |
+          .venv/bin/musibot-api --help > /dev/null
+          .venv/bin/musibot-worker-head --help > /dev/null
+
+  web-ui:
+    name: web-ui
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: components/web-ui
+
+    steps:
+      # No `fetch-depth: 0` here: nothing in the Node build reads git history.
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # What the lockfile was resolved on. `package.json` allows 20.19+ and
+          # that floor is not exercised here.
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: components/web-ui/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Format
+        run: npm run format:check
+
+      - name: Types
+        run: npm run typecheck
+
+      - name: Tests
+        run: npm test
+
+      # The build is a check in its own right: it is the only thing that runs
+      # the production Vite config, and the bundle is what nginx serves.
+      - name: Build
+        run: npm run build
