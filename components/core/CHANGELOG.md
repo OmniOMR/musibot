@@ -8,6 +8,11 @@ This component is the wire contract, so a breaking change here ripples to the `a
 ## Unreleased
 
 
+## 0.2.0 — 2026-08-07
+
+*Signatures* become patterns rather than fixed *File* paths, and a deployment can be rooted under a key prefix inside its bucket. Both are changes to the wire contract, so every component that depends on `core` moves with it.
+
+
 ### Added
 
 - **`s3_key_prefix` and `ObjectLayout`** — where in a bucket a deployment keeps its pages. A new `S3Settings` field, empty by default, and a layout object reached through `S3Settings.object_layout` that builds every key from it. **Every service that touches *Files* must build keys through the layout rather than calling `object_key` directly**, and every service in one deployment must be configured with the same prefix: two rooted differently do not fail, they simply stop seeing each other's objects.

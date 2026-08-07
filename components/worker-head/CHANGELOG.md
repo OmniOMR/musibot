@@ -8,6 +8,11 @@ Versions are semver on the **IPC contract** between the worker head and a *Model
 ## Unreleased
 
 
+## 0.2.0 — 2026-08-07
+
+Honours the deployment's key prefix, fails a *Model* that reported success without writing what its *Signature* promised, and stops cleanly when a terminal sends Ctrl+C. The IPC contract itself is unchanged — a *Model* written against 0.1.0 needs nothing done to it.
+
+
 ### Changed
 
 - **Object keys are built through `core`'s `ObjectLayout`**, so a worker head honours the deployment's `s3_key_prefix` when staging a *Model's* inputs and uploading what it produced. A head configured with a different prefix from the `api` service stages nothing and uploads where nobody looks, and neither half raises — so the prefix belongs in the same configuration file as the rest of the MinIO connection. Nothing changes for a deployment that leaves it empty. See [Service configuration](../../docs/service-configuration.md).

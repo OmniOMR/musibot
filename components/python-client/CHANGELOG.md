@@ -8,6 +8,11 @@ Versions are semver, independent of the `api` service's release cadence. This is
 ## Unreleased
 
 
+## 0.2.0 — 2026-08-07
+
+A page's *Files* can be listed, which is how the output of a *Pipeline* nobody could predict the shape of is discovered. `start_execution` now names its input explicitly; `process_page` is unchanged for the caller.
+
+
 ### Added
 
 - **`list_files`** — the *Files* a page currently holds, as `PageFile` objects carrying `path`, `size` and `last_modified`. What a *Pipeline* produced is not knowable in advance (a page-level run writes a `Staves/{n}/` folder whose size depends on the page), so this is how outputs are discovered before `download_files` is called with their paths. It can also be polled while an execution runs to watch *Files* appear.

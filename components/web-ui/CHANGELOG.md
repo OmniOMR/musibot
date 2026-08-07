@@ -8,6 +8,11 @@ The Web UI has no outward contract of its own: nothing depends on it, and it dep
 ## Unreleased
 
 
+## 0.1.0 — 2026-08-07
+
+First release: the whole visitor-facing app, from the landing page to a transcription beside the scan. Everything below is new.
+
+
 ### Fixed
 
 - **Two pages in five were being taken for a single staff.** The guess that picks a default *Pipeline* asked whether an image was wider than it was tall, and 41 of the 100 pages in the `UFAL.OmniOMR` corpus are landscape — so a page was handed to a model that reads one line of music, which transcribes the whole sheet as though it were one. The threshold is now a width-to-height ratio of 3.0, measured across those 100 pages and 1184 staff crops: the two populations are separated by an empty band, nothing in the corpus falling between 1.5 and 4.6. The histogram is in the source beside the number. The explanation shown to the visitor no longer claims a page is "tall and narrow" either, which was untrue of it in plain sight.

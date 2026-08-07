@@ -91,7 +91,7 @@ The first two rows are the trap: a teammate re-installs from a newer commit, pip
 | `orchestrator-head` | not yet | No implementation yet — same scheme when there is one. |
 | `orchestrators` | no | A *Pipeline* is identified by name and version; see its README. |
 | `models` | no | A *Model*'s version is a domain concept — it is what a *Pipeline* pins and what discovery announces — so it stays a written-down constant in the model's `pyproject.toml`, not something derived from repository history. |
-| `web-ui` | not yet | Node toolchain; its own version, decoupled from the API it targets. |
+| `web-ui` | yes | From tags, like the rest — but the version is only ever the tag. Nothing builds this from `pyproject.toml`, so `package.json` stays at `0.0.0` and is not the record. Its own version, decoupled from the API it targets. |
 
 Each component's README states what its version *means*; this page only says where the number comes from.
 

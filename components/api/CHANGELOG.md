@@ -8,6 +8,11 @@ Versions are semver on the **HTTP API**, which is the outward contract for `pyth
 ## Unreleased
 
 
+## 0.2.0 — 2026-08-07
+
+The public tier, a way to see what a page holds, and input lists checked against the announced *Signature*. Also everything the path-prefixed deployment needs, since this is the service whose presigned URLs the prefix is visible in.
+
+
 ### Added
 
 - **`GET /musicorpus-pages/{id}/files`** — what a page currently holds, each *File* with its path, size and last-modified time. This is the only way to learn what a *PipelineExecution* produced, since how many staves a page has is what the recognition found out; and, polled while an execution runs, it is how progress is watched until the SSE stream exists. Answered by listing object storage rather than from anything the service remembers, so it stays true across a *File* a later execution overwrote — and, for the same reason, a *File* is not attributed to the execution that wrote it.
