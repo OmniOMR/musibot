@@ -8,6 +8,11 @@ Versions are semver on the **IPC contract** between the worker head and a *Model
 ## Unreleased
 
 
+## 0.2.1 — 2026-08-07
+
+A packaging fault that stopped 0.2.0 starting anywhere it was actually deployed. The IPC contract and the head's behaviour are unchanged, so a *Model* written against 0.2.0 needs nothing done to it.
+
+
 ### Fixed
 
 - **A *Worker* starts in a virtual environment that has only its runtime dependencies.** `storage.py` imported `S3Client` from `mypy_boto3_s3` at module scope — that package is `boto3-stubs[s3]`, which is declared under `dev` and is not installed beside a deployed worker. So the head crash-looped on `ModuleNotFoundError` before it had started its *Model*, and it did so *only* in production: every development environment has the stubs, and nothing local ever noticed. The import now sits under `TYPE_CHECKING`. This is the same fault as the `api` service's, in the copy of this module that lives here.
