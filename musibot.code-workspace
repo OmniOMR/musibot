@@ -34,6 +34,10 @@
             "path": "components/models/hello-model"
         },
         {
+            "name": "dvorak-ola",
+            "path": "components/models/dvorak-ola"
+        },
+        {
             "name": "web-ui",
             "path": "components/web-ui"
         }

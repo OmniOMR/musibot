@@ -10,3 +10,7 @@ dist/
 # local configuration
 *.env
 !deploy/*.env.example
+
+# model weights, which are a model repository's business and never committed
+# here — see components/models/README.md
+components/models/*/weights/

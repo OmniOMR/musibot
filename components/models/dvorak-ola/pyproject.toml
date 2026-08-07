@@ -1,0 +1,58 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "musibot-dvorak-ola"
+version = "1.0.0"
+description = "A Musibot model that detects the layout of a page of sheet music"
+readme = "README.md"
+# The one component of Musibot that is not Apache-2.0, and see the README's
+# Licensing section for why: this package exists to import ultralytics, which is
+# AGPL-3.0, so the running combination is a covered work whatever this file
+# says. Declaring it here confines the copyleft to this one folder and states
+# the true position, rather than leaving a recipient to discover it. Apache-2.0
+# is one-way compatible into AGPL-3.0, so nothing else in the monorepo moves.
+license = "AGPL-3.0-or-later"
+license-files = ["LICENSE"]
+# Ultralytics itself asks for 3.8 or newer; this is the floor for the union of
+# what a current torch publishes wheels for. Nothing here needs the 3.11 that
+# `core` and the Worker Head do — a Model is reached only over pipes and the
+# filesystem, so it is free to run on a different python entirely.
+requires-python = ">=3.10"
+# The version the checkpoint was trained and saved with, as its own metadata
+# says. Newer 8.x loads it fine; the floor is there so that a checkpoint saved
+# by a newer ultralytics than the one installed cannot be the puzzle.
+#
+# This one line is why the licence above differs from every other component's.
+dependencies = ["ultralytics>=8.3.28,<9"]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.6",
+    "mypy>=1.11",
+]
+
+[project.scripts]
+musibot-dvorak-ola = "dvorak_ola:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["dvorak_ola"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.mypy]
+strict = true
+files = ["dvorak_ola", "tests"]
+
+# Ultralytics is typed, but its top-level names are lazily re-exported, which
+# strict mode reads as `ultralytics` not exporting `YOLO` at all. `detector` is
+# the one module that imports any of it.
+[[tool.mypy.overrides]]
+module = "ultralytics"
+implicit_reexport = true
