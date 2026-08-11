@@ -65,12 +65,9 @@ The snapshot is downloaded now, by hand, and not by the model when it starts —
 ```bash
 sudo -u musibot mkdir -p /opt/musibot/models/zeus/snapshots
 cd /opt/musibot/models/zeus/snapshots
-sudo -u musibot curl -LO https://github.com/Jirka-Mayer/ijdar/releases/download/model-snapshots/zod-bw-auth-ft-2026-07-20.model.model.tar.gz
-sudo -u musibot tar xzf zod-bw-auth-ft-2026-07-20.model.model.tar.gz
-sudo -u musibot mv zod-bw-auth-ft-2026-07-20.model.model zod-bw-auth-ft-2026-07-20.model
+sudo -u musibot curl -LO https://github.com/Jirka-Mayer/ijdar/releases/download/model-snapshots/zod-bw-auth-ft-2026-07-20.model.tar.gz
+sudo -u musibot tar xzf zod-bw-auth-ft-2026-07-20.model.tar.gz
 ```
-
-That last line is tidying up a doubled suffix in the published archive, and it is safe to do: the identity Zeus announces is read from `model_options.yaml` inside the folder, not from the folder's name.
 
 This unpacks *beside* whatever is already in `snapshots/` rather than replacing it, which is the arrangement the whole naming scheme rests on: the new snapshot gets a worker of its own, both run for as long as the changeover takes, and the old one stays on disk to roll back to. Delete a snapshot when no worker has served it for a while, not when it is superseded.
 
