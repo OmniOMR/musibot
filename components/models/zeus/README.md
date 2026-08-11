@@ -95,7 +95,8 @@ The instance is named after the snapshot rather than after Zeus, for the reasons
 instance=solo26-zod-bw-auth-ft-2026-07-20
 
 sudo install -o root -g musibot -m 0640 \
-    components/models/zeus/worker-zeus.env.example "/etc/musibot/worker-$instance.env"
+    /opt/musibot/repo/components/models/zeus/worker-zeus.env.example \
+    "/etc/musibot/worker-$instance.env"
 sudo nano "/etc/musibot/worker-$instance.env"        # fill in the credentials
 
 sudo systemctl enable --now "musibot-worker@$instance"
