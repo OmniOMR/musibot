@@ -130,8 +130,8 @@ sudo -u musibot curl -Lo \
     https://github.com/v-dvorak/omr-layout-analysis/releases/download/ola-v2.0/ola-layout-analysis-2.0-2025-03-09.pt
 
 # the worker head, on the 3.12 the rest of Musibot is developed on
-sudo -u musibot python3.12 -m venv /opt/musibot/workers/ola-2.0-2025-03-09/venv
-sudo -u musibot /opt/musibot/workers/ola-2.0-2025-03-09/venv/bin/pip install \
+sudo -u musibot python3.12 -m venv /opt/musibot/workers/dvorak-ola-2.0-2025-03-09/venv
+sudo -u musibot /opt/musibot/workers/dvorak-ola-2.0-2025-03-09/venv/bin/pip install \
     'musibot-core @ git+https://github.com/OmniOMR/musibot.git@core/v0.1.0#subdirectory=components/core' \
     'musibot-worker-head @ git+https://github.com/OmniOMR/musibot.git@worker-head/v0.1.0#subdirectory=components/worker-head'
 ```
@@ -141,7 +141,7 @@ A CPU-only VM wants the CPU wheel of torch rather than the default one, which dr
 The instance is named after the checkpoint, for the reasons in [Naming a worker instance](../../../docs/deploying-to-a-vm.md#naming-a-worker-instance):
 
 ```bash
-instance=ola-2.0-2025-03-09
+instance=dvorak-ola-2.0-2025-03-09
 
 sudo install -o root -g musibot -m 0640 \
     components/models/dvorak-ola/worker-dvorak-ola.env.example "/etc/musibot/worker-$instance.env"
