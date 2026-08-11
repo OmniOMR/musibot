@@ -144,7 +144,7 @@ The instance is named after the checkpoint, for the reasons in [Naming a worker 
 instance=dvorak-ola-2.0-2025-03-09
 
 sudo install -o root -g musibot -m 0640 \
-    components/models/dvorak-ola/worker-dvorak-ola.env.example "/etc/musibot/worker-$instance.env"
+    /opt/musibot/repo/components/models/dvorak-ola/worker-dvorak-ola.env.example "/etc/musibot/worker-$instance.env"
 sudo nano "/etc/musibot/worker-$instance.env"        # fill in the credentials
 
 sudo systemctl enable --now "musibot-worker@$instance"
