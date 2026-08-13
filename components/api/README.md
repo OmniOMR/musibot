@@ -31,7 +31,9 @@ python3 -m venv .venv
 .venv/bin/musibot-api
 ```
 
-With no configuration it comes up on `127.0.0.1:8080` and accepts the single development token `secret` (matching the docs and the [local stack](../../deploy/README.md)) — it logs a warning that it is doing so. `docker compose up` in `/deploy` brings up the RabbitMQ and MinIO it will talk to.
+With no configuration at all it comes up ready for the [local stack](../../deploy/README.md) **as that stack is published** — on `0.0.0.0:8080` so the nginx container can reach it, under the `/musibot/api` root path, keeping pages in the `musibot` bucket under the `s3/` key prefix, issuing presigned URLs against `http://localhost:8000`, with the public tier on. `docker compose up` in `/deploy` brings up everything it talks to, and http://localhost:8000/musibot/ is then the whole system.
+
+It also accepts the single development token `secret` (matching the docs and the stack) and logs a warning that it is doing so. Every one of these defaults is a development default; a deployment sets all of them explicitly, `host` included — see [`deploy/systemd/api.env.example`](../../deploy/systemd/api.env.example) and [service configuration](../../docs/service-configuration.md).
 
 
 ### API tokens

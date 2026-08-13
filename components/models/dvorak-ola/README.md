@@ -106,7 +106,7 @@ cd components/worker-head
     "$PWD/../models/dvorak-ola/.venv/bin/musibot-dvorak-ola --weights $PWD/../models/dvorak-ola/weights/ola-layout-analysis-2.0-2025-03-09.pt"
 ```
 
-Add `--s3-bucket musibot --s3-key-prefix s3/` when the `api` service is the one behind the proxied topology, since a *Worker* that is rooted differently from the `api` service does not fail — it simply stops seeing its objects and reports that its input file does not exist.
+Nothing about storage need be passed: the bucket and key prefix default to the ones the `api` service uses, which matters because a *Worker* rooted differently from it does not fail — it simply stops seeing its objects and reports that its input file does not exist. A *Worker* for an `api` service reaching MinIO some other way has to be given the same two settings it was.
 
 It then appears in `GET /pipelines` as an *ImplicitPipeline* — upload an `image.jpg`, get a `layout.json` — which the Web UI will draw over the scan.
 

@@ -73,11 +73,15 @@ def identity_of(client: TestClient, headers: dict[str, str]) -> str:
 # --- minting -----------------------------------------------------------------
 
 
-def test_public_access_is_off_unless_switched_on(client: TestClient) -> None:
-    """A Libraries-only deployment must not acquire a public demo by accident."""
-    response = client.post("/public-sessions")
+def test_public_access_can_be_switched_off(build_client: ClientBuilder) -> None:
+    """A Libraries-only deployment says so, in one line of its configuration.
 
-    assert response.status_code == 404
+    It is on by default because the Web UI cannot do anything without it: every
+    visitor arrives holding no token, so an instance started without this would
+    answer `404` to the first thing the app does.
+    """
+    with build_client(public_access_enabled=False) as client:
+        assert client.post("/public-sessions").status_code == 404
 
 
 def test_a_minted_session_authenticates(public: TestClient) -> None:

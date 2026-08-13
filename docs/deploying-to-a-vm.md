@@ -640,7 +640,7 @@ journalctl -u musibot-worker@solo26-zod-bw-auth-ft-2026-07-20 -f
 journalctl -u minio -u rabbitmq-server --since '10 min ago'
 ```
 
-A *Model*'s own stdout and stderr are captured by its *Worker Head* and appear in that worker's journal. They do not yet reach `musibot.logs`, so the *Web UI*'s recognition log does not show them and `journalctl` is where a failed transcription is explained today — one of the gaps in [Rough edges](rough-edges.md).
+A *Model*'s own stdout and stderr are captured by its *Worker Head*, appear in that worker's journal, and are published onto `musibot.logs` for the `api` service to stream to whoever is watching that page. So a failed transcription explains itself in the *Web UI*; the journal is where to look for what was printed while nobody had the page open, a model loading its weights included.
 
 
 ### When something is wrong

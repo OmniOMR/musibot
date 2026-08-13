@@ -8,6 +8,15 @@ Versions are semver on the **HTTP API**, which is the outward contract for `pyth
 ## Unreleased
 
 
+### Changed
+
+- **The defaults are the local stack as it is published, so development needs no flags.** `docker compose up` and then `musibot-api` with no arguments is now the whole of starting Musibot locally: the service listens on `0.0.0.0` (the nginx container reaches it at `host.docker.internal:8080`), serves under `root_path=/musibot/api`, issues presigned URLs against `http://localhost:8000`, and has the public tier on — which the Web UI cannot work without, since every visitor arrives holding no token. The bucket and key prefix come from `core` and moved with it.
+
+  What you then have running is shaped the way a deployment is, which is the point: the same prefix, the same storage names, the same proxied path for every presigned URL. Running against MinIO directly is now the arrangement that takes flags, and [deploy/README.md](../../deploy/README.md) says which.
+
+  **A deployment sets all of these explicitly** — [`deploy/systemd/api.env.example`](../../deploy/systemd/api.env.example) does, `MUSIBOT_HOST=127.0.0.1` included, and that line is now load-bearing rather than a restatement of the default.
+
+
 ### Added
 
 - **`POST /musicorpus-pages/{id}/logs`** — an SSE stream of everything logged for one page, so a *User* can watch a reading happen rather than waiting on a poll. Each event's `data` is one line as JSON: the `execution_id` it belongs to, `seconds` into that execution, who said it (`kind` — `worker`, `orchestrator` or `api` — and `source`), its `level`, and the `message`. Comment frames (`: ping`) keep an idle stream open and are ignored by any SSE client. The stream ends when the client hangs up or the page is deleted.

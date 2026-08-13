@@ -12,6 +12,10 @@ This component is the wire contract, so a breaking change here ripples to the `a
 
 - **`musibot.core.file_changes`** — the `musibot.file-changes` exchange and its one `files-changed` message: the *Files* an execution has just written, named by their paths and attributed to the *Pipeline Execution* that wrote them. Published by whoever uploaded them, consumed by the `api` service, which forwards it to a client watching that page so that a *File* can be shown as it appears rather than at the next poll. Paths are `PageFilePath`, so one escaping its page is refused by the parser rather than by whoever acts on it. Deletions are not carried: they do not propagate out of a *Model* at all.
 
+### Changed
+
+- **The storage defaults are the development stack as it is published.** `s3_bucket` is now `musibot` (was `musibot-pages`) and `s3_key_prefix` is now `s3/` (was empty), which is the rooting a deployment served under a URL prefix is forced into and therefore the one worth developing against — see [Deployment](../../docs/deployment.md). A service started with no configuration now finds the same objects as every other service started the same way, which is the failure this removes: a *Worker* rooted differently from the `api` service does not fail, it silently stops seeing that service's files. **A deployment is unaffected**, since it sets both explicitly; anything reaching MinIO directly and wanting the old layout sets them back.
+
 ### Removed
 
 - **`ProgressMessage` and everything that reported a fraction.** The `musibot.logs` exchange now carries `log` messages and nothing else, and `parse_log_message` returns a `LogMessage` rather than a union — a publisher still sending `progress` is refused by the parser instead of being taken for a log. Progress reporting was never implemented and is not going to be: an execution takes a second or two, and the models Musibot runs cannot honestly say how far along they are — a detector produces every box at the end of one forward pass, and an autoregressive model does not know how many tokens it is about to emit. A log line is the whole of what a *User* is told while they wait.

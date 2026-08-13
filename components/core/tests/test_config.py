@@ -24,8 +24,15 @@ def test_defaults_match_the_development_stack() -> None:
     assert settings.rabbit_host == "localhost"
     assert settings.rabbit_port == 5672
     assert settings.s3_endpoint_url == "http://localhost:9000"
-    assert settings.s3_bucket == "musibot-pages"
     assert settings.log_level == "INFO"
+
+    # The stack as it is *published* — reached through nginx under /musibot/,
+    # which is how the deployment is served. So the storage names are the ones
+    # a path prefix forces: the bucket is the prefix's first segment and the
+    # rest of it is the key prefix. See docs/deployment.md.
+    assert settings.s3_bucket == "musibot"
+    assert settings.s3_key_prefix == "s3/"
+    assert settings.object_layout.key("7Kf2mP9xLwQa", "image.jpg") == "s3/7Kf2mP9xLwQa/image.jpg"
 
 
 def test_settings_come_from_the_command_line() -> None:
@@ -150,8 +157,10 @@ def test_the_public_s3_url_may_differ_from_the_endpoint() -> None:
     assert settings.object_layout.key("7Kf2mP9xLwQa", "image.jpg") == ("s3/7Kf2mP9xLwQa/image.jpg")
 
 
-def test_the_key_prefix_is_empty_by_default() -> None:
-    settings = ExampleSettings.load(argv=[], env={})
+def test_the_key_prefix_can_be_emptied_for_a_deployment_at_a_root() -> None:
+    # An instance served at the root of its own host needs none of the rooting:
+    # the bucket is an ordinary bucket again and keys start at the page ID.
+    settings = ExampleSettings.load(argv=["--s3-key-prefix="], env={})
 
     assert settings.s3_key_prefix == ""
     assert settings.object_layout.key("7Kf2mP9xLwQa", "image.jpg") == "7Kf2mP9xLwQa/image.jpg"

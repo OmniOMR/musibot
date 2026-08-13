@@ -62,8 +62,20 @@ def test_settings_default_to_the_documented_port() -> None:
     assert ApiSettings.for_testing().port == 8080
 
 
-def test_no_root_path_by_default(build_client: ClientBuilder) -> None:
+def test_the_root_path_is_where_the_deployment_publishes_this_service(
+    build_client: ClientBuilder,
+) -> None:
+    # The default is not "no prefix" but the one both the deployment and the
+    # local stack serve this service under, so that neither has to say so.
     with build_client() as client:
+        [server] = client.get("/openapi.json").json()["servers"]
+        assert server["url"] == "/musibot/api"
+
+
+def test_an_instance_at_the_root_of_a_host_announces_no_prefix(
+    build_client: ClientBuilder,
+) -> None:
+    with build_client(root_path="") as client:
         assert "servers" not in client.get("/openapi.json").json()
 
 

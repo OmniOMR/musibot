@@ -60,19 +60,24 @@ Two things need doing before this works:
 
 **Build the Web UI.** nginx serves `components/web-ui/dist`, and until `npm run build` has been run there those paths are 404 while everything else still works.
 
-**Start the `api` service so a container can reach it.** It binds `127.0.0.1` by default, which is not reachable from inside the nginx container:
+**Start the `api` service and a *Worker* or two.** Neither takes an argument: this topology is what every default is set for.
 
 ```bash
-.venv/bin/musibot-api --host 0.0.0.0 \
-    --root-path /musibot/api \
-    --s3-bucket musibot --s3-key-prefix s3/ \
-    --s3-public-url http://localhost:8000 \
-    --public-access-enabled true
+components/api/.venv/bin/musibot-api
 ```
 
-Those last three are the arrangement that makes presigned URLs survive being served from a path prefix — the bucket is named after the prefix's first segment and the rest of it becomes the key prefix. [Deployment](../docs/deployment.md) explains why there is no other option. Set `MUSIBOT_API_UPSTREAM` if you run the service somewhere other than port 8080.
+That is the whole of it. The service binds every interface (the nginx container reaches it at `host.docker.internal:8080`), answers under `/musibot/api`, keeps pages in the `musibot` bucket under the `s3/` key prefix, issues presigned URLs against `http://localhost:8000`, and offers the public tier the Web UI needs. Those storage names are what makes a presigned URL survive being served from a path prefix — the bucket is the prefix's first segment and the rest of it is the key prefix — and [Deployment](../docs/deployment.md) explains why there is no other option. Set `MUSIBOT_API_UPSTREAM` if you run the service somewhere other than port 8080.
 
-Running the `api` service **without** those settings is still the normal thing to do while developing it: reach MinIO directly on `localhost:9000`, keep pages in `musibot-pages` under no key prefix, and ignore the two containers above. Both arrangements share the stack, which is why `minio-init` creates both buckets.
+**To reach MinIO directly instead**, without nginx in front of it, three settings have to be put back:
+
+```bash
+components/api/.venv/bin/musibot-api \
+    --host 127.0.0.1 \
+    --s3-public-url http://localhost:9000 \
+    --root-path ""
+```
+
+Pages then live in the `musibot` bucket under `s3/` just the same — the rooting costs nothing when nothing is proxied, so it is not worth a fourth flag and a *Worker* that does not know about it. `minio-init` still creates `musibot-pages` for anything configured the old way.
 
 
 ## Production

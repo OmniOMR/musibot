@@ -26,16 +26,30 @@ class ApiSettings(RabbitSettings, S3Settings, LoggingSettings):
     service's own.
     """
 
-    host: str = "127.0.0.1"
+    # Every interface, because the local development stack reaches this service
+    # from inside a container (`host.docker.internal:8080`) and the loopback is
+    # not reachable from there. **A deployment must set this back to
+    # `127.0.0.1`**, where nginx is the single entry point and reverse-proxies
+    # to here; `deploy/systemd/api.env.example` does.
+    host: str = "0.0.0.0"
     port: int = 8080
 
     # The path prefix this service is reached under from the outside, when it
     # is not served at the root of its host. nginx strips it before the
     # request arrives, so it changes nothing about routing — it exists so the
-    # interactive docs at `/docs` can build URLs the browser can follow. An
-    # instance published at https://example.org/musibot/api/ sets this to
-    # "/musibot/api". See docs/deployment.md.
-    root_path: str = ""
+    # interactive docs at `/docs` can build URLs the browser can follow. The
+    # default is where the local stack publishes this service, which is where
+    # the deployment publishes it too. An instance served at the root of its
+    # own host sets this back to "". See docs/deployment.md.
+    root_path: str = "/musibot/api"
+
+    # The origin presigned URLs are issued against — the address a *User's*
+    # browser redeems them from, which is not the one this service reaches
+    # MinIO on. The default is the local stack's public origin, so that an
+    # upload from the Web UI travels through nginx exactly as it does in a
+    # deployment. The origin and nothing more: the `/musibot/s3/` of the public
+    # URL is carried by the bucket and key prefix (see `core`), not by this.
+    s3_public_url: str | None = "http://localhost:8000"
 
     # A JSON file mapping API token to the user it identifies:
     #   { "s3cr3t-token": "alice", "other-token": "bob" }
@@ -59,9 +73,13 @@ class ApiSettings(RabbitSettings, S3Settings, LoggingSettings):
     # rather than malice — minting a session is free, so anyone can have
     # another one.
 
-    # Whether POST /public-sessions mints anything at all. Off by default, so
-    # a Libraries-only deployment does not acquire a public demo by accident.
-    public_access_enabled: bool = False
+    # Whether POST /public-sessions mints anything at all. On by default,
+    # because the Web UI is unusable without it — every visitor arrives
+    # holding no token, so a stack started for development would answer 404 to
+    # the first thing the app does. A Libraries-only deployment turns it off
+    # deliberately, which is a line in its configuration rather than a default
+    # it inherits.
+    public_access_enabled: bool = True
 
     # Global: how many Pipeline Executions all public sessions together may
     # have running. Size it against the Worker fleet — the public can occupy

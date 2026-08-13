@@ -53,7 +53,7 @@ python3 -m venv .venv
 .venv/bin/pip install -e ../core -e '.[dev]'
 ```
 
-Run it against the [local development stack](../../deploy/README.md) and the [hello-model](../models/hello-model/README.md), which needs no arguments beyond the command that launches the model, since every other default already points at that stack:
+Run it against the [local development stack](../../deploy/README.md) and the [hello-model](../models/hello-model/README.md). Nothing but the model's command need be given: every other default already points at that stack as it is published, the `musibot` bucket and the `s3/` key prefix included, which is what keeps a *Worker* seeing the same objects as an `api` service started the same way.
 
 ```bash
 .venv/bin/musibot-worker-head \

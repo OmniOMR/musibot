@@ -103,7 +103,7 @@ Note that this cap **applies to everyone**. nginx cannot tell a *Library* from a
 
 ## Configuration
 
-All of it is configuration on the `api` service ([Service configuration](service-configuration.md)), because none of it is a value two Musibot processes have to agree on — it is a policy of one deployment, and the right numbers are not knowable in advance. An instance with no public tier at all is a normal deployment, so the feature is off unless switched on.
+All of it is configuration on the `api` service ([Service configuration](service-configuration.md)), because none of it is a value two Musibot processes have to agree on — it is a policy of one deployment, and the right numbers are not knowable in advance. An instance with no public tier at all is a normal deployment, and turns it off with `public_access_enabled=false`. It is on by default because the *Web UI* cannot do anything without it: every visitor arrives holding no token, so the first thing the app does is mint a session, and a service that refused would look broken rather than restricted.
 
 | Field | Default | Meaning |
 | --- | --- | --- |

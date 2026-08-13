@@ -73,17 +73,19 @@ Connection settings are identical across services and live in `core` as mixins, 
 | `s3_endpoint_url` | `http://localhost:9000` | Where this service reaches MinIO. |
 | `s3_access_key` | `root` | |
 | `s3_secret_key` | `password` | |
-| `s3_bucket` | `musibot-pages` | The single global bucket holding all *Musicorpus Pages*. |
-| `s3_public_url` | *(same as `s3_endpoint_url`)* | The address presigned URLs are issued against. |
-| `s3_key_prefix` | *(empty)* | A prefix every object key is stored under. |
+| `s3_bucket` | `musibot` | The single global bucket holding all *Musicorpus Pages*. |
+| `s3_public_url` | *(same as `s3_endpoint_url`; the `api` service defaults it to `http://localhost:8000`)* | The address presigned URLs are issued against. |
+| `s3_key_prefix` | `s3/` | A prefix every object key is stored under. |
 
-`s3_public_url` exists because the `api` service issues presigned URLs that a *User* redeems from the public internet, while the service itself reaches MinIO over the internal network — the two addresses differ in production, where MinIO is reverse-proxied by nginx (see [Deployment](deployment.md)). Only the `api` service needs it; it defaults to the internal endpoint, which is correct for development, where they are the same address.
+`s3_public_url` exists because the `api` service issues presigned URLs that a *User* redeems from the public internet, while the service itself reaches MinIO over the internal network — the two addresses differ in production, where MinIO is reverse-proxied by nginx (see [Deployment](deployment.md)). Only the `api` service needs it, and only it overrides the default: the local stack's public origin, so that a browser redeems a URL through nginx exactly as it will in a deployment. A service run against MinIO directly sets it to the endpoint.
 
 `s3_bucket` and `s3_key_prefix` are ordinary-looking settings that are anything but, once a deployment is published under a path prefix rather than at the root of a host. A SigV4 signature covers the request path, and MinIO reads the first segment of the path it receives as the bucket, so an instance served at `https://host/musibot/s3/` has to be configured with `s3_bucket=musibot` and `s3_key_prefix=s3/` — the storage names absorb the URL, because nothing is allowed to rewrite the path. [Deployment](deployment.md) sets out why there is no alternative. Unlike `s3_public_url`, these are needed by **every** service that touches *Files*: two services rooted differently do not fail, they simply stop seeing each other's objects.
 
 **Logging** — `log_level` and `log_format`, needed by every service.
 
-The defaults throughout are the development defaults: they match the [docker compose stack](../deploy/README.md), so a service started with no configuration at all comes up against a local stack. This is a deliberate trade — it makes getting started frictionless at the cost of default credentials, which is acceptable only because a production deployment must set every one of these anyway, and one of them is `s3_public_url`, without which nothing works.
+The defaults throughout are the development defaults: they match the [docker compose stack](../deploy/README.md) **as it is published** — through nginx, under `/musibot/`, which is the topology a deployment runs. So `docker compose up` and then a service with no arguments at all is the whole of starting Musibot locally, and what you are then running is shaped the way production is: the same `root_path`, the same bucket and key prefix, the same public origin. Reaching MinIO directly instead is the arrangement that now needs flags, and [deploy/README.md](../deploy/README.md) says which.
+
+This is a deliberate trade — it makes getting started frictionless at the cost of default credentials and a service that listens on every interface — and it is acceptable only because a deployment sets every one of these explicitly. [`deploy/systemd/api.env.example`](../deploy/systemd/api.env.example) does, `host` included; a VM that copied it is not running on any of these defaults.
 
 
 ## What is not configuration

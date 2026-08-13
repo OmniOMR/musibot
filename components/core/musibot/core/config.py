@@ -126,12 +126,25 @@ class RabbitSettings(MusibotSettings):
 
 
 class S3Settings(MusibotSettings):
-    """Connection to MinIO. Needed by every service that touches Files."""
+    """Connection to MinIO. Needed by every service that touches Files.
+
+    The defaults are the local development stack (`deploy/docker-compose.yml`)
+    as it is published — that is, reached through nginx under `/musibot/`,
+    which is how the deployment is served and therefore the arrangement worth
+    developing against. That is why the bucket and key prefix below are not the
+    empty-ish ones a bare MinIO would want: see `docs/deployment.md` for why a
+    path prefix has to be spent on the storage names.
+    """
 
     s3_endpoint_url: str = "http://localhost:9000"
     s3_access_key: str = "root"
     s3_secret_key: SecretStr = SecretStr("password")
-    s3_bucket: str = "musibot-pages"
+
+    # Named after the first segment of the deployment's URL prefix, because
+    # MinIO reads the first path segment it receives as the bucket and a SigV4
+    # signature forbids rewriting the path. A deployment served at the root of
+    # its own host may use any name and an empty key prefix.
+    s3_bucket: str = "musibot"
 
     s3_public_url: str | None = Field(
         default=None,
@@ -142,12 +155,12 @@ class S3Settings(MusibotSettings):
     )
 
     s3_key_prefix: str = Field(
-        default="",
+        default="s3/",
         description=(
             "A prefix every object key is stored under. Needed when the "
             "deployment is served from a path prefix, whose first segment has "
             "to become the bucket name and whose rest has to become this. "
-            "Empty when MinIO is reached directly."
+            "Empty when MinIO is served at the root of its own host."
         ),
     )
 

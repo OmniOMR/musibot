@@ -37,7 +37,15 @@ def storage(request: pytest.FixtureRequest) -> Storage:
     forgotten on the way out, which fails by finding nothing rather than by
     raising.
     """
-    settings = ApiSettings.for_testing(s3_bucket=TEST_BUCKET, s3_key_prefix=request.param)
+    settings = ApiSettings.for_testing(
+        s3_bucket=TEST_BUCKET,
+        s3_key_prefix=request.param,
+        # Redeemed against MinIO itself rather than through the nginx the
+        # service is normally published behind, which is what the default
+        # public URL points at. A signature covers the host it was made for, so
+        # this has to be the address these tests actually fetch from.
+        s3_public_url=None,
+    )
     store = Storage(settings)
     # A dedicated bucket, so the test never disturbs real page data.
     client = store._client
