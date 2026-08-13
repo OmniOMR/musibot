@@ -12,9 +12,19 @@ class MusibotApiError(MusibotError):
     which one it was: a `404` after a page was deleted is not a `401`.
     """
 
-    def __init__(self, message: str, *, status_code: int | None = None):
+    def __init__(
+        self,
+        message: str,
+        *,
+        status_code: int | None = None,
+        retry_after_seconds: float | None = None,
+    ):
         super().__init__(message)
         self.status_code = status_code
+        # What the server's `Retry-After` said, when it said anything. A `429`
+        # from the public tier knows how long its own caps last, which is a
+        # better answer than any backoff this client could invent.
+        self.retry_after_seconds = retry_after_seconds
 
 
 class PipelineNotAvailable(MusibotApiError):

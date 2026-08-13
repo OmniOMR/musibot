@@ -9,6 +9,7 @@ from musibot.client import (
     PipelineExecutionFailed,
     PipelineExecutionTimedOut,
     PipelineNotAvailable,
+    RetryPolicy,
 )
 from tests.fake_server import API_HOST, PAGE_ID, FakeServer
 
@@ -21,14 +22,12 @@ def a_client(server: FakeServer) -> MusibotClient:
         musibot_api_url=API_HOST,
         api_token="secret",
         transport=server.transport(),
-        # Nothing here should wait on a wall clock.
-        poll_interval_seconds=0,
     )
 
 
 def test_process_page_round_trip() -> None:
     server = FakeServer(
-        stored={f"{PAGE_ID}/transcription.musicxml": TRANSCRIPTION},
+        objects={f"{PAGE_ID}/transcription.musicxml": TRANSCRIPTION},
     )
 
     with a_client(server) as client:
@@ -56,7 +55,7 @@ def test_process_page_round_trip() -> None:
 
 
 def test_every_api_request_carries_the_token() -> None:
-    server = FakeServer(stored={f"{PAGE_ID}/out.txt": b"x"})
+    server = FakeServer(objects={f"{PAGE_ID}/out.txt": b"x"})
 
     with a_client(server) as client:
         client.process_page(input={}, pipeline=("p", "1"), output={"out.txt"})
@@ -73,7 +72,7 @@ def test_the_token_never_reaches_object_storage() -> None:
     refuses a request that also presents an Authorization header — so sending
     it would break every transfer, besides handing the token to another host.
     """
-    server = FakeServer(stored={f"{PAGE_ID}/out.txt": b"x"})
+    server = FakeServer(objects={f"{PAGE_ID}/out.txt": b"x"})
 
     with a_client(server) as client:
         client.process_page(input={"image.jpg": SCAN}, pipeline=("p", "1"), output={"out.txt"})
@@ -83,20 +82,34 @@ def test_the_token_never_reaches_object_storage() -> None:
     assert all("Authorization" not in r.headers for r in storage_requests)
 
 
-def test_it_waits_while_the_execution_runs() -> None:
-    server = FakeServer(
-        states=["running", "running", "completed"],
-        stored={f"{PAGE_ID}/out.txt": b"x"},
-    )
+def test_it_waits_on_the_stream_rather_than_polling() -> None:
+    """The whole reason the result stream exists: one connection, however many
+    pages are in flight, and no repeated asking."""
+    server = FakeServer(objects={f"{PAGE_ID}/out.txt": b"x"})
 
     with a_client(server) as client:
         client.process_page(input={}, pipeline=("p", "1"), output={"out.txt"})
 
-    assert server.polls == 3
+    assert server.streams_opened == 1
+    # Asked about twice and no more: once by the waiter on its way in, once by
+    # the stream as it connected. Both are there because nothing is replayed, so
+    # an execution that ended before anyone was watching has to be asked about.
+    assert server.polls == 2
+
+
+def test_an_execution_that_ended_before_anyone_watched_is_still_found() -> None:
+    """Nothing is replayed, so the one ask on the way in is what saves a caller
+    that arrives late."""
+    server = FakeServer(objects={f"{PAGE_ID}/out.txt": b"x"}, settle_immediately=True)
+
+    with a_client(server) as client:
+        client.process_page(input={}, pipeline=("p", "1"), output={"out.txt"})
+
+    assert server.deleted_pages == [PAGE_ID]
 
 
 def test_a_failed_execution_raises_with_the_reason() -> None:
-    server = FakeServer(states=["failed"])
+    server = FakeServer(outcome="failed")
 
     with a_client(server) as client, pytest.raises(PipelineExecutionFailed) as raised:
         client.process_page(input={"image.jpg": SCAN}, pipeline=("p", "1"), output={"out.txt"})
@@ -108,7 +121,7 @@ def test_a_failed_execution_raises_with_the_reason() -> None:
 
 
 def test_giving_up_waiting_says_it_may_still_be_running() -> None:
-    server = FakeServer(states=["running"])
+    server = FakeServer(auto_finish=False)
 
     with a_client(server) as client, pytest.raises(PipelineExecutionTimedOut, match="still"):
         client.process_page(
@@ -116,6 +129,10 @@ def test_giving_up_waiting_says_it_may_still_be_running() -> None:
             pipeline=("p", "1"),
             output={"out.txt"},
             timeout_seconds=0,
+            # Giving up waiting is retryable — during an outage it is exactly
+            # what a page that was waiting looks like — so the retries are
+            # turned off here to test the giving up itself.
+            retry=RetryPolicy.none(),
         )
 
     assert server.deleted_pages == [PAGE_ID]
@@ -185,7 +202,7 @@ def test_listing_files_discovers_what_a_pipeline_produced() -> None:
     how many staves a page has is what the recognition found out — so they are
     discovered and then downloaded by the paths that came back."""
     server = FakeServer(
-        stored={
+        objects={
             f"{PAGE_ID}/image.jpg": SCAN,
             f"{PAGE_ID}/Staves/1/transcription.musicxml": TRANSCRIPTION,
         }
@@ -213,7 +230,7 @@ def test_listing_files_of_an_empty_page_finds_nothing() -> None:
 
 def test_the_steps_are_available_on_their_own() -> None:
     """A caller may hold a page open rather than using `process_page`."""
-    server = FakeServer(stored={f"{PAGE_ID}/out.txt": b"x"})
+    server = FakeServer(objects={f"{PAGE_ID}/out.txt": b"x"})
 
     with a_client(server) as client:
         page = client.create_page()

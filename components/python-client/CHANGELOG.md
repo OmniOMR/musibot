@@ -8,6 +8,27 @@ Versions are semver, independent of the `api` service's release cadence. This is
 ## Unreleased
 
 
+### Added
+
+- **`process_pages`: a whole collection, not a loop.** Hand it an iterable of `BatchJob`s and it keeps several pages in flight, yielding a `BatchResult` as each finishes. Built for the two workloads that asked for it — a library running its collection through, and a benchmark rig measuring a *Pipeline* over a dataset on disk — so the shape follows from those: results carry the `key` you gave the job, they arrive as pages finish rather than in order, and **a failed page is a result rather than an exception**, because one unreadable scan among a million is not a reason to stop. Jobs are pulled lazily, one page at a time as a worker frees up, so a generator that fetches each scan never has more than `concurrency` of them in memory. Stopping early deletes the pages still in flight.
+
+- **Retries for trouble that is not the page's fault.** A connection that dropped, a service restarting behind a proxy, a `429` — each is retried with a doubling backoff and a warning in the log, so a run that met a ten-minute outage overnight is finished by morning rather than 98% finished. Configured with `RetryPolicy`, which `process_page` takes too; `RetryPolicy.none()` turns it off. A *Pipeline* that ran and failed is never retried — the *Model* answered — and neither is a `4xx` that is a statement about the request.
+
+- **`watch_execution_results()`** — the raw stream of every ending of this token's identity. It carries pages another script sharing the token created, since Musibot has no sessions, so filter on `page_id` for your own.
+
+- **`output` may be a predicate**, on `process_page` as well as on `process_pages`: `output=lambda file: file.path.endswith(".musicxml")` asks the page what it holds and takes what matches, which is how outputs are collected when the recognition decides how many there are.
+
+- **A reference page.** [Every method, model and error](../../docs/python-client-reference.md), and the batch guide the docs promised as a TODO.
+
+### Changed
+
+- **Nothing polls any more.** `wait_for_execution` used to ask the server every second whether an execution had finished; it now waits on one stream of endings that the client holds open for all of its pages, so twenty pages in flight cost one connection instead of twenty pollers. It still asks about its execution once as it starts waiting, because nothing on that stream is replayed and an execution may have ended already, and it reconciles the same way whenever the connection drops and comes back.
+
+  Two consequences worth knowing. `poll_interval_seconds` is gone from the constructor — there is nothing to pace. And `process_page` now retries by default, where before it reported the first infrastructure failure it met; pass `retry=RetryPolicy.none()` for the old behaviour.
+
+  This needs an `api` service serving `POST /pipeline-execution-results` (0.3.0 or newer).
+
+
 ## 0.2.0 — 2026-08-07
 
 A page's *Files* can be listed, which is how the output of a *Pipeline* nobody could predict the shape of is discovered. `start_execution` now names its input explicitly; `process_page` is unchanged for the caller.

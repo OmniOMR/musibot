@@ -36,7 +36,7 @@ Design:
 
 Interfaces:
 
-- Python Client (TBA, see `docs/using-python-client.md` for now)
+- [Python Client](docs/python-client-reference.md)
 - [HTTP API](docs/http-api.md)
 - Orchestrator Head API (TBA, see `docs/writing-pipelines.md` for now)
 - [RabbitMQ exchanges and messages](docs/rabbitmq-exchanges-and-messages.md)

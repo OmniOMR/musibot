@@ -1,31 +1,47 @@
 """The Musibot client: talking to a Musibot server without the raw HTTP API.
 
-The interesting method is :meth:`MusibotClient.process_page`, which is the whole
-round trip — upload a page, run a *Pipeline* over it, download what came out,
-and give the server its resources back. Everything it does is also available
-step by step, for callers who want to hold a page open across several
-executions or watch progress themselves.
+Two methods are the interesting ones. :meth:`MusibotClient.process_page` is the
+whole round trip for one page — upload it, run a *Pipeline* over it, download
+what came out, give the server its resources back — and
+:meth:`MusibotClient.process_pages` is that for as many pages as a library has,
+several at a time, reporting failures rather than raising them. Everything they
+do is also available step by step, for callers who want to hold a page open
+across several executions.
 
 *File* bytes never travel through the `api` service. It hands out short-lived
 presigned URLs and this client transfers directly to and from object storage,
 which is what keeps the one non-scaling service out of the byte path.
+
+Nothing here polls. Waiting for an execution means waiting on one shared stream
+of endings (see `results.py`), so a client with twenty pages in flight holds one
+connection rather than twenty pollers.
 """
 
 import logging
-import time
-from collections.abc import Iterable
+import threading
+from collections.abc import Generator, Iterable, Iterator
 from typing import Any, Self
 
 import httpx
 from musibot.core import InvalidFilePath, validate_file_path
 
-from musibot.client.errors import (
-    MusibotApiError,
-    PipelineExecutionFailed,
-    PipelineExecutionTimedOut,
-    PipelineNotAvailable,
+from musibot.client.batch import (
+    BatchJob,
+    BatchResult,
+    OutputSelector,
+    RetryPolicy,
+    process_one,
+    process_pages,
 )
-from musibot.client.models import MusicorpusPage, PageFile, PipelineExecution, PipelineListing
+from musibot.client.errors import MusibotApiError, PipelineNotAvailable
+from musibot.client.models import (
+    ExecutionResult,
+    MusicorpusPage,
+    PageFile,
+    PipelineExecution,
+    PipelineListing,
+)
+from musibot.client.results import RESULTS_PATH, STALL_SECONDS, ResultWatcher, parse_events
 
 logger = logging.getLogger(__name__)
 
@@ -36,9 +52,10 @@ DEFAULT_EXECUTION_TIMEOUT_SECONDS = 600.0
 """How long to wait for a *Pipeline Execution*. Longer than the server's own
 timeout, so that the server's verdict is what a caller normally sees."""
 
-DEFAULT_POLL_INTERVAL_SECONDS = 1.0
-"""How often to ask whether an execution has finished. Polling is a placeholder
-for the SSE stream that will replace it."""
+DEFAULT_CONCURRENCY = 4
+"""How many pages a batch keeps in flight. Sized against the *Worker* fleet
+rather than against this client: more pages in flight than there are *Workers*
+to read them only lengthens the queue."""
 
 
 class MusibotClient:
@@ -58,11 +75,9 @@ class MusibotClient:
         api_token: str,
         *,
         request_timeout_seconds: float = DEFAULT_REQUEST_TIMEOUT_SECONDS,
-        poll_interval_seconds: float = DEFAULT_POLL_INTERVAL_SECONDS,
         transport: httpx.BaseTransport | None = None,
     ):
         self._base_url = musibot_api_url.rstrip("/")
-        self._poll_interval_seconds = poll_interval_seconds
         # Deliberately not a default header on the client: this token
         # authenticates against the `api` service only. Object storage is
         # reached with presigned URLs, which carry their signature in the query
@@ -74,6 +89,11 @@ class MusibotClient:
             follow_redirects=True,
             transport=transport,
         )
+        # Started the first time something waits, and shared by everything that
+        # waits after that — a batch of twenty pages included.
+        self._results = ResultWatcher(
+            self._http, self._base_url, self._auth_headers, self.get_execution
+        )
 
     def __enter__(self) -> Self:
         return self
@@ -82,6 +102,7 @@ class MusibotClient:
         self.close()
 
     def close(self) -> None:
+        self._results.close()
         self._http.close()
 
     # --- the whole round trip ------------------------------------------------
@@ -92,54 +113,94 @@ class MusibotClient:
         # public API and reads as the domain word it is at every call site.
         input: dict[str, bytes],
         pipeline: tuple[str, str],
-        output: Iterable[str],
+        output: OutputSelector,
         *,
         parameters: dict[str, Any] | None = None,
         timeout_seconds: float = DEFAULT_EXECUTION_TIMEOUT_SECONDS,
+        retry: RetryPolicy | None = None,
     ) -> dict[str, bytes]:
         """Run one page through one *Pipeline* and return the *Files* asked for.
 
         `input` maps each *File's* path within the page to its bytes, `pipeline`
-        is a name and version, and `output` names the *Files* to bring back.
-        The execution is run over everything `input` uploaded — this method is
-        the whole round trip for one page, so what was sent is what there is.
-        A caller holding a page open across several executions names the *Files*
-        for each of them with :meth:`start_execution` instead.
+        is a name and version, and `output` names the *Files* to bring back —
+        either outright, or as a predicate over the page's listing for the
+        outputs a recognition decides the number of. The execution is run over
+        everything `input` uploaded: this method is the whole round trip for one
+        page, so what was sent is what there is. A caller holding a page open
+        across several executions names the *Files* for each of them with
+        :meth:`start_execution` instead.
+
+        Trouble that is not the page's fault — a connection that dropped, a
+        service restarting, a `429` — is retried with a backoff; see
+        :class:`RetryPolicy`, and pass `RetryPolicy.none()` to try once. A
+        *Pipeline* that ran and failed is not retried and raises
+        :class:`PipelineExecutionFailed`, because the *Model* answered.
 
         The page is deleted before returning, whatever happens — including on
         failure. It is the caller's page and nothing else will need it; a server
         left holding it would only evict it later under disk pressure.
         """
-        page = self.create_page()
-        try:
-            self.upload_files(page.page_id, input)
+        result = process_one(
+            self,
+            BatchJob(input=input, key=None),
+            pipeline,
+            output,
+            parameters=parameters,
+            timeout_seconds=timeout_seconds,
+            retry=retry if retry is not None else RetryPolicy(),
+        )
+        if result.error is not None:
+            raise result.error
+        return result.files
 
-            name, version = pipeline
-            execution = self.start_execution(
-                page.page_id, name, version, list(input), parameters or {}
-            )
-            settled = self.wait_for_execution(
-                page.page_id, execution.execution_id, timeout_seconds=timeout_seconds
-            )
+    def process_pages(
+        self,
+        jobs: Iterable[BatchJob[Any]],
+        pipeline: tuple[str, str],
+        output: OutputSelector,
+        *,
+        concurrency: int = DEFAULT_CONCURRENCY,
+        parameters: dict[str, Any] | None = None,
+        timeout_seconds: float = DEFAULT_EXECUTION_TIMEOUT_SECONDS,
+        retry: RetryPolicy | None = None,
+    ) -> Generator[BatchResult[Any], None, None]:
+        """Run many pages through one *Pipeline*, yielding results as they finish.
 
-            if not settled.is_completed:
-                raise PipelineExecutionFailed(
-                    f"Pipeline {name!r} version {version!r} failed: "
-                    f"{settled.error or 'no reason given'}",
-                    page_id=page.page_id,
-                    execution_id=settled.execution_id,
-                    error=settled.error,
-                )
+        Built for a whole collection: `jobs` is pulled lazily, one page at a
+        time as a worker frees up, so a generator that fetches each scan from an
+        image server never has more than `concurrency` of them in memory.
 
-            return self.download_files(page.page_id, output)
-        finally:
-            # Best-effort: a page that cannot be deleted is the server's problem
-            # to evict, and saying so would replace the caller's real error with
-            # a worse one.
-            try:
-                self.delete_page(page.page_id)
-            except Exception:
-                logger.warning("Could not delete page %s", page.page_id, exc_info=True)
+        **Results arrive as pages finish, not in the order they were given.**
+        Each carries the `key` its job did, which is how a result is matched
+        back to the row, folder or UUID it came from.
+
+        **A failed page is a result, not an exception.** One bad scan among a
+        million is not a reason to stop, so `BatchResult.error` carries what
+        went wrong and the loop goes on; exceptions are kept for what ends the
+        whole run, such as a token the server does not accept.
+
+        ```py
+        for result in client.process_pages(jobs(), pipeline=("ayce-long", "…"),
+                                           output={"transcription.musicxml"}):
+            if result.failed:
+                failures.record(result.key, str(result.error))
+                continue
+            store(result.key, result.files["transcription.musicxml"])
+        ```
+
+        Stopping early — a `break`, a `KeyboardInterrupt` — shuts the workers
+        down and deletes the pages still in flight.
+        """
+        yield from process_pages(
+            self,
+            jobs,
+            pipeline,
+            output,
+            concurrency=concurrency,
+            parameters=parameters,
+            timeout_seconds=timeout_seconds,
+            retry=retry,
+        )
 
     # --- pages ---------------------------------------------------------------
 
@@ -271,29 +332,57 @@ class MusibotClient:
         execution_id: int,
         *,
         timeout_seconds: float = DEFAULT_EXECUTION_TIMEOUT_SECONDS,
+        stop: threading.Event | None = None,
     ) -> PipelineExecution:
-        """Poll until the execution finishes, however it finishes.
+        """Wait until the execution finishes, however it finishes.
 
         Returns the settled execution whether it completed or failed — deciding
-        which of those is acceptable belongs to the caller. Polling is what the
-        SSE stream will replace.
+        which of those is acceptable belongs to the caller. Raises
+        :class:`PipelineExecutionTimedOut` if this client gave up first, which
+        is not the same as the server's own timeout: that one fails the
+        execution and comes back as a settled, failed one.
+
+        Nothing is polled. The client holds one stream of endings for all of its
+        pages, so waiting on twenty of them costs one connection; a `stop` event
+        abandons the wait early, which is how a batch shuts down promptly.
         """
-        deadline = time.monotonic() + timeout_seconds
+        return self._results.wait_for(
+            page_id, execution_id, timeout_seconds=timeout_seconds, stop=stop
+        )
 
-        while True:
-            execution = self.get_execution(page_id, execution_id)
-            if not execution.is_running:
-                return execution
+    def watch_execution_results(self) -> Iterator[ExecutionResult]:
+        """Every *Pipeline Execution* of this token's identity, as it ends.
 
-            if time.monotonic() >= deadline:
-                raise PipelineExecutionTimedOut(
-                    f"Gave up waiting for execution {execution_id} of page {page_id} "
-                    f"after {timeout_seconds:.0f}s; it may still be running",
-                    page_id=page_id,
-                    execution_id=execution_id,
+        The stream `wait_for_execution` uses, offered raw for a caller who wants
+        to watch rather than to wait:
+
+        ```py
+        for ended in client.watch_execution_results():
+            print(ended.page_id, ended.execution.state)
+        ```
+
+        It carries **every page of the identity**, including pages another
+        script sharing the token created — Musibot has no sessions — so a caller
+        that cares about its own pages filters on `page_id`. Nothing is
+        replayed: an execution that ended before this was called is not
+        announced, so this is for watching what happens next rather than for
+        learning what already did.
+
+        The generator ends when the connection does, which for an idle stream
+        means when the server or the network says so.
+        """
+        timeout = httpx.Timeout(connect=10.0, read=STALL_SECONDS, write=10.0, pool=10.0)
+        with self._http.stream(
+            "POST", self._base_url + RESULTS_PATH, headers=self._auth_headers, timeout=timeout
+        ) as response:
+            if response.status_code != 200:
+                response.read()
+                raise MusibotApiError(
+                    f"Could not watch execution results: the server answered "
+                    f"{response.status_code}",
+                    status_code=response.status_code,
                 )
-
-            time.sleep(self._poll_interval_seconds)
+            yield from parse_events(response)
 
     # --- pipelines -----------------------------------------------------------
 
@@ -327,6 +416,7 @@ class MusibotClient:
         raise MusibotApiError(
             f"{method} {path} failed with {response.status_code}: {detail}",
             status_code=response.status_code,
+            retry_after_seconds=_retry_after_of(response),
         )
 
 
@@ -340,6 +430,22 @@ def _checked(file_path: str) -> str:
         return validate_file_path(file_path)
     except InvalidFilePath as error:
         raise MusibotApiError(str(error))
+
+
+def _retry_after_of(response: httpx.Response) -> float | None:
+    """How long the server asked to be left alone, if it said.
+
+    Only the seconds form is read. The HTTP-date form is legal and nothing in
+    Musibot sends it, and a client that guessed at a date wrongly would wait
+    either far too long or not at all.
+    """
+    header = response.headers.get("Retry-After")
+    if header is None:
+        return None
+    try:
+        return float(header)
+    except ValueError:
+        return None
 
 
 def _detail_of(response: httpx.Response) -> str:

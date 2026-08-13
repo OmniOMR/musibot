@@ -1,5 +1,6 @@
 """The Musibot python client."""
 
+from musibot.client.batch import BatchJob, BatchResult, RetryPolicy
 from musibot.client.client import MusibotClient
 from musibot.client.errors import (
     MusibotApiError,
@@ -9,6 +10,7 @@ from musibot.client.errors import (
     PipelineNotAvailable,
 )
 from musibot.client.models import (
+    ExecutionResult,
     MusicorpusPage,
     PageFile,
     Pipeline,
@@ -18,6 +20,9 @@ from musibot.client.models import (
 )
 
 __all__ = [
+    "BatchJob",
+    "BatchResult",
+    "ExecutionResult",
     "MusibotApiError",
     "MusibotClient",
     "MusibotError",
@@ -29,5 +34,6 @@ __all__ = [
     "PipelineExecutionTimedOut",
     "PipelineListing",
     "PipelineNotAvailable",
+    "RetryPolicy",
     "Signature",
 ]

@@ -45,13 +45,13 @@ POST /musicorpus-pages/7Kf2mP9xLwQ/pipeline-executions
 
 The response contains a JSON representation of the *PipelineExecution* domain object with the ID equal to `1` (the first execution for this page).
 
-Then it waits for the execution to finish (complete or fail) by polling this endpoint every second — the client does not yet read the [result stream](http-api.md), which is what a batch of pages will want:
+Then it waits for the execution to finish (complete or fail). It does not poll: it holds the [result stream](http-api.md#the-result-stream) open — one connection for every page it has in flight, which is what a batch of a whole collection needs — and asks about this one execution once as it starts waiting, since nothing on that stream is replayed:
 
 ```
 GET /musicorpus-pages/7Kf2mP9xLwQ/pipeline-executions/1
 ```
 
-It will check the `state` of the execution - whether it's still `running` or is `completed` or `failed`.
+That answers the `state` of the execution — whether it is still `running` or is `completed` or `failed` — and the stream answers it again the moment it changes.
 
 We'll assume it completes fine in about 20 seconds.
 

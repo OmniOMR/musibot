@@ -47,6 +47,18 @@ class PipelineExecution(Model):
         return self.state == "completed"
 
 
+class ExecutionResult(Model):
+    """One ended *Pipeline Execution*, as the result stream announces it.
+
+    It names its page because that stream is scoped to a *User* rather than to
+    a page: it carries every page of this token's identity, including pages
+    another script sharing the token created.
+    """
+
+    page_id: str
+    execution: PipelineExecution
+
+
 class MusicorpusPage(Model):
     """A page as the server holds it — its identity and its executions.
 
