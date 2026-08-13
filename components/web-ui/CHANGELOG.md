@@ -10,6 +10,8 @@ The Web UI has no outward contract of its own: nothing depends on it, and it dep
 
 ### Added
 
+- **A page opens showing something.** Nothing was selected when a page screen opened, so a visitor who had just dropped a scan in watched an empty canvas while the recognition ran, and an empty one afterwards until they thought to click a row. Musibot now selects the *File* most worth looking at and re-selects as better ones appear — the scan, then the boxes over it, then the staff crops, then the transcription — and leaves the choice alone the moment the visitor makes one of their own. A *File* the order does not name is never chosen for somebody unless it is the only thing the page holds: a model may write anything, and showing an arbitrary file is worse than showing the scan.
+
 - **The page screen no longer polls.** It asked the service about a running page every 1.5 seconds; now it asks once when the screen opens and is told what changed — the file-change stream when an execution writes a *File*, the result stream when one ends. An idle page costs no requests at all, which matters most on the public tier, where every open tab used to be a standing load on one shared pool.
 
   Two things make dropping the poll safe rather than optimistic. Every reconnection re-asks, because neither stream replays and a connection can drop across an ending. And a stream that says nothing for 45 seconds — three missed keepalives — is presumed dead and reopened, since a connection killed by something in the middle can otherwise leave a page that has simply stopped updating.

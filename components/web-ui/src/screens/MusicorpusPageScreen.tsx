@@ -11,6 +11,7 @@ import ContentWidth from "../components/ContentWidth";
 import NoticeCard from "../components/NoticeCard";
 import { useNow } from "../page/expiry";
 import { groupFiles } from "../page/files";
+import { mostInteresting } from "../page/interest";
 import { finishedEmpty } from "../page/outcome";
 import { usePageLog } from "../page/log";
 import { usePageState } from "../page/usePageState";
@@ -48,7 +49,14 @@ export default function MusicorpusPageScreen() {
   const state = usePageState(pageId, token);
   const log = usePageLog(pageId, token);
 
-  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  /**
+   * The row the visitor picked, if they have picked one.
+   *
+   * Null means "nobody has chosen", not "nothing is shown": the selection below
+   * falls back to whatever is most worth looking at. It is a key rather than a
+   * row so that a choice survives the list being rebuilt as *Files* arrive.
+   */
+  const [chosenKey, setChosenKey] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   /** Collapsed by default — the log is for a reader who has gone looking. */
   const [logOpen, setLogOpen] = useState(false);
@@ -109,12 +117,24 @@ export default function MusicorpusPageScreen() {
     (execution) => execution.state === "running" || execution.state === "queued",
   );
 
-  /** The row the canvas is showing, which is the selection made whole. */
-  const selectedRow = useMemo(
-    () =>
-      sections.flatMap((section) => section.rows).find((row) => row.key === selectedKey) ?? null,
-    [sections, selectedKey],
-  );
+  /**
+   * The row the canvas is showing: what the visitor chose, or what Musibot
+   * chooses for them.
+   *
+   * A page opens with nothing chosen, and an empty canvas beside a running
+   * recognition reads as a broken service rather than as a page nobody has
+   * clicked on — so `mostInteresting` picks one, and keeps picking as the
+   * reading produces better answers, until the visitor takes over.
+   *
+   * Falling back whenever the chosen key is not among the rows also covers
+   * arriving at another page with a choice still in hand: it belongs to the
+   * page that was left, and this screen stays mounted across that move.
+   */
+  const selectedRow = useMemo(() => {
+    const rows = sections.flatMap((section) => section.rows);
+    return rows.find((row) => row.key === chosenKey) ?? mostInteresting(sections);
+  }, [sections, chosenKey]);
+  const selectedKey = selectedRow?.key ?? null;
 
   async function download(toDownload: string[]) {
     if (token === null) {
@@ -196,7 +216,7 @@ export default function MusicorpusPageScreen() {
           executions={state.executions}
           sections={sections}
           selectedKey={selectedKey}
-          onSelect={setSelectedKey}
+          onSelect={setChosenKey}
           onDownload={(toDownload) => void download(toDownload)}
           onRunPipeline={() => setRunning(true)}
           logLineCount={log.lines.length}
