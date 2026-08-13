@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { openPageLog, parseFrame } from "./logStream";
-import type { LogLineView } from "./types";
+import { openPageFileChanges } from "./fileChanges";
+import { openPageLog } from "./logStream";
+import { openStream, parseFrame } from "./stream";
+import type { FileChangeView, LogLineView } from "./types";
 
 const LINE: LogLineView = {
   execution_id: 1,
@@ -14,21 +16,21 @@ const LINE: LogLineView = {
 
 describe("an SSE frame", () => {
   it("carries one log line as JSON", () => {
-    expect(parseFrame(`data: ${JSON.stringify(LINE)}`)).toEqual(LINE);
+    expect(parseFrame<LogLineView>(`data: ${JSON.stringify(LINE)}`)).toEqual(LINE);
   });
 
   it("is nothing when it is a keepalive comment", () => {
     // What travels down an idle stream so that a proxy does not close it.
-    expect(parseFrame(": ping")).toBeNull();
+    expect(parseFrame<LogLineView>(": ping")).toBeNull();
   });
 
   it("is nothing when it cannot be read", () => {
     // One line of a log lost, which is no reason to stop reading the rest.
-    expect(parseFrame("data: {not json")).toBeNull();
+    expect(parseFrame<LogLineView>("data: {not json")).toBeNull();
   });
 
   it("survives the carriage returns some proxies add", () => {
-    expect(parseFrame(`data: ${JSON.stringify(LINE)}\r`)).toEqual(LINE);
+    expect(parseFrame<LogLineView>(`data: ${JSON.stringify(LINE)}\r`)).toEqual(LINE);
   });
 });
 
@@ -52,18 +54,18 @@ function answerWith(chunks: string[]): void {
   );
 }
 
-async function collect(stream: AsyncGenerator<LogLineView>): Promise<LogLineView[]> {
-  const lines: LogLineView[] = [];
+async function collect<T>(stream: AsyncGenerator<T>): Promise<T[]> {
+  const lines: T[] = [];
   for await (const line of stream) {
     lines.push(line);
   }
   return lines;
 }
 
-describe("the log stream", () => {
+describe("reading a stream", () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it("yields the lines the service writes", async () => {
+  it("yields the events the service writes", async () => {
     answerWith([
       `data: ${JSON.stringify(LINE)}\n\n`,
       `: ping\n\n`,
@@ -89,7 +91,19 @@ describe("the log stream", () => {
     expect(await collect(await openPageLog("token", "7Kf2mP9xLwQa"))).toEqual([LINE, LINE]);
   });
 
-  it("asks for the stream with the page's token", async () => {
+  it("stops at the end of the body", async () => {
+    answerWith([]);
+
+    expect(await collect(await openStream<LogLineView>("/anything", "token"))).toEqual([]);
+  });
+});
+
+describe("the two page streams", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("read the log with the page's token, as a POST", async () => {
+    // A POST because a GET invites `EventSource`, which cannot send this
+    // header — see `docs/http-api.md`.
     answerWith([]);
 
     await openPageLog("s3cr3t", "7Kf2mP9xLwQa");
@@ -98,5 +112,18 @@ describe("the log stream", () => {
     expect(url).toContain("/musicorpus-pages/7Kf2mP9xLwQa/logs");
     expect(options.method).toBe("POST");
     expect((options.headers as Record<string, string>).Authorization).toBe("Bearer s3cr3t");
+  });
+
+  it("read file changes from an endpoint of their own", async () => {
+    // Separate from the log because a client that only wants to know about a
+    // new File should not have to read a model's warnings to find out.
+    const notice: FileChangeView = { execution_id: 1, paths: ["Staves/1/transcription.musicxml"] };
+    answerWith([`data: ${JSON.stringify(notice)}\n\n`]);
+
+    const notices = await collect(await openPageFileChanges("s3cr3t", "7Kf2mP9xLwQa"));
+
+    expect(notices).toEqual([notice]);
+    const [url] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit];
+    expect(url).toContain("/musicorpus-pages/7Kf2mP9xLwQa/file-changes");
   });
 });

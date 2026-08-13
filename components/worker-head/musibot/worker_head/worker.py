@@ -45,6 +45,8 @@ from musibot.core.execution import (
     routing_key,
     serialize_message,
 )
+from musibot.core.file_changes import FILE_CHANGES_EXCHANGE, FilesChanged
+from musibot.core.file_changes import serialize_message as serialize_file_change_message
 from musibot.core.logs import LOGS_EXCHANGE, LogLevel, LogMessage, LogSource
 from musibot.core.logs import serialize_message as serialize_log_message
 from musibot.core.patterns import parse_file_patterns
@@ -197,6 +199,24 @@ class WorkerHead:
         except Exception:
             logger.warning("Could not publish a log line", exc_info=True)
 
+    async def _announce_changes(
+        self, pipeline_execution: PipelineExecutionRef, paths: list[str]
+    ) -> None:
+        """Say which *Files* have just been written, fire-and-forget.
+
+        Nothing depends on this arriving: object storage is the truth about
+        what a page holds, and a client that misses a notice is a poll away
+        from finding out. So a broker that has gone away costs a *User* some
+        latency and never the work.
+        """
+        notice = FilesChanged(pipeline_execution=pipeline_execution, paths=paths)
+        try:
+            await self._publisher.publish(
+                FILE_CHANGES_EXCHANGE, "", serialize_file_change_message(notice)
+            )
+        except Exception:
+            logger.warning("Could not announce the files this execution wrote", exc_info=True)
+
     # --- work ----------------------------------------------------------------
 
     async def handle_terminate(self, body: bytes) -> None:
@@ -260,6 +280,12 @@ class WorkerHead:
                 # User cannot see until it has finished and they have listed the
                 # page, so it is worth a line even from a silent model.
                 await self._publish_log(message.pipeline_execution, f"wrote {', '.join(uploaded)}")
+                # And the same fact for a program rather than a person: a client
+                # watching the page can show the File now instead of at its next
+                # poll. Announced after the upload, never before — a notice
+                # about a File that is not in storage yet would be a race a
+                # client could not win.
+                await self._announce_changes(message.pipeline_execution, uploaded)
             self._warn_about_undeclared(message, uploaded)
 
             missing = self._missing_promised_outputs(after)
@@ -371,9 +397,10 @@ async def run_worker(
 
     await broker.declare_exchange(DISCOVERY_EXCHANGE, ExchangeType.FANOUT)
     # Declared before any work is taken, since the first thing a Model prints
-    # must have somewhere to go. With no `api` service listening the exchange
-    # has no queue bound to it and every line is dropped, which costs nothing.
+    # must have somewhere to go. With no `api` service listening these exchanges
+    # have no queue bound to them and everything is dropped, which costs nothing.
     await broker.declare_exchange(LOGS_EXCHANGE, ExchangeType.FANOUT)
+    await broker.declare_exchange(FILE_CHANGES_EXCHANGE, ExchangeType.FANOUT)
 
     await broker.consume_work(
         queue_name=work_queue_name(description.name, description.version),

@@ -98,6 +98,19 @@ export interface LogLineView {
   message: string;
 }
 
+/**
+ * *Files* one *Pipeline Execution* has just written, as one SSE event carries
+ * it.
+ *
+ * An invitation to look rather than a description of the page: the paths are
+ * what changed, and what the page now holds — with sizes and times — comes from
+ * `listFiles`. Deletions never appear; they do not propagate out of a *Model*.
+ */
+export interface FileChangeView {
+  execution_id: number;
+  paths: string[];
+}
+
 /** What starting a *Pipeline Execution* asks for. */
 export interface StartExecutionRequest {
   pipeline_name: string;

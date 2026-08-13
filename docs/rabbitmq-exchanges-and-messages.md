@@ -140,3 +140,27 @@ This exchange carries **only** log lines. There is no progress message and there
 Logs travel **straight to the `api` service**, rather than back through the *Orchestrator* that requested the work. A *Model's* output would otherwise have to wait on a *Pipeline* that is busy computing, which is exactly when a *User* most wants to see that something is happening; and it would make every *Orchestrator* a relay for traffic it has no use for. The cost is that each log message must name the *Pipeline Execution* it belongs to — which is why `pipeline_execution` rides along on every model execution.
 
 Log traffic is fire-and-forget. Nothing is acknowledged, retried or ordered across publishers, and a *Worker* publishes whether or not anybody is listening — with no `api` service running, the exchange has no queue bound to it and every line is discarded by the broker at no cost. The `api` service in turn keeps no buffer: a line about a page nobody is watching is dropped and cannot be asked for afterwards. Logs are for a human watching a page being read, not an audit trail.
+
+
+## File changes
+
+What an execution has just written to object storage, so that a *User* learns about a *File* as it appears rather than by asking again in a second and a half. Published by whoever uploaded it, consumed by the `api` service, and forwarded to a client watching that page over SSE — a stream of its own, not the log's, because a client that only wants to know about a new *File* should not have to read a deep-learning library's warnings to find out.
+
+- `musibot.file-changes` (fanout) — published to by *Worker Heads* and *Orchestrator Heads*, consumed by the `api` service.
+    - `files-changed` — these *Files* have just been written.
+
+```json
+{
+  "type": "files-changed",
+  "pipeline_execution": { "page_id": "7Kf2mP9xLwQa", "execution_id": 1 },
+  "paths": ["Staves/1/transcription.musicxml", "Staves/1/transcription.lmx"]
+}
+```
+
+Published **after** the upload and never before: a client told about a *File* that has not reached storage yet would fetch a `404`, which is a race it could not win.
+
+The notice attributes the *Files* to the execution that wrote them, which is knowable at that moment and never afterwards — a page's folder is flat storage that any number of executions write into, and a later one may overwrite what an earlier one produced. This is why `GET /musicorpus-pages/{id}/files` refuses to attribute a *File* to an execution at all: a notice is an event, and a listing is a state.
+
+`paths` names *Files* created and overwritten alike, which the *Worker Head* does not tell apart — it detects that a *File* changed, not how. Deletions do not appear, because they do not propagate out of a *Model* in the first place (see [Rough edges](rough-edges.md)).
+
+Fire-and-forget, like the log: nothing depends on a notice arriving. Object storage is the truth about what a page holds, and a client that misses one is a poll away from finding out — so a broker that refuses a notice costs a *User* some latency and never the work.

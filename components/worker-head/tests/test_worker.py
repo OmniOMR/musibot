@@ -27,6 +27,7 @@ from musibot.core.execution import (
     parse_model_execution_message,
     serialize_message,
 )
+from musibot.core.file_changes import FILE_CHANGES_EXCHANGE, FilesChanged, parse_file_change_message
 from musibot.core.logs import LOGS_EXCHANGE, LogMessage, parse_log_message
 
 from musibot.worker_head.messaging import DEFAULT_EXCHANGE, WorkMessage
@@ -74,6 +75,13 @@ class FakePublisher:
             parse_log_message(message.body)
             for message in self.published
             if message.exchange == LOGS_EXCHANGE
+        ]
+
+    def file_changes(self) -> list[FilesChanged]:
+        return [
+            parse_file_change_message(message.body)
+            for message in self.published
+            if message.exchange == FILE_CHANGES_EXCHANGE
         ]
 
 
@@ -426,6 +434,98 @@ def test_executions_are_run_one_at_a_time(tmp_path: Path) -> None:
             assert states == ["completed", "completed"]
             ids = {result.model_execution_id for result in publisher.results()}
             assert ids == {"first", "second"}
+        finally:
+            await model.shutdown()
+
+    run(scenario)
+
+
+# --- file changes ------------------------------------------------------------
+
+
+def test_the_files_written_are_announced(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        publisher = FakePublisher()
+        worker, model = await a_worker(tmp_path, publisher, FakeStorage(tmp_path))
+        try:
+            await worker.handle_start(work(a_start()))
+
+            [notice] = publisher.file_changes()
+            assert notice.paths == ["out.txt"]
+            # Attributed to the execution that wrote them, which is knowable now
+            # and never afterwards — a later execution may overwrite this file.
+            assert notice.pipeline_execution == PipelineExecutionRef(
+                page_id=PAGE_ID, execution_id=1
+            )
+        finally:
+            await model.shutdown()
+
+    run(scenario)
+
+
+def test_a_notice_comes_after_the_upload(tmp_path: Path) -> None:
+    """A client told about a *File* that is not in storage yet would fetch a
+    404, which is a race it could not win."""
+
+    uploaded_at: list[int] = []
+
+    class SlowStorage(FakeStorage):
+        def upload_changes(self, page_id: str, before: dict[str, FileStamp]) -> list[str]:
+            result = super().upload_changes(page_id, before)
+            uploaded_at.append(len(publisher.published))
+            return result
+
+    publisher = FakePublisher()
+
+    async def scenario() -> None:
+        worker, model = await a_worker(tmp_path, publisher, SlowStorage(tmp_path))
+        try:
+            await worker.handle_start(work(a_start()))
+
+            [when_uploaded] = uploaded_at
+            announced_at = [
+                index
+                for index, message in enumerate(publisher.published)
+                if message.exchange == FILE_CHANGES_EXCHANGE
+            ]
+            assert announced_at == [when_uploaded + 1]
+        finally:
+            await model.shutdown()
+
+    run(scenario)
+
+
+def test_an_execution_that_wrote_nothing_announces_nothing(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        publisher = FakePublisher()
+        worker, model = await a_worker(tmp_path, publisher, FakeStorage(tmp_path), mode="fail")
+        try:
+            await worker.handle_start(work(a_start()))
+
+            assert publisher.file_changes() == []
+        finally:
+            await model.shutdown()
+
+    run(scenario)
+
+
+def test_a_broker_that_refuses_a_notice_does_not_fail_the_execution(tmp_path: Path) -> None:
+    class RefusingPublisher(FakePublisher):
+        async def publish(self, exchange: str, *args: Any, **kwargs: Any) -> None:
+            if exchange == FILE_CHANGES_EXCHANGE:
+                raise ConnectionError("the broker went away")
+            await super().publish(exchange, *args, **kwargs)
+
+    async def scenario() -> None:
+        publisher = RefusingPublisher()
+        worker, model = await a_worker(tmp_path, publisher, FakeStorage(tmp_path))
+        try:
+            await worker.handle_start(work(a_start()))
+
+            # Object storage is the truth about what a page holds; a missed
+            # notice costs a *User* some latency and never the work.
+            [result] = publisher.results()
+            assert result.state == "completed"
         finally:
             await model.shutdown()
 

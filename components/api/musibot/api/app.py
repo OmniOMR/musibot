@@ -20,16 +20,26 @@ from musibot.core.execution import (
     PIPELINE_EXECUTION_RESULTS_EXCHANGE,
     PIPELINE_EXECUTIONS_EXCHANGE,
 )
+from musibot.core.file_changes import FILE_CHANGES_EXCHANGE
 from musibot.core.logs import LOGS_EXCHANGE
 
 from musibot.api.config import ApiSettings
 from musibot.api.discovery import ProviderRegistry
 from musibot.api.domain import MusicorpusPageRepository
 from musibot.api.executions import ExecutionService
+from musibot.api.file_changes import FileChangeHub
 from musibot.api.logs import LogHub
 from musibot.api.messaging import Broker, MessagePublisher
 from musibot.api.public import PublicAccess
-from musibot.api.routes import executions, files, logs, pages, pipelines, public_sessions
+from musibot.api.routes import (
+    executions,
+    file_changes,
+    files,
+    logs,
+    pages,
+    pipelines,
+    public_sessions,
+)
 from musibot.api.storage import StoragePort
 
 logger = logging.getLogger(__name__)
@@ -57,6 +67,7 @@ def create_app(
     # account of an execution goes through it too, and a hub nobody watches
     # discards everything it is given.
     log_hub = LogHub(repository)
+    file_change_hub = FileChangeHub()
     execution_service = (
         ExecutionService(
             repository,
@@ -118,6 +129,14 @@ def create_app(
                 exchange_type=ExchangeType.FANOUT,
                 handler=log_hub.handle_message,
             )
+            # And the same for the *Files* those executions write, which travel
+            # separately: a client wanting to know about a new *File* should not
+            # have to read the log to find out.
+            await broker.subscribe(
+                exchange=FILE_CHANGES_EXCHANGE,
+                exchange_type=ExchangeType.FANOUT,
+                handler=file_change_hub.handle_message,
+            )
 
             # Listen for announcements before asking for them, so that no reply
             # to the probe arrives before there is a queue to hold it.
@@ -160,12 +179,14 @@ def create_app(
     app.state.executions = execution_service
     app.state.public_access = public_access
     app.state.logs = log_hub
+    app.state.file_changes = file_change_hub
 
     app.include_router(public_sessions.router)
     app.include_router(pages.router)
     app.include_router(files.router)
     app.include_router(executions.router)
     app.include_router(logs.router)
+    app.include_router(file_changes.router)
     app.include_router(pipelines.router)
 
     @app.get("/health", tags=["meta"])

@@ -115,7 +115,9 @@ Now the pipeline implementation may execute *Models* as it's running. The setup 
 
 A running *Worker Head* subscribes to RabbitMQ for messages that fit its *Model* name and version. When it receives a message to start a model execution it fetches the files listed as the execution's input from the MinIO and mirrors the needed MinIO folder structure locally in the filesystem. Then it puts the invocation request as a JSON object on a new line of the *Model's* command pipe and waits for the model to confirm its completion on the result pipe.
 
-The *Model* modifies the local filesystem mirror of MinIO (of the Musicorpus page we're interested in with this invocation). The *Worker Head* detects which files have been updated and uploads them to MinIO. Then it sends a model execution completion message to RabbitMQ to be picked up by the corresponding *Orchestrator*.
+The *Model* modifies the local filesystem mirror of MinIO (of the Musicorpus page we're interested in with this invocation). The *Worker Head* detects which files have been updated and uploads them to MinIO. Then it announces those paths on the `musibot.file-changes` exchange — after the upload, so that a client hearing about a *File* can actually fetch it — and sends a model execution completion message to RabbitMQ to be picked up by the corresponding *Orchestrator*.
+
+The `api` service forwards that announcement to any client watching the page over SSE, which is how the Web UI shows a *File* the moment it is written rather than at its next poll. Nothing depends on it arriving: object storage is the truth about what a page holds, and a client that misses a notice finds out by listing the page.
 
 > **Note:** If the *Model* subprocess exits without confirming completion (for example, it crashes), the *Worker Head* notices the process exit and reports the model execution as failed, which propagates up and fails the *Pipeline Execution*. The full handshake is specified in [Worker IPC](worker-ipc.md).
 

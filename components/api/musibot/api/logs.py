@@ -28,6 +28,7 @@ from musibot.core.logs import LogLevel, parse_log_message
 from pydantic import ValidationError
 
 from musibot.api.domain import MusicorpusPageRepository, PageNotFound
+from musibot.api.streams import Watchers
 
 logger = logging.getLogger(__name__)
 
@@ -114,31 +115,18 @@ class LogHub:
 
     def __init__(self, repository: MusicorpusPageRepository):
         self._repository = repository
-        self._subscribers: dict[str, set[LogSubscription]] = {}
+        self._watchers: Watchers[LogSubscription] = Watchers(LogSubscription)
 
     # --- watching ------------------------------------------------------------
 
     @contextmanager
     def subscribe(self, page_id: str) -> Iterator[LogSubscription]:
-        """Watch one page for as long as the block runs.
-
-        A context manager because forgetting to unsubscribe is how a
-        disconnected client goes on being fed forever; the stream's exit — a
-        client hanging up included — is the end of the subscription.
-        """
-        subscription = LogSubscription(page_id)
-        self._subscribers.setdefault(page_id, set()).add(subscription)
-        try:
+        """Watch one page for as long as the block runs."""
+        with self._watchers.watch(page_id) as subscription:
             yield subscription
-        finally:
-            watchers = self._subscribers.get(page_id)
-            if watchers is not None:
-                watchers.discard(subscription)
-                if not watchers:
-                    del self._subscribers[page_id]
 
     def is_watched(self, page_id: str) -> bool:
-        return page_id in self._subscribers
+        return self._watchers.any(page_id)
 
     # --- what arrives --------------------------------------------------------
 
@@ -181,7 +169,7 @@ class LogHub:
         an execution as readily as from the RabbitMQ consumer, and a log line
         must not be a reason for either of those to yield.
         """
-        watchers = self._subscribers.get(page_id)
+        watchers = self._watchers.of(page_id)
         if not watchers:
             return  # nobody is watching this page, so the line goes nowhere
 

@@ -16,6 +16,12 @@ Versions are semver on the **HTTP API**, which is the outward contract for `pyth
 
   **Nothing is replayed.** Lines produced while nobody was watching are gone: this is a *User* watching a page being read, not an audit trail, and the one service that holds all the state is not going to hold a buffer per page as well. A client that wants the whole log opens the stream before starting an execution.
 
+- **`POST /musicorpus-pages/{id}/file-changes`** — an SSE stream naming the *Files* this page's executions write, as they are written, so a client can show a *File* as it appears rather than at its next poll. Each event's `data` is `{"execution_id": 1, "paths": [...]}`, created and overwritten alike; deletions never appear, since they do not propagate out of a *Model* at all.
+
+  It is an **invitation to look**, not a description of the page: what a page holds is still `GET /musicorpus-pages/{id}/files`, answered from object storage, and this only says when asking again is worth it. So nothing is replayed and nothing is acknowledged — a client that misses a notice loses latency and nothing else. Notices coalesce while a client is not reading, since the answer to any number of them is the same one listing.
+
+  Separate from the log stream on purpose, rather than a second event type on it: a log is text for a human and there is a great deal of it — for a deep-learning model, mostly its libraries' warnings — and a client that only wants to know about a new *File* should not have to read all of it. That the paths are attributed to an execution here does not contradict the listing's refusal to attribute a *File* to one: a notice is an event and says who wrote it *then*; the listing is a state, and a later execution may have overwritten it since.
+
 - **The service narrates an execution it is running.** Lines of `kind: "api"` say when an execution was requested, that it completed and how long it took, or that it failed or timed out and why. Without them a *Model* that prints nothing leaves an empty panel while something is plainly happening, and these are moments only this service knows about.
 
 

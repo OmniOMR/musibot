@@ -1,16 +1,11 @@
 """The log stream: what reaches a *User* watching a page being read.
 
-The endpoint is driven as raw ASGI rather than through `TestClient`, because a
-stream that never ends is exactly what a buffering test client cannot read: it
-would wait for a response that is not coming. Driving the app directly also
-exercises the parts that matter here — a client hanging up, and a stream that
-has to notice its page is gone.
+The endpoint is driven as raw ASGI (see `tests/streaming.py`) rather than
+through `TestClient`, because a stream that never ends is what a buffering test
+client cannot read.
 """
 
 import asyncio
-import json
-from pathlib import Path
-from typing import Any, Self
 
 import pytest
 from fastapi import FastAPI
@@ -20,35 +15,14 @@ from musibot.core.execution import serialize_message as serialize_execution_mess
 from musibot.core.logs import LogMessage, LogSource
 from musibot.core.logs import serialize_message as serialize_log_message
 
-from musibot.api.app import create_app
-from musibot.api.config import ApiSettings
 from musibot.api.discovery import ProviderRegistry
 from musibot.api.domain import MusicorpusPageRepository
 from musibot.api.executions import ExecutionService
 from musibot.api.logs import LogHub, LogLine, LogSubscription
-from musibot.api.routes import logs as logs_route
+from musibot.api.routes import streaming as streaming_route
 from tests.conftest import ALICE_TOKEN
-from tests.fakes import FakePublisher, FakeStorage
+from tests.streaming import Stream, run
 from tests.test_discovery import worker_announcement
-
-
-@pytest.fixture
-def app(
-    tokens_file: Path,
-    storage: FakeStorage,
-    publisher: FakePublisher,
-    repository: MusicorpusPageRepository,
-    registry: ProviderRegistry,
-) -> FastAPI:
-    """The application itself, with no lifespan — nothing here needs a broker,
-    and the log hub is fed by hand as RabbitMQ would feed it."""
-    return create_app(
-        ApiSettings.for_testing(api_tokens_file=tokens_file),
-        pages_repository=repository,
-        registry=registry,
-        storage=storage,
-        publisher=publisher,
-    )
 
 
 def hub_of(app: FastAPI) -> LogHub:
@@ -56,86 +30,8 @@ def hub_of(app: FastAPI) -> LogHub:
     return hub
 
 
-class Stream:
-    """One open log stream, driven as the ASGI server would drive it."""
-
-    def __init__(self, app: FastAPI, page_id: str, token: str):
-        self._app = app
-        self._page_id = page_id
-        self._token = token
-        self._to_app: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
-        self._from_app: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
-        self._task: asyncio.Task[None] | None = None
-        self.status: int | None = None
-        self.headers: dict[str, str] = {}
-
-    async def __aenter__(self) -> Self:
-        scope = {
-            "type": "http",
-            "asgi": {"version": "3.0"},
-            "http_version": "1.1",
-            "method": "POST",
-            "path": f"/musicorpus-pages/{self._page_id}/logs",
-            "raw_path": f"/musicorpus-pages/{self._page_id}/logs".encode(),
-            "query_string": b"",
-            "root_path": "",
-            "scheme": "http",
-            "server": ("testserver", 80),
-            "client": ("testclient", 50000),
-            "headers": [
-                (b"host", b"testserver"),
-                (b"authorization", f"Bearer {self._token}".encode()),
-            ],
-        }
-        await self._to_app.put({"type": "http.request", "body": b"", "more_body": False})
-        self._task = asyncio.create_task(self._app(scope, self._receive, self._send))  # type: ignore[arg-type]
-
-        start = await asyncio.wait_for(self._from_app.get(), timeout=2)
-        self.status = start["status"]
-        self.headers = {key.decode(): value.decode() for key, value in start.get("headers", [])}
-        return self
-
-    async def __aexit__(self, *exception: object) -> None:
-        # What a browser closing the tab looks like from in here.
-        await self._to_app.put({"type": "http.disconnect"})
-        if self._task is not None:
-            try:
-                await asyncio.wait_for(self._task, timeout=2)
-            except TimeoutError:
-                self._task.cancel()
-
-    async def _receive(self) -> dict[str, Any]:
-        return await self._to_app.get()
-
-    async def _send(self, message: dict[str, Any]) -> None:
-        await self._from_app.put(message)
-
-    async def next_frame(self, timeout: float = 2.0) -> str:
-        """The next chunk the stream writes, whether a line or a keepalive."""
-        message = await asyncio.wait_for(self._from_app.get(), timeout=timeout)
-        assert message["type"] == "http.response.body", message
-        body: bytes = message.get("body", b"")
-        return body.decode()
-
-    async def next_line(self, timeout: float = 2.0) -> dict[str, Any]:
-        """The next log line, skipping keepalives."""
-        while True:
-            frame = await self.next_frame(timeout)
-            if frame.startswith(":"):
-                continue
-            assert frame.startswith("data: ") and frame.endswith("\n\n"), frame
-            parsed: dict[str, Any] = json.loads(frame[len("data: ") :])
-            return parsed
-
-    async def is_finished(self) -> bool:
-        """Whether the app has finished the response on its own."""
-        if self._task is None:
-            return False
-        try:
-            await asyncio.wait_for(asyncio.shield(self._task), timeout=1)
-        except TimeoutError:
-            return False
-        return True
+def log_stream(app: FastAPI, page_id: str, token: str = ALICE_TOKEN) -> Stream:
+    return Stream(app, f"/musicorpus-pages/{page_id}/logs", token)
 
 
 def a_page(repository: MusicorpusPageRepository, owner: str = "alice") -> tuple[str, int]:
@@ -143,10 +39,6 @@ def a_page(repository: MusicorpusPageRepository, owner: str = "alice") -> tuple[
     page = repository.create(owner)
     execution = page.add_execution("hello-world", "1.0.0", ["image.jpg"], {})
     return page.page_id, execution.execution_id
-
-
-def run(scenario: Any) -> None:
-    asyncio.run(scenario())
 
 
 # --- the endpoint ------------------------------------------------------------
@@ -158,7 +50,7 @@ def test_a_published_line_reaches_a_watcher(
     async def scenario() -> None:
         page_id, execution_id = a_page(repository)
 
-        async with Stream(app, page_id, ALICE_TOKEN) as stream:
+        async with log_stream(app, page_id) as stream:
             assert stream.status == 200
             assert stream.headers["content-type"].startswith("text/event-stream")
             # Said again for any proxy that is not the nginx in front of this,
@@ -167,7 +59,7 @@ def test_a_published_line_reaches_a_watcher(
 
             hub_of(app).publish(page_id, execution_id, "transcribing staff 3/12")
 
-            line = await stream.next_line()
+            line = await stream.next_event()
             assert line["message"] == "transcribing staff 3/12"
             assert line["execution_id"] == execution_id
             assert line["kind"] == "api"
@@ -186,7 +78,7 @@ def test_a_line_off_the_exchange_reaches_a_watcher(
     async def scenario() -> None:
         page_id, execution_id = a_page(repository)
 
-        async with Stream(app, page_id, ALICE_TOKEN) as stream:
+        async with log_stream(app, page_id) as stream:
             await hub_of(app).handle_message(
                 serialize_log_message(
                     LogMessage(
@@ -202,7 +94,7 @@ def test_a_line_off_the_exchange_reaches_a_watcher(
                 )
             )
 
-            line = await stream.next_line()
+            line = await stream.next_event()
             assert line == {
                 "execution_id": execution_id,
                 "seconds": line["seconds"],
@@ -222,13 +114,13 @@ def test_two_watchers_of_one_page_both_see_a_line(
         page_id, execution_id = a_page(repository)
 
         async with (
-            Stream(app, page_id, ALICE_TOKEN) as one,
-            Stream(app, page_id, ALICE_TOKEN) as two,
+            log_stream(app, page_id) as one,
+            log_stream(app, page_id) as two,
         ):
             hub_of(app).publish(page_id, execution_id, "hello")
 
-            assert (await one.next_line())["message"] == "hello"
-            assert (await two.next_line())["message"] == "hello"
+            assert (await one.next_event())["message"] == "hello"
+            assert (await two.next_event())["message"] == "hello"
 
     run(scenario)
 
@@ -240,7 +132,7 @@ def test_a_watcher_hears_nothing_about_another_page(
         watched, _ = a_page(repository)
         other, other_execution = a_page(repository)
 
-        async with Stream(app, watched, ALICE_TOKEN) as stream:
+        async with log_stream(app, watched) as stream:
             hub_of(app).publish(other, other_execution, "not your business")
 
             with pytest.raises(TimeoutError):
@@ -257,10 +149,10 @@ def test_an_idle_stream_is_kept_alive(
     takes."""
 
     async def scenario() -> None:
-        monkeypatch.setattr(logs_route, "KEEPALIVE_SECONDS", 0.05)
+        monkeypatch.setattr(streaming_route, "KEEPALIVE_SECONDS", 0.05)
         page_id, _ = a_page(repository)
 
-        async with Stream(app, page_id, ALICE_TOKEN) as stream:
+        async with log_stream(app, page_id) as stream:
             assert await stream.next_frame() == ": ping\n\n"
 
     run(scenario)
@@ -273,10 +165,10 @@ def test_the_stream_ends_when_the_page_is_deleted(
     otherwise hold a connection open until the browser gave up."""
 
     async def scenario() -> None:
-        monkeypatch.setattr(logs_route, "KEEPALIVE_SECONDS", 0.05)
+        monkeypatch.setattr(streaming_route, "KEEPALIVE_SECONDS", 0.05)
         page_id, _ = a_page(repository)
 
-        async with Stream(app, page_id, ALICE_TOKEN) as stream:
+        async with log_stream(app, page_id) as stream:
             await stream.next_frame()  # a ping, so the stream is certainly up
             repository.delete(page_id)
 
@@ -291,7 +183,7 @@ def test_a_client_that_hangs_up_stops_being_watched(
     async def scenario() -> None:
         page_id, _ = a_page(repository)
 
-        async with Stream(app, page_id, ALICE_TOKEN):
+        async with log_stream(app, page_id):
             assert hub_of(app).is_watched(page_id)
 
         # Leaving the block is the client disconnecting. Forgetting to
@@ -420,16 +312,16 @@ def test_the_service_says_when_an_execution_starts_and_finishes(
         registry.record(worker_announcement())
         executions: ExecutionService = app.state.executions
 
-        async with Stream(app, page.page_id, ALICE_TOKEN) as stream:
+        async with log_stream(app, page.page_id) as stream:
             execution = await executions.start(
                 page, "staff-detector", "2026-07-22", ["image.jpg"], {}
             )
-            started = await stream.next_line()
+            started = await stream.next_event()
             assert started["message"] == "running staff-detector 2026-07-22 on image.jpg"
             assert started["kind"] == "api"
 
             await executions.handle_model_result(a_completion(executions))
-            finished = await stream.next_line()
+            finished = await stream.next_event()
             assert finished["message"].startswith("completed in ")
             assert finished["execution_id"] == execution.execution_id
 

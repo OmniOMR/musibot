@@ -17,7 +17,7 @@ The model is started in a session of its own, so a terminal's signals reach this
 
 - Consume work messages for one model type from RabbitMQ and batch them.
 - Launch and drive the model subprocess; move page data to and from MinIO.
-- Forward whatever the model prints onto `musibot.logs`, and publish results back over RabbitMQ.
+- Forward whatever the model prints onto `musibot.logs`, announce the *Files* it wrote onto `musibot.file-changes`, and publish results back over RabbitMQ.
 
 
 ## What one execution looks like
@@ -29,13 +29,15 @@ The model is started in a session of its own, so a terminal's signals reach this
 5. The result is published to the queue named by the request's `reply_to`. Who that is — an *Orchestrator Head*, or the `api` service running an *ImplicitPipeline* — is not this head's business.
 
 
-## What the model prints
+## What the model prints, and what it wrote
 
 Every line the model writes to stdout or stderr is published on the `musibot.logs` fanout exchange as it is read, and goes **straight to the `api` service** rather than back through whoever asked for the work — see [RabbitMQ exchanges and messages](../../docs/rabbitmq-exchanges-and-messages.md). stdout is forwarded at level `info` and stderr at `warning`. Two lines of this head's own are published alongside them: what the model wrote, and, when an execution fails, why.
 
 Each line is attributed to the *Pipeline Execution* that caused the work, which is why one rides along on every `model-execution-start`. The attribution is whatever the model is currently executing — a model executes one command at a time, so there is never a question of which — and it is *not* cleared when an execution reports. Output and reports arrive on two different pipes, so a model that prints and then immediately reports completion routinely has that last line read afterwards; dropping it would lose exactly the line a *User* was waiting for. Anything printed before the first execution — an import banner, a model announcing its weights — belongs to no execution and stays in this head's own log.
 
 Publishing is fire-and-forget: nothing acknowledges a log line, and a broker that refuses one costs the *User* a line of output rather than the execution.
+
+The same moment produces a second, structured announcement on `musibot.file-changes`: the paths this execution has just uploaded, for a client that wants to *act* on a new *File* rather than read about it. It is published after the upload and never before, since a client told about a *File* that has not reached storage yet would fetch a `404`. It is fire-and-forget for the same reason as the log — object storage is the truth about what a page holds, and a client that misses a notice is a poll away from finding out.
 
 
 ## Depends on

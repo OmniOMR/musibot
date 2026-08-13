@@ -12,6 +12,23 @@ The *general public* gets a token too, minted on demand by `POST /public-session
 The token is declared as an OpenAPI security scheme, so the interactive docs the service serves at `/docs` carry an **Authorize** button: paste the token once there and every request from that page is authenticated, which is the quickest way to try the API by hand.
 
 
+### There are no sessions, only identities
+
+A token resolves to an **identity**, and a *MusicorpusPage* belongs to that identity — not to the connection, the process, or the run that created it. Musibot has no concept of a session for a *Library* user, and deliberately so: it would be a lifetime to manage, an expiry to explain and a thing to resume, for a system whose entire state is already discarded within the hour.
+
+The consequence is worth stating plainly, because it decides what a client must do. **Two people using one *Library's* token share everything that token owns** — one running a production batch over a whole collection, another testing next month's model, both `ufal`. Neither's pages are hidden from the other, and neither is protected from the other deleting one.
+
+So **a client tracks the page IDs it created** and works only with those. That is not an extra obligation: no endpoint answers "all pages of this identity" — the Web UI keeps its own ledger in the browser, the python client keeps its own bookkeeping, and both need it anyway to know what to download. Page IDs are 12-character NanoIDs, so two clients never collide.
+
+Where a real separation is wanted, give the two uses **different identities** rather than reaching for sessions:
+
+```json
+{ "token-for-the-batch-run": "ufal", "token-for-development": "ufal-dev" }
+```
+
+Two tokens mapping to the *same* identity share pages exactly as one token does — the identity is what owns a page, so it is the identity that has to differ. Members of the *General public* get this for free: `POST /public-sessions` mints a token with an identity of its own each time (see [Public access](public-access.md)).
+
+
 ## Musicorpus Page
 
 This is the heart of the API, where a *User* may upload page scans, start *Pipeline Executions* and download generated files.
@@ -28,7 +45,7 @@ Working with *Files*:
 
 This is the only way to learn what a *PipelineExecution* produced: how many staves a page has is what the recognition found out, so the output *File* set is not knowable in advance. It is answered by listing object storage rather than from anything the service remembers — the service is not in the byte-path and keeps no list of its own — which also makes it true across a *File* that a later execution overwrote. The order is storage's own, lexicographic by key, which puts `Staves/10/` before `Staves/2/`.
 
-It is also how a running execution is watched from the outside: poll it while an execution runs and *Files* appear as they are written. What the execution is *saying* while it does that is [the log stream](#the-log-stream) below.
+It is also how a running execution is watched from the outside: poll it while an execution runs and *Files* appear as they are written — or, better, keep [the file-change stream](#the-file-change-stream) open and list the page when it says something has been written. What the execution is *saying* while it does that is [the log stream](#the-log-stream).
 
 ```
 GET /musicorpus-pages/{id}/files
@@ -107,4 +124,32 @@ The stream ends when the client hangs up or when the page is deleted. It does no
 
 It is a `POST`, unusually for something that reads. A `GET` invites `EventSource`, which cannot send an `Authorization` header — and the usual way round that is to put the token in the query string, where it lands in proxy logs and browser history. Every request to this API authenticates the same way, so the endpoint is one a browser reads with `fetch`.
 
-> **Note:** There is no progress reporting anywhere in Musibot, and none is planned. A *Model* execution takes a second or two, and the models Musibot runs cannot say how far along they are — a detector produces every box at the end of one forward pass, and an autoregressive model does not know how many tokens it is about to emit. What a *User* watching gets is this log, plus a *File* listing that grows as *Files* are written.
+
+## The file-change stream
+
+- `POST /musicorpus-pages/{id}/file-changes` Opens an SSE stream naming the *Files* this page's executions write, as they are written.
+
+```
+POST /musicorpus-pages/{id}/file-changes
+
+200 OK
+Content-Type: text/event-stream
+
+data: {"execution_id": 1, "paths": ["layout.json"]}
+
+: ping
+
+data: {"execution_id": 2, "paths": ["Staves/1/transcription.musicxml", "Staves/1/transcription.lmx"]}
+```
+
+A notice is an **invitation to look, not a description of the page**. It names paths and nothing else; what the page holds — each *File* with its size and modification time — is `GET /musicorpus-pages/{id}/files`, answered from object storage. A client reads a notice as "listing the page again is worth it now", which is what makes a *File* appear as it is written rather than at the next poll.
+
+That the paths are attributed to an execution here does not contradict the listing's refusal to attribute a *File* to one. A notice is an **event** and says who wrote it *then*; the listing is a **state**, and a later execution may have overwritten it since.
+
+Paths are those created and those overwritten, which are not told apart — the *Worker Head* detects that a *File* changed, not how. Deletions never appear at all: they do not propagate out of a *Model* (see [Rough edges](rough-edges.md)), so an absence from this stream means nothing.
+
+Nothing is replayed and nothing is acknowledged, so a client that misses a notice loses latency and nothing else. Notices **coalesce** while a client is not reading: two writes of one path between reads arrive as one event naming it once, since the answer to any number of them is the same single listing.
+
+This is a stream of its own rather than a second event type on the log stream. A log is text for a human and there is a great deal of it — for a deep-learning model, mostly its libraries' warnings — and a client that only wants to know about a new *File* should not have to read all of it to find out. Like the log stream it is a `POST`, for the same reason.
+
+> **Note:** There is no progress reporting anywhere in Musibot, and none is planned. A *Model* execution takes a second or two, and the models Musibot runs cannot say how far along they are — a detector produces every box at the end of one forward pass, and an autoregressive model does not know how many tokens it is about to emit. What a *User* watching gets is these two streams: the log, and a *File* listing that grows as *Files* are written.

@@ -92,6 +92,29 @@ def client(build_client: ClientBuilder) -> Iterator[TestClient]:
         yield test_client
 
 
+@pytest.fixture
+def app(
+    tokens_file: Path,
+    storage: FakeStorage,
+    publisher: FakePublisher,
+    repository: MusicorpusPageRepository,
+    registry: ProviderRegistry,
+) -> FastAPI:
+    """The application itself, with no lifespan.
+
+    What the stream tests drive as raw ASGI (see `tests/streaming.py`). Nothing
+    they exercise needs a broker: the hubs are fed by hand, exactly as RabbitMQ
+    would feed them.
+    """
+    return create_app(
+        ApiSettings.for_testing(api_tokens_file=tokens_file),
+        pages_repository=repository,
+        registry=registry,
+        storage=storage,
+        publisher=publisher,
+    )
+
+
 def public_access_of(client: TestClient) -> PublicAccess:
     """The public tier the app was built with, for a test to sweep by hand."""
     return cast(PublicAccess, cast(FastAPI, client.app).state.public_access)

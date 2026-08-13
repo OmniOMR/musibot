@@ -13,6 +13,7 @@ from pydantic import BaseModel
 
 from musibot.api.discovery import DiscoveryWarning, Listing, PipelineListing, WarningType
 from musibot.api.domain import MusicorpusPage, PipelineExecution
+from musibot.api.file_changes import FileChange
 from musibot.api.logs import LogLine, SourceKind
 from musibot.api.storage import StoredFile
 
@@ -92,6 +93,30 @@ class LogLineView(BaseModel):
             level=line.level,
             message=line.message,
         )
+
+
+class FileChangeView(BaseModel):
+    """*Files* one *Pipeline Execution* has just written, as one SSE event.
+
+    An invitation to look rather than a description of the page: what the page
+    holds is `GET /musicorpus-pages/{id}/files`, and a *File's* size and time
+    come from object storage. This says only that asking again is worth it.
+
+    That the paths are attributed to an execution here does not contradict the
+    listing, which refuses to attribute a *File* to one. A notice is an event
+    and says who wrote it *then*; the listing is a state, and a later execution
+    may have overwritten it since.
+    """
+
+    execution_id: int
+    # Created and overwritten alike — the *Worker Head* detects that a *File*
+    # changed, not how. Deletions never appear: they do not propagate out of a
+    # *Model* at all.
+    paths: list[str]
+
+    @classmethod
+    def of(cls, change: FileChange) -> "FileChangeView":
+        return cls(execution_id=change.execution_id, paths=list(change.paths))
 
 
 class PublicSessionView(BaseModel):

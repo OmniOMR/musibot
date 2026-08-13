@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import { ApiError, SessionExpired } from "../api/errors";
 import { openPageLog } from "../api/logStream";
+import { RECONNECT_MS } from "../api/stream";
 import type { LogLineView } from "../api/types";
 
 /**
@@ -36,9 +37,6 @@ export interface PageLog {
   /** Set when the log is not being watched and will not resume by itself. */
   problem: string | null;
 }
-
-/** How long to wait before opening the stream again after it dropped. */
-const RECONNECT_MS = 2000;
 
 /**
  * How the panel draws one line.

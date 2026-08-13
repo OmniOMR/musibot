@@ -10,6 +10,8 @@ The Web UI has no outward contract of its own: nothing depends on it, and it dep
 
 ### Added
 
+- **A result appears the moment it is written.** The file list no longer waits for the next poll: the app watches the page's file-change stream, and a notice that an execution has written something sends it to list the page again. What it shows still comes from object storage — the notice is only a reason to ask — so a *File* it names carries its real size and time, and a missed notice costs the wait until the next poll and nothing more.
+
 - **The recognition log shows a real reading.** The panel across the bottom of a page now streams what actually happened — what each *Model* printed as it printed it, alongside the service's own account of the execution: what was started, what it wrote, how long it took, and why it failed. It had been a convincing stand-in that played back a scripted reading on a timer, labelled as a sample so nobody took it for one; that is gone, and with it the label.
 
   A line is stamped with seconds into its execution rather than a time of day, since what a reader is judging is how long a step took. Lines are kept for as long as the page is open, so collapsing the panel and opening it again shows the whole log — but nothing is replayed after a browser reload, because the service holds no buffer and a log is a *User* watching a page being read rather than a record kept for later.
