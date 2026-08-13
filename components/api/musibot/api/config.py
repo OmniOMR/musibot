@@ -90,7 +90,7 @@ class ApiSettings(RabbitSettings, S3Settings, LoggingSettings):
     public_execution_timeout_seconds: float = 60.0
 
     # Per session, both of them courtesy caps.
-    public_max_pages_per_session: int = 5
+    public_max_pages_per_session: int = 20
     public_max_concurrent_executions_per_session: int = 1
 
     def load_api_tokens(self) -> dict[str, str]:
