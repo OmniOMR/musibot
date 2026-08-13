@@ -53,6 +53,7 @@ from musibot.api.domain import (
 )
 from musibot.api.logs import LogHub
 from musibot.api.messaging import MessagePublisher
+from musibot.api.results import ResultHub
 
 logger = logging.getLogger(__name__)
 
@@ -82,6 +83,7 @@ class ExecutionService:
         timeout_seconds: float,
         instance_id: str | None = None,
         logs: LogHub | None = None,
+        results: ResultHub | None = None,
     ):
         self._repository = repository
         self._publisher = publisher
@@ -93,6 +95,10 @@ class ExecutionService:
         # silent *Model* has to go on. A hub nobody watches discards them, which
         # is what the default here is.
         self._logs = logs or LogHub(repository)
+        # And where an execution's *ending* is announced, to a client watching
+        # every page of one identity rather than this one. A hub nobody watches
+        # discards them just the same.
+        self._results = results or ResultHub()
         self.reply_queue = REPLY_QUEUE_PREFIX + (instance_id or generate_instance_id())
         # Timeout timers are tracked so they can be cancelled at shutdown; a
         # fired timer removes itself.
@@ -301,6 +307,8 @@ class ExecutionService:
         execution.error = error
         logger.info("Pipeline execution %s/%d %s", page_id, execution_id, execution.state)
 
+        self._results.publish(page.owner, page_id, execution)
+
         elapsed = (datetime.now(UTC) - execution.started_at).total_seconds()
         if execution.state == "completed":
             self._logs.publish(page_id, execution_id, f"completed in {elapsed:.1f}s")
@@ -335,6 +343,9 @@ class ExecutionService:
         execution.state = "failed"
         execution.error = f"Pipeline execution timed out after {timeout:.0f}s"
         logger.warning("Pipeline execution %s/%d timed out", page_id, execution_id)
+        # A timeout is an ending like any other, and the one a client waiting on
+        # a page most needs to be told about.
+        self._results.publish(page.owner, page_id, execution)
         self._logs.publish(page_id, execution_id, execution.error, level="error")
         await self._publish_terminate(page_id, execution_id)
 

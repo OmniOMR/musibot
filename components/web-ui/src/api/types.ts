@@ -111,6 +111,17 @@ export interface FileChangeView {
   paths: string[];
 }
 
+/**
+ * One ended *Pipeline Execution*, as one event of the result stream carries it.
+ *
+ * It names its page because that stream is scoped to a *User*: it carries every
+ * page of the identity, so a watcher of one page filters on `page_id`.
+ */
+export interface ExecutionResultView {
+  page_id: string;
+  execution: PipelineExecutionView;
+}
+
 /** What starting a *Pipeline Execution* asks for. */
 export interface StartExecutionRequest {
   pipeline_name: string;

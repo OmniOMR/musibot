@@ -16,6 +16,26 @@ import { apiFetch } from "./client";
 /** How long to wait before opening a stream again after it dropped. */
 export const RECONNECT_MS = 2000;
 
+/**
+ * How long a stream may say nothing at all before it is presumed dead.
+ *
+ * The service sends a keepalive comment every 15 seconds, so silence for three
+ * of them is not a quiet page — it is a connection that has gone away without
+ * saying so, which a middlebox between here and it can produce and which the
+ * socket may never report. This matters because the app no longer polls behind
+ * these streams: a stall nobody notices would be a page that has simply stopped
+ * updating.
+ */
+export const STALL_MS = 45_000;
+
+/** Thrown when a stream has said nothing for `STALL_MS`. Reconnect. */
+export class StreamStalled extends Error {
+  constructor() {
+    super("The stream went silent");
+    this.name = "StreamStalled";
+  }
+}
+
 export async function openStream<T>(
   path: string,
   token: string,
@@ -44,7 +64,7 @@ async function* readEvents<T>(reader: ReadableStreamDefaultReader<Uint8Array>): 
 
   try {
     for (;;) {
-      const { done, value } = await reader.read();
+      const { done, value } = await untilStalled(reader.read());
       if (done) {
         return;
       }
@@ -70,6 +90,20 @@ async function* readEvents<T>(reader: ReadableStreamDefaultReader<Uint8Array>): 
     // Whoever stops reading — an unmount, a `break` — closes the connection,
     // which is what tells the service nobody is watching this page any more.
     await reader.cancel().catch(() => undefined);
+  }
+}
+
+/** The same promise, unless nothing has arrived for `STALL_MS`. */
+async function untilStalled<T>(reading: Promise<T>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const stalled = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new StreamStalled()), STALL_MS);
+  });
+
+  try {
+    return await Promise.race([reading, stalled]);
+  } finally {
+    clearTimeout(timer);
   }
 }
 

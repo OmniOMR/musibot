@@ -15,6 +15,7 @@ from musibot.api.discovery import DiscoveryWarning, Listing, PipelineListing, Wa
 from musibot.api.domain import MusicorpusPage, PipelineExecution
 from musibot.api.file_changes import FileChange
 from musibot.api.logs import LogLine, SourceKind
+from musibot.api.results import ExecutionResult
 from musibot.api.storage import StoredFile
 
 
@@ -37,6 +38,25 @@ class PipelineExecutionView(BaseModel):
             input=list(execution.input),
             state=execution.state,
             error=execution.error,
+        )
+
+
+class ExecutionResultView(BaseModel):
+    """One ended *Pipeline Execution*, as one event of the result stream.
+
+    It carries the page ID because this stream is scoped to a *User* rather
+    than a page: a client watching several pages at once has to know which one
+    finished, and a client watching one filters on it.
+    """
+
+    page_id: str
+    execution: PipelineExecutionView
+
+    @classmethod
+    def of(cls, result: ExecutionResult) -> "ExecutionResultView":
+        return cls(
+            page_id=result.page_id,
+            execution=PipelineExecutionView.of(result.execution),
         )
 
 

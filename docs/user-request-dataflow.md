@@ -45,7 +45,7 @@ POST /musicorpus-pages/7Kf2mP9xLwQ/pipeline-executions
 
 The response contains a JSON representation of the *PipelineExecution* domain object with the ID equal to `1` (the first execution for this page).
 
-Then it waits for the execution to finish (complete or fail) by polling this endpoint every second:
+Then it waits for the execution to finish (complete or fail) by polling this endpoint every second — the client does not yet read the [result stream](http-api.md), which is what a batch of pages will want:
 
 ```
 GET /musicorpus-pages/7Kf2mP9xLwQ/pipeline-executions/1

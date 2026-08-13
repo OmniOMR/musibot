@@ -3,30 +3,31 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { getPage, listFiles, listPipelines } from "../api/client";
 import { ApiError } from "../api/errors";
 import { openPageFileChanges } from "../api/fileChanges";
+import { openExecutionResults } from "../api/results";
 import { RECONNECT_MS } from "../api/stream";
 import type { FileView, PipelineExecutionView, PipelineView } from "../api/types";
 
 /**
- * What a page looks like right now: polled, and nudged by the file-change
- * stream.
+ * What a page looks like right now, kept fresh by two streams.
  *
- * **Execution state is polled**, because nothing pushes it yet — a stream of
- * execution results is planned at the *User* level rather than the page level,
- * for a client holding many pages at once. So a running execution is still
- * watched by asking every 1.5 seconds, and this shows a spinner and never a
- * count. It must not be replaced by a fabricated progress bar — an
- * image-to-sequence model does not know its own output length, so there is no
- * percentage to report, which is why Musibot reports none anywhere.
+ * **Nothing is polled.** The page is asked about once when the screen opens,
+ * and after that the service says what changed: the file-change stream when an
+ * execution writes a *File*, and the result stream when one ends. An idle page
+ * costs two open connections and no requests at all, where polling cost a
+ * request every 1.5 seconds for as long as anything was running.
  *
- * **Files are pushed.** A notice on the file-change stream means "ask again
- * now", and this asks — rather than building a listing out of the paths it has
- * been told about, which would be a second, worse copy of what object storage
- * already knows, and would go stale the moment an execution overwrote a *File*.
- * A missed notice therefore costs nothing but the wait until the next poll.
+ * **Every connection reconciles.** Neither stream replays, so an execution that
+ * ended while the connection was down is never announced — which is why the
+ * page is asked about again on each *re*connect rather than trusted to have
+ * been told everything. A stream that goes silent for 45 seconds is presumed
+ * dead and reconnected (see `api/stream.ts`), which is what makes dropping the
+ * poll safe: without that, a connection killed by a middlebox would leave a
+ * page that has simply stopped updating.
  *
- * Polling stops the moment nothing is running. An idle page costs one request
- * on arrival and nothing after it, which matters when the public tier is one
- * shared pool and every visitor's open tab would otherwise be a permanent load.
+ * There is still no percentage anywhere, and there must not be: an
+ * image-to-sequence model does not know how long its own output will be, so
+ * Musibot reports no progress at all — a running execution shows a spinner, and
+ * its log says what it is doing.
  */
 export interface PageState {
   executions: PipelineExecutionView[];
@@ -41,11 +42,9 @@ export interface PageState {
   refresh: () => void;
 }
 
-const POLL_INTERVAL_MS = 1500;
-
-/** A state the service will not move out of on its own. */
-function isFinished(execution: PipelineExecutionView): boolean {
-  return execution.state === "completed" || execution.state === "failed";
+/** An error that means asking again will not help. */
+function isFinal(error: unknown): boolean {
+  return error instanceof ApiError && (error.status === 401 || error.status === 404);
 }
 
 export function usePageState(pageId: string, token: string | null): PageState {
@@ -59,65 +58,98 @@ export function usePageState(pageId: string, token: string | null): PageState {
   const [nonce, setNonce] = useState(0);
   const refresh = useCallback(() => setNonce((n) => n + 1), []);
 
-  /**
-   * Whether anything is running, as the poll loop sees it. A ref rather than
-   * state because the loop reads it between ticks and re-reading it must not
-   * be a reason to restart the loop.
-   */
-  const running = useRef(true);
+  /** What the page holds and what has run, both from the service. */
+  const load = useCallback(
+    async (signal?: AbortSignal) => {
+      const [page, listing] = await Promise.all([
+        getPage(token!, pageId, signal),
+        listFiles(token!, pageId, signal),
+      ]);
+      setExecutions(page.executions);
+      setFiles(listing.files);
+      setError(null);
+    },
+    [pageId, token],
+  );
 
+  // The one unconditional ask: when the screen opens, and whenever something
+  // asks for it again.
+  useEffect(() => {
+    if (token === null) {
+      return;
+    }
+    const controller = new AbortController();
+
+    void (async () => {
+      try {
+        await load(controller.signal);
+      } catch (caught) {
+        if (!controller.signal.aborted) {
+          setError(caught instanceof Error ? caught : new Error(String(caught)));
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
+      }
+    })();
+
+    return () => controller.abort();
+  }, [load, token, nonce]);
+
+  // Executions, from the result stream. It is scoped to the *User*, so it
+  // carries every page of this token's identity and this filters to ours —
+  // which costs nothing and is what lets one connection serve a client holding
+  // many pages at once.
+  const connected = useRef(false);
   useEffect(() => {
     if (token === null) {
       return;
     }
 
-    let cancelled = false;
+    connected.current = false;
+    const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
 
-    async function poll() {
+    async function watch() {
       try {
-        const [page, listing] = await Promise.all([
-          getPage(token!, pageId),
-          listFiles(token!, pageId),
-        ]);
-        if (cancelled) {
-          return;
+        const results = await openExecutionResults(token!, controller.signal);
+
+        // Reconnecting means having missed whatever ended in the meantime, and
+        // nothing is replayed. The first connection needs no such catching up:
+        // the effect above has just asked.
+        if (connected.current) {
+          await load(controller.signal).catch(() => undefined);
         }
-        setExecutions(page.executions);
-        setFiles(listing.files);
-        setError(null);
-        running.current = page.executions.some((execution) => !isFinished(execution));
-      } catch (caught) {
-        if (cancelled) {
-          return;
-        }
-        setError(caught instanceof Error ? caught : new Error(String(caught)));
-        // Stop asking. Whatever went wrong — the session ended, the page was
-        // deleted — will not be fixed by asking again every second and a half.
-        running.current = false;
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-          if (running.current) {
-            timer = setTimeout(() => void poll(), POLL_INTERVAL_MS);
+        connected.current = true;
+
+        for await (const result of results) {
+          if (result.page_id !== pageId) {
+            continue; // another page of this identity, and none of our business
           }
+          setExecutions((shown) => replaceExecution(shown, result.execution));
         }
+      } catch (caught) {
+        if (controller.signal.aborted || isFinal(caught)) {
+          return; // an unmount, or a page that is gone; the fetch above reports it
+        }
+      }
+      if (!controller.signal.aborted) {
+        timer = setTimeout(() => void watch(), RECONNECT_MS);
       }
     }
 
-    running.current = true;
-    void poll();
+    void watch();
 
     return () => {
-      cancelled = true;
+      controller.abort();
       clearTimeout(timer);
     };
-  }, [pageId, token, nonce]);
+  }, [pageId, token, load]);
 
-  // The file-change stream, held open for as long as this page is: a notice
-  // means "ask again now", and asking is what makes a *File* appear as it is
-  // written rather than up to a poll later. It has to be open before an
-  // execution starts, since nothing is replayed.
+  // Files, from the file-change stream: a notice means "ask again now", and
+  // asking is what makes a *File* appear as it is written. It has to be open
+  // before an execution starts, since nothing is replayed.
   useEffect(() => {
     if (token === null) {
       return;
@@ -135,21 +167,20 @@ export function usePageState(pageId: string, token: string | null): PageState {
         for await (const notice of notices) {
           void notice;
           try {
-            const listing = await listFiles(token!, pageId);
+            const listing = await listFiles(token!, pageId, controller.signal);
             if (!controller.signal.aborted) {
               setFiles(listing.files);
             }
           } catch {
-            // The poll will catch up. A notice is only an invitation to look.
+            // Not fatal: the next notice, or the next reconnect, asks again.
           }
         }
       } catch (caught) {
-        if (controller.signal.aborted) {
-          return; // an unmount, not a failure
+        if (controller.signal.aborted || isFinal(caught)) {
+          return;
         }
-        if (caught instanceof ApiError && (caught.status === 401 || caught.status === 404)) {
-          return; // the session ended or the page is gone; polling reports it
-        }
+      }
+      if (!controller.signal.aborted) {
         timer = setTimeout(() => void watch(), RECONNECT_MS);
       }
     }
@@ -186,4 +217,21 @@ export function usePageState(pageId: string, token: string | null): PageState {
   }, [token]);
 
   return { executions, files, pipelines, loading, error, refresh };
+}
+
+/**
+ * The executions, with this one's news folded in.
+ *
+ * An execution the app has not seen is appended rather than ignored: a result
+ * can arrive before the fetch that would have introduced it, and a finished
+ * execution nobody displays is worse than one that appears in its final state.
+ */
+export function replaceExecution(
+  shown: PipelineExecutionView[],
+  ended: PipelineExecutionView,
+): PipelineExecutionView[] {
+  const known = shown.some((execution) => execution.execution_id === ended.execution_id);
+  return known
+    ? shown.map((execution) => (execution.execution_id === ended.execution_id ? ended : execution))
+    : [...shown, ended];
 }

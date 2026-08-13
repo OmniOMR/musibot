@@ -31,6 +31,7 @@ from musibot.api.file_changes import FileChangeHub
 from musibot.api.logs import LogHub
 from musibot.api.messaging import Broker, MessagePublisher
 from musibot.api.public import PublicAccess
+from musibot.api.results import ResultHub
 from musibot.api.routes import (
     executions,
     file_changes,
@@ -39,6 +40,7 @@ from musibot.api.routes import (
     pages,
     pipelines,
     public_sessions,
+    results,
 )
 from musibot.api.storage import StoragePort
 
@@ -68,6 +70,7 @@ def create_app(
     # discards everything it is given.
     log_hub = LogHub(repository)
     file_change_hub = FileChangeHub()
+    result_hub = ResultHub()
     execution_service = (
         ExecutionService(
             repository,
@@ -75,6 +78,7 @@ def create_app(
             providers,
             timeout_seconds=settings.pipeline_execution_timeout_seconds,
             logs=log_hub,
+            results=result_hub,
         )
         if publisher is not None
         else None
@@ -180,6 +184,7 @@ def create_app(
     app.state.public_access = public_access
     app.state.logs = log_hub
     app.state.file_changes = file_change_hub
+    app.state.results = result_hub
 
     app.include_router(public_sessions.router)
     app.include_router(pages.router)
@@ -187,6 +192,7 @@ def create_app(
     app.include_router(executions.router)
     app.include_router(logs.router)
     app.include_router(file_changes.router)
+    app.include_router(results.router)
     app.include_router(pipelines.router)
 
     @app.get("/health", tags=["meta"])

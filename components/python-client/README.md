@@ -61,7 +61,7 @@ Unit tests run against a fake Musibot server on an `httpx.MockTransport`, so the
 
 ## Not yet implemented
 
-- **The log stream.** `wait_for_execution` polls once a second and says nothing while it waits. The `api` service now streams a page's log over SSE (`POST /musicorpus-pages/{id}/logs`), and this client does not read it yet — so a caller watching a long batch sees nothing of what the *Models* are printing.
+- **The three SSE streams.** `wait_for_execution` polls once a second and says nothing while it waits. The `api` service now streams a page's log and its file changes, and — the one that matters most here — every ending of the caller's executions at `POST /pipeline-execution-results`. That last one is what a batch API wants: hold twenty pages in flight and learn from one connection which have finished, instead of polling each. None of it is read by this client yet.
 - **Batch helpers.** The library-scale burst workflow in the docs is still a TODO.
 
 

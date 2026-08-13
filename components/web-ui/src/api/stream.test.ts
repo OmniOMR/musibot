@@ -1,8 +1,8 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { openPageFileChanges } from "./fileChanges";
 import { openPageLog } from "./logStream";
-import { openStream, parseFrame } from "./stream";
+import { STALL_MS, StreamStalled, openStream, parseFrame } from "./stream";
 import type { FileChangeView, LogLineView } from "./types";
 
 const LINE: LogLineView = {
@@ -125,5 +125,42 @@ describe("the two page streams", () => {
     expect(notices).toEqual([notice]);
     const [url] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit];
     expect(url).toContain("/musicorpus-pages/7Kf2mP9xLwQa/file-changes");
+  });
+});
+
+describe("a stream that goes silent", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it("is presumed dead rather than waited on forever", async () => {
+    // The service pings every 15 seconds, so silence for three of them is a
+    // connection that has gone away without saying so — which a middlebox can
+    // produce and the socket may never report. Nothing polls behind these
+    // streams any more, so a stall nobody notices is a page that has stopped
+    // updating.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            new ReadableStream({
+              start() {
+                // Opens, and then says nothing at all.
+              },
+            }),
+            { status: 200 },
+          ),
+      ),
+    );
+
+    const stream = await openStream<LogLineView>("/anything", "token");
+    const reading = stream.next();
+    const failed = expect(reading).rejects.toBeInstanceOf(StreamStalled);
+
+    await vi.advanceTimersByTimeAsync(STALL_MS + 1);
+    await failed;
   });
 });

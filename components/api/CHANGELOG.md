@@ -22,6 +22,12 @@ Versions are semver on the **HTTP API**, which is the outward contract for `pyth
 
   Separate from the log stream on purpose, rather than a second event type on it: a log is text for a human and there is a great deal of it — for a deep-learning model, mostly its libraries' warnings — and a client that only wants to know about a new *File* should not have to read all of it. That the paths are attributed to an execution here does not contradict the listing's refusal to attribute a *File* to one: a notice is an event and says who wrote it *then*; the listing is a state, and a later execution may have overwritten it since.
 
+- **`POST /pipeline-execution-results`** — an SSE stream of every *Pipeline Execution* of the caller's identity that ends, as it ends, so a client no longer has to poll to learn that a page is done. Each event carries the `page_id` and the execution in its final state; a timeout is an ending like any other. This is the one stream scoped to a *User* rather than to a page, because that is who wants it: a client holding twenty pages in flight wants one connection, not twenty, and a client watching one page filters on `page_id`.
+
+  It needs no new RabbitMQ message: this service settles every execution itself — from an *Orchestrator's* result, from a *Model's* when it runs an *ImplicitPipeline*, or from its own timeout — so the stream is a fan-out of something it already knows.
+
+  It carries **every page of that identity**, including pages another holder of the same *Library* token created, since Musibot has no sessions. Nothing is replayed, so a client reconciles on connect; and a watcher that falls a thousand results behind is disconnected rather than quietly missing one, because losing a result silently would leave a client waiting on a page for ever.
+
 - **The service narrates an execution it is running.** Lines of `kind: "api"` say when an execution was requested, that it completed and how long it took, or that it failed or timed out and why. Without them a *Model* that prints nothing leaves an empty panel while something is plainly happening, and these are moments only this service knows about.
 
 

@@ -152,4 +152,28 @@ Nothing is replayed and nothing is acknowledged, so a client that misses a notic
 
 This is a stream of its own rather than a second event type on the log stream. A log is text for a human and there is a great deal of it — for a deep-learning model, mostly its libraries' warnings — and a client that only wants to know about a new *File* should not have to read all of it to find out. Like the log stream it is a `POST`, for the same reason.
 
+
+## The result stream
+
+- `POST /pipeline-execution-results` Opens an SSE stream of every *Pipeline Execution* of yours that ends, as it ends.
+
+```
+POST /pipeline-execution-results
+
+200 OK
+Content-Type: text/event-stream
+
+data: {"page_id": "7Kf2mP9xLwQa", "execution": {"execution_id": 1, "pipeline_name": "hello-world", "pipeline_version": "1.0.0", "input": ["image.jpg"], "state": "completed", "error": null}}
+
+: ping
+
+data: {"page_id": "Qm3vN8xTrb2c", "execution": {"execution_id": 1, "pipeline_name": "hello-world", "pipeline_version": "1.0.0", "input": ["image.jpg"], "state": "failed", "error": "No staves found in the image."}}
+```
+
+The one stream scoped to a **User** rather than to a page, because that is who wants it: a client holding twenty pages in flight wants one connection telling it which have finished, not twenty. A client watching a single page filters on `page_id`, which costs it nothing. `execution` is the same shape `GET /musicorpus-pages/{id}/pipeline-executions/{id}` answers with, already in its final state — a *result* is by definition an ending, so `running` never appears here. A timeout is an ending too, and is announced like any other.
+
+**It carries every page of your identity**, including pages created by somebody else holding the same token. Musibot has no sessions (see [Authentication](#there-are-no-sessions-only-identities)), so a client watches for the page IDs it created and ignores the rest — which it can, since no endpoint answers "all my pages" and a client is already obliged to track its own. Where a real separation is wanted, use two identities.
+
+Nothing is replayed here either, so a client **reconciles on connect**: an execution that ended before the stream opened, or while it was broken, is not announced afterwards, and the way to learn about it is to ask. Treat this as the thing that saves you from polling rather than as the only way you can learn. A watcher that falls a thousand results behind is disconnected rather than quietly missing one — losing a result silently would leave a client waiting on a page for ever, with no way to notice.
+
 > **Note:** There is no progress reporting anywhere in Musibot, and none is planned. A *Model* execution takes a second or two, and the models Musibot runs cannot say how far along they are — a detector produces every box at the end of one forward pass, and an autoregressive model does not know how many tokens it is about to emit. What a *User* watching gets is these two streams: the log, and a *File* listing that grows as *Files* are written.

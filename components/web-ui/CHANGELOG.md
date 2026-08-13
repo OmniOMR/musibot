@@ -10,6 +10,10 @@ The Web UI has no outward contract of its own: nothing depends on it, and it dep
 
 ### Added
 
+- **The page screen no longer polls.** It asked the service about a running page every 1.5 seconds; now it asks once when the screen opens and is told what changed — the file-change stream when an execution writes a *File*, the result stream when one ends. An idle page costs no requests at all, which matters most on the public tier, where every open tab used to be a standing load on one shared pool.
+
+  Two things make dropping the poll safe rather than optimistic. Every reconnection re-asks, because neither stream replays and a connection can drop across an ending. And a stream that says nothing for 45 seconds — three missed keepalives — is presumed dead and reopened, since a connection killed by something in the middle can otherwise leave a page that has simply stopped updating.
+
 - **A result appears the moment it is written.** The file list no longer waits for the next poll: the app watches the page's file-change stream, and a notice that an execution has written something sends it to list the page again. What it shows still comes from object storage — the notice is only a reason to ask — so a *File* it names carries its real size and time, and a missed notice costs the wait until the next poll and nothing more.
 
 - **The recognition log shows a real reading.** The panel across the bottom of a page now streams what actually happened — what each *Model* printed as it printed it, alongside the service's own account of the execution: what was started, what it wrote, how long it took, and why it failed. It had been a convincing stand-in that played back a scripted reading on a timer, labelled as a sample so nobody took it for one; that is gone, and with it the label.

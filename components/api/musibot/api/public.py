@@ -140,6 +140,22 @@ class PublicAccess:
         with self._lock:
             return self._sessions.get(token)
 
+    def is_live(self, identity: str) -> bool:
+        """Whether a *Public Session* identity is still good for anything.
+
+        Asked by the [result stream](routes/results.py), which has no page to
+        notice the deletion of and would otherwise hold an expired visitor's
+        connection open until their browser gave up. A scan rather than an
+        index: it is asked once per idle watcher every fifteen seconds, over a
+        few hundred sessions at the very most.
+        """
+        now = datetime.now(UTC)
+        with self._lock:
+            return any(
+                session.identity == identity and not session.is_expired(now)
+                for session in self._sessions.values()
+            )
+
     # --- the caps ------------------------------------------------------------
 
     def check_may_create_page(self, identity: str) -> None:

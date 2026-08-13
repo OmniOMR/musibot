@@ -8,6 +8,7 @@ The Web API: the python service that serves the public HTTP API. Every external 
 - Public HTTP API — upload a page, start a pipeline execution, poll status, list what the page now holds, download the result.
 - The log stream: everything *Models* and *Pipelines* print arrives here over RabbitMQ and is forwarded, over SSE, to whoever is watching that page.
 - The file-change stream: the same, for the *Files* those executions write — a separate stream, because a client that only wants to know about a new *File* should not have to read the log to find out.
+- The result stream: every *Pipeline Execution* of one identity that ends, as it ends. The only stream scoped to a *User* rather than a page, since a client holding twenty pages in flight wants one connection and not twenty.
 - Holds all system state, which is entirely ephemeral (a page is received, processed within minutes, downloaded, then forgotten).
 - Authenticates *Library* users via API tokens kept in a config file, and the *General public* via throwaway session tokens capped as one pool — see [Public access](../../docs/public-access.md).
 
