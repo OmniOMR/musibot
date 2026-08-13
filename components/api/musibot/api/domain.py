@@ -12,6 +12,7 @@ behind it later without the rest of the service noticing.
 
 import threading
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from typing import Literal
 
 from musibot.core import generate_page_id
@@ -51,6 +52,10 @@ class PipelineExecution:
     parameters: dict[str, object]
     state: ExecutionState = "running"
     error: str | None = None
+    # When this service dispatched it, which is what the log stream measures
+    # from: a line is shown as seconds into its execution rather than at a time
+    # of day, since what a reader is judging is how long a step took.
+    started_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
 
 @dataclass

@@ -16,10 +16,13 @@ import os
 import shlex
 import signal
 import subprocess
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
 
 from musibot.core.discovery import ModelDescription
+from musibot.core.execution import PipelineExecutionRef
+from musibot.core.logs import LogLevel
 from pydantic import ValidationError
 
 logger = logging.getLogger(__name__)
@@ -27,6 +30,14 @@ logger = logging.getLogger(__name__)
 IPC_VERSION = 1
 """The protocol version this head speaks. A *Model* announcing another is
 refused rather than driven on a guess."""
+
+ModelOutputSink = Callable[[PipelineExecutionRef, str, LogLevel], Awaitable[None]]
+"""Where a line the *Model* printed goes, besides this head's own log.
+
+It is given the *Pipeline Execution* the line belongs to, which is knowable here
+and nowhere else: a *Model* executes one command at a time, so whatever it
+prints belongs to whichever execution holds the lock below.
+"""
 
 
 class ModelFailed(Exception):
@@ -66,6 +77,26 @@ class ModelProcess:
         self._process: asyncio.subprocess.Process | None = None
         self._commands: asyncio.StreamWriter | None = None
         self._description: ModelDescription | None = None
+
+        # Where the Model's output goes besides this head's log — the
+        # `musibot.logs` exchange, in a running Worker. Set after construction
+        # because the WorkerHead that forwards it does not exist until the model
+        # has said `ready`, and nothing is lost by that: output printed while a
+        # model loads its weights belongs to no execution and could not be
+        # attributed to one anyway.
+        self.output_sink: ModelOutputSink | None = None
+        # Which Pipeline Execution the Model is printing on behalf of. Held here
+        # rather than in the WorkerHead because this is where the
+        # one-command-at-a-time lock is: two executions may be in flight as far
+        # as RabbitMQ is concerned, and only one of them is the model's.
+        #
+        # It is set when an execution starts and never cleared, so a line read a
+        # moment after the model reported is still attributed. Output and
+        # reports arrive on two different pipes drained by two different tasks,
+        # so a model that prints "done" and then reports completion routinely
+        # has that last line read after the report — clearing here would drop
+        # exactly the lines a User most wants to see.
+        self._attribution: PipelineExecutionRef | None = None
 
         # Reports arrive on a stream of their own, so the execution that asked
         # for one waits on a future rather than on the pipe.
@@ -111,8 +142,13 @@ class ModelProcess:
         page_id: str,
         input_files: list[str],
         parameters: dict[str, Any],
+        pipeline_execution: PipelineExecutionRef | None = None,
     ) -> None:
         """Run one execution and return once the *Model* reports success.
+
+        `pipeline_execution` is who the *Model's* output belongs to while this
+        runs; it rides along on the request precisely so that a *Model* need
+        never know about it.
 
         Raises :class:`ModelFailed` if the model reports a failure, or dies
         without reporting anything.
@@ -122,6 +158,8 @@ class ModelProcess:
 
             report: asyncio.Future[None] = asyncio.get_running_loop().create_future()
             self._pending[execution_id] = report
+            if pipeline_execution is not None:
+                self._attribution = pipeline_execution
             try:
                 await self._send(
                     {
@@ -247,8 +285,8 @@ class ModelProcess:
         results = await self._reader_for(os.fdopen(result_read, "rb"))
         self._readers = [
             asyncio.create_task(self._read_results(results)),
-            asyncio.create_task(self._capture_output(process.stdout, logging.INFO)),
-            asyncio.create_task(self._capture_output(process.stderr, logging.WARNING)),
+            asyncio.create_task(self._capture_output(process.stdout, logging.INFO, "info")),
+            asyncio.create_task(self._capture_output(process.stderr, logging.WARNING, "warning")),
             asyncio.create_task(self._watch_for_exit(process)),
         ]
 
@@ -318,12 +356,11 @@ class ModelProcess:
                 report.set_exception(ModelFailed(str(message.get("error") or "unspecified")))
             return
 
-        if message_type == "progress":
-            logger.info("Model progress: %s", message.get("message"))
-            return
-
         # Unknown message types are ignored in both directions, so that the
-        # protocol can grow without breaking either side.
+        # protocol can grow without breaking either side. A `progress` report
+        # from a model written against an older head lands here, which is the
+        # whole of what happens to it now: an execution takes a second or two,
+        # and a model that could report a fraction honestly is the exception.
         logger.debug("Ignoring an unknown message from the model: %r", message_type)
 
     def _handle_ready(self, message: dict[str, Any]) -> None:
@@ -347,12 +384,17 @@ class ModelProcess:
                 ModelProtocolError(f"The model announced itself unintelligibly: {error}")
             )
 
-    async def _capture_output(self, stream: asyncio.StreamReader | None, level: int) -> None:
-        """Drain the *Model's* stdout or stderr into this head's log.
+    async def _capture_output(
+        self, stream: asyncio.StreamReader | None, level: int, log_level: LogLevel
+    ) -> None:
+        """Drain the *Model's* stdout or stderr into this head's log, and on
+        towards the *User* watching the page.
 
         Draining is not optional even when nothing is done with the output: a
         pipe nobody reads fills up, and the model then blocks on its next
-        `print` — which looks exactly like a model that hangs.
+        `print` — which looks exactly like a model that hangs. That is also why
+        a sink that raises is swallowed here: a broker that has gone away must
+        not stop this loop reading.
         """
         if stream is None:
             return
@@ -360,7 +402,18 @@ class ModelProcess:
             line = await stream.readline()
             if not line:
                 return
-            logger.log(level, "[model] %s", line.decode("utf-8", "replace").rstrip())
+            text = line.decode("utf-8", "replace").rstrip()
+            logger.log(level, "[model] %s", text)
+
+            sink, attribution = self.output_sink, self._attribution
+            if sink is None or attribution is None:
+                # Nothing is running, so this line belongs to no execution —
+                # a startup banner, or something printed after the report.
+                continue
+            try:
+                await sink(attribution, text, log_level)
+            except Exception:
+                logger.warning("Could not forward a line of the model's output", exc_info=True)
 
     async def _watch_for_exit(self, process: asyncio.subprocess.Process) -> None:
         """Fail whatever is in flight when the *Model* dies.

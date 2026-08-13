@@ -19,7 +19,7 @@ Four channels connect the two processes, and it matters which is which:
 | Channel | Direction | Carries |
 | --- | --- | --- |
 | The **command pipe** | head → model | Commands, as JSON lines. |
-| The **result pipe** | model → head | Results and progress, as JSON lines. |
+| The **result pipe** | model → head | Results, as JSON lines. |
 | **stdout and stderr** | model → head | Whatever the model prints. Captured as its log. |
 | The **page directory** | both | The files a command reads and writes. |
 
@@ -206,17 +206,6 @@ The executions in a batch may come from different *Pipeline Executions* and diff
 The `error` string is propagated up into the *Pipeline Execution* log, so it is worth writing for a human.
 
 
-### `progress` — model → head
-
-Optional, sent any number of times while an execution is running:
-
-```json
-{ "type": "progress", "execution_id": "e7c1", "message": "staff 3/12", "fraction": 0.25 }
-```
-
-Anything the *Model* prints is already captured as a log line, so `progress` is only needed when progress must be attributed to a *specific* execution — which in practice means during a batch, where the *Worker Head* cannot tell which sample a printed line belongs to and attributes it to all of them.
-
-
 ### `shutdown` — head → model
 
 ```json
@@ -234,6 +223,7 @@ The escalation goes to the *Model's* process group rather than to the one proces
 
 - **One command at a time.** A *Model* does not multitask. The *Worker Head* sends no further command until every execution in the current one has been reported. A *Model* may therefore be written as a plain loop, with no concurrency of any kind.
 - **A closed command pipe means stop.** Reading EOF on the command pipe is equivalent to `shutdown` — it is what the *Model* sees if the *Worker Head* dies.
+- **What the *Model* prints belongs to what it is executing.** The head attributes captured output to the execution it currently has in the model, which follows from one command at a time. Output printed before the first execution — an import banner, a model announcing its weights — belongs to no execution and stays in the head's own log. Output printed just after a report is still attributed to the execution that produced it, since output and reports travel on different pipes and the last line of a model that prints and then reports is routinely read afterwards.
 - **A dead model fails its work.** If the *Model* process exits, or its result pipe reaches EOF, every execution in flight is reported as failed up the chain, which fails the *Pipeline Execution*. The *Worker Head* then restarts the model and, once it says `ready` again, resumes taking work.
 - **Unknown message types are ignored**, in both directions, so that the protocol can grow without breaking either side.
 
@@ -290,4 +280,5 @@ for line in commands:
 
 - **Detecting what changed** — the *Worker Head* uploads the files a command created or changed, but the detection mechanism (modification time against content hash) and whether *deletions* propagate are unspecified. See [Rough edges](rough-edges.md).
 - **Per-model timeouts** — a *Model* that hangs currently ties up its *Worker* until the *Pipeline Execution* times out from above. A watchdog on the head side would bound this.
+- **Attributing output during a batch** — a batch carries executions from several *Pipeline Executions*, and a printed line names none of them, so the head could only attribute it to one of the batch or to all of them. Nothing decides this yet because `execute-batch` is not issued yet; whatever is decided is a rule of this page, not a new message.
 - **Weights and warm-up** — nothing in the protocol says when a *Model* may load its weights. Doing it before `ready` is the obvious choice, and delays announcement rather than delaying work, but a model with several large variants may want something more gradual.

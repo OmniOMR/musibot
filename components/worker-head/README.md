@@ -1,6 +1,6 @@
 # worker-head
 
-A small process — comparable to the [OpenFaaS watchdog](https://docs.openfaas.com/architecture/watchdog/) — that connects one *Model* to Musibot. It is not really a framework: it owns the RabbitMQ consume loop, batching, progress reporting, and MinIO access, and runs the model itself as a child subprocess.
+A small process — comparable to the [OpenFaaS watchdog](https://docs.openfaas.com/architecture/watchdog/) — that connects one *Model* to Musibot. It is not really a framework: it owns the RabbitMQ consume loop, batching, log forwarding, and MinIO access, and runs the model itself as a child subprocess.
 
 
 ## How it talks to a model
@@ -17,7 +17,7 @@ The model is started in a session of its own, so a terminal's signals reach this
 
 - Consume work messages for one model type from RabbitMQ and batch them.
 - Launch and drive the model subprocess; move page data to and from MinIO.
-- Stream progress and results back over RabbitMQ.
+- Forward whatever the model prints onto `musibot.logs`, and publish results back over RabbitMQ.
 
 
 ## What one execution looks like
@@ -27,6 +27,15 @@ The model is started in a session of its own, so a terminal's signals reach this
 3. An `execute` command goes down the command pipe, and the model reports `completed` or `failed` back on the result pipe.
 4. Whatever the model created or changed is uploaded, and the page's local mirror is discarded — it is scratch space for one execution, not a cache.
 5. The result is published to the queue named by the request's `reply_to`. Who that is — an *Orchestrator Head*, or the `api` service running an *ImplicitPipeline* — is not this head's business.
+
+
+## What the model prints
+
+Every line the model writes to stdout or stderr is published on the `musibot.logs` fanout exchange as it is read, and goes **straight to the `api` service** rather than back through whoever asked for the work — see [RabbitMQ exchanges and messages](../../docs/rabbitmq-exchanges-and-messages.md). stdout is forwarded at level `info` and stderr at `warning`. Two lines of this head's own are published alongside them: what the model wrote, and, when an execution fails, why.
+
+Each line is attributed to the *Pipeline Execution* that caused the work, which is why one rides along on every `model-execution-start`. The attribution is whatever the model is currently executing — a model executes one command at a time, so there is never a question of which — and it is *not* cleared when an execution reports. Output and reports arrive on two different pipes, so a model that prints and then immediately reports completion routinely has that last line read afterwards; dropping it would lose exactly the line a *User* was waiting for. Anything printed before the first execution — an import banner, a model announcing its weights — belongs to no execution and stays in this head's own log.
+
+Publishing is fire-and-forget: nothing acknowledges a log line, and a broker that refuses one costs the *User* a line of output rather than the execution.
 
 
 ## Depends on
@@ -76,7 +85,6 @@ The model side is a real subprocess over real pipes, driven by a scriptable fake
 ## Not yet implemented
 
 - **Batching.** A model's `supports_batching` is read and announced, but every execution is currently sent as its own `execute` command and no `execute-batch` is ever issued. A batching model therefore works correctly, just without the throughput it could have.
-- **Log forwarding.** A model's stdout and stderr are captured and drained — which they must be, or a model blocks on its next `print` — but they go to this head's own log rather than onto `musibot.logs` for the `api` service to stream to the Web UI. Same for `progress` messages.
 
 
 ## Deployment

@@ -19,21 +19,21 @@ import { cuni, mono, paper } from "../../theme";
  * perforations travel with a sheet — a fixed strip would read as a border and
  * lose the whole idea.
  *
- * The lines it is being given are a stand-in until the API can stream a real
- * one; see `page/log.ts`, which is the only file that has to change for it.
- * Nothing here knows the difference, which is the point of building it this way
- * round, but the panel does say which it is showing — a fake log presented
- * without comment is worse than no log.
+ * The lines arrive over SSE as they are printed; `page/log.ts` holds the stream
+ * and this draws whatever it has. `problem` is the one thing it says for
+ * itself: a log that has stopped being watched must not look like a reading
+ * that has gone quiet.
  */
 export default function LogPanel({
   lines,
   streaming,
-  real,
+  problem,
   onCollapse,
 }: {
   lines: LogLine[];
+  /** Something is still being read, which the panel shows as a cursor. */
   streaming: boolean;
-  real: boolean;
+  problem: string | null;
   onCollapse: () => void;
 }) {
   const scroller = useRef<HTMLDivElement | null>(null);
@@ -90,11 +90,11 @@ export default function LogPanel({
           >
             Recognition log
           </Box>
-          {!real && (
+          {problem !== null && (
             <Box
               sx={{ fontFamily: mono, fontSize: "0.6875rem", lineHeight: 1, color: cuni.redDark }}
             >
-              sample — Musibot does not record one yet
+              {problem}
             </Box>
           )}
         </Box>

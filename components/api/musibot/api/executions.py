@@ -21,6 +21,7 @@ same instant and need no locking among themselves.
 
 import asyncio
 import logging
+from datetime import UTC, datetime
 
 from musibot.core.discovery import ModelDescription, generate_instance_id
 from musibot.core.execution import (
@@ -50,6 +51,7 @@ from musibot.api.domain import (
     PageNotFound,
     PipelineExecution,
 )
+from musibot.api.logs import LogHub
 from musibot.api.messaging import MessagePublisher
 
 logger = logging.getLogger(__name__)
@@ -79,11 +81,18 @@ class ExecutionService:
         *,
         timeout_seconds: float,
         instance_id: str | None = None,
+        logs: LogHub | None = None,
     ):
         self._repository = repository
         self._publisher = publisher
         self._registry = registry
         self._timeout_seconds = timeout_seconds
+        # Where this service says what it is doing with an execution. It is the
+        # only participant that knows an execution was requested, settled or
+        # timed out, and a log of those moments is what a *User* watching a
+        # silent *Model* has to go on. A hub nobody watches discards them, which
+        # is what the default here is.
+        self._logs = logs or LogHub(repository)
         self.reply_queue = REPLY_QUEUE_PREFIX + (instance_id or generate_instance_id())
         # Timeout timers are tracked so they can be cancelled at shutdown; a
         # fired timer removes itself.
@@ -149,6 +158,11 @@ class ExecutionService:
 
         self._arm_timeout(page.page_id, execution.execution_id, timeout)
 
+        self._logs.publish(
+            page.page_id,
+            execution.execution_id,
+            f"running {pipeline_name} {pipeline_version} on {', '.join(execution.input)}",
+        )
         logger.info(
             "Started %spipeline execution %s/%d (%s %s)",
             "implicit " if model is not None else "",
@@ -287,6 +301,17 @@ class ExecutionService:
         execution.error = error
         logger.info("Pipeline execution %s/%d %s", page_id, execution_id, execution.state)
 
+        elapsed = (datetime.now(UTC) - execution.started_at).total_seconds()
+        if execution.state == "completed":
+            self._logs.publish(page_id, execution_id, f"completed in {elapsed:.1f}s")
+        else:
+            self._logs.publish(
+                page_id,
+                execution_id,
+                f"failed after {elapsed:.1f}s{f': {error}' if error else ''}",
+                level="error",
+            )
+
     def _arm_timeout(self, page_id: str, execution_id: int, timeout: float) -> None:
         timer = asyncio.create_task(self._expire_after_timeout(page_id, execution_id, timeout))
         self._timers.add(timer)
@@ -310,6 +335,7 @@ class ExecutionService:
         execution.state = "failed"
         execution.error = f"Pipeline execution timed out after {timeout:.0f}s"
         logger.warning("Pipeline execution %s/%d timed out", page_id, execution_id)
+        self._logs.publish(page_id, execution_id, execution.error, level="error")
         await self._publish_terminate(page_id, execution_id)
 
     async def _publish_terminate(self, page_id: str, execution_id: int) -> None:

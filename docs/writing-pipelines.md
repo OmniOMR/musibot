@@ -65,7 +65,7 @@ async def hello_world_pipeline(ctx: PipelineContext):
 
 The pipeline function gets a `ctx` context object that acts as the API for communication with the rest of the Musibot system. From what we can see:
 
-- `ctx.logger.info(...)` Prints messages to the pipeline execution log.
+- `ctx.logger.info(...)` Writes a line to the *Pipeline Execution's* log, which reaches a *User* watching that page as it is written (see [the HTTP API](http-api.md)). Alongside it are the lines the *Models* this pipeline runs printed for themselves.
 - `ctx.read_file_bytes(...)` Reads a binary *File* from the current *MusicorpusPage* directory.
 - `ctx.write_file_string(...)` Writes a text *File* to the current *MusicorpusPage* directory.
 - `ctx.input` The *Files* the *User* asked to have processed, as a list of concrete paths.

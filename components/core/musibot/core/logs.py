@@ -1,18 +1,23 @@
 """The log stream: output from *Models* and *Pipelines*, on its way to a *User*.
 
-Log and progress messages travel straight to the `api` service — not back
-through the *Orchestrator* that requested the work — and each names the
-*Pipeline Execution* it belongs to. See
-`docs/rabbitmq-exchanges-and-messages.md`.
+Log messages travel straight to the `api` service — not back through the
+*Orchestrator* that requested the work — and each names the *Pipeline Execution*
+it belongs to. See `docs/rabbitmq-exchanges-and-messages.md`.
 
 These are fire-and-forget DTOs: nothing acknowledges, retries or orders them,
-and one arriving after its *Pipeline Execution* has finished is dropped. They
-are for a human watching a page being read, not an audit trail.
+and one arriving when nobody is watching that page is dropped. They are for a
+human watching a page being read, not an audit trail.
+
+There is nothing here about *progress*. An execution takes a second or two, and
+the models Musibot runs cannot say how far along they are anyway — a detector
+produces every box at the end of one forward pass, and an autoregressive model
+does not know how many tokens it is about to emit. A log line is the whole of
+what a *User* is told while they wait.
 """
 
-from typing import Annotated, Literal
+from typing import Literal
 
-from pydantic import BaseModel, Discriminator, TypeAdapter
+from pydantic import BaseModel, TypeAdapter
 
 from musibot.core.execution import PipelineExecutionRef
 
@@ -43,24 +48,12 @@ class LogMessage(BaseModel):
     timestamp: str | None = None
 
 
-class ProgressMessage(BaseModel):
-    """A fractional progress report for a *Pipeline Execution*."""
-
-    type: Literal["progress"] = "progress"
-    pipeline_execution: PipelineExecutionRef
-    source: LogSource
-    message: str | None = None
-    fraction: float | None = None
+_ADAPTER: TypeAdapter[LogMessage] = TypeAdapter(LogMessage)
 
 
-LogStreamMessage = Annotated[LogMessage | ProgressMessage, Discriminator("type")]
-
-_ADAPTER: TypeAdapter[LogMessage | ProgressMessage] = TypeAdapter(LogStreamMessage)
-
-
-def parse_log_message(payload: str | bytes) -> LogMessage | ProgressMessage:
+def parse_log_message(payload: str | bytes) -> LogMessage:
     """Parse a message off the log exchange, raising `pydantic.ValidationError`
-    if it is neither a log nor a progress message."""
+    if it is not a log message."""
     return _ADAPTER.validate_json(payload)
 
 

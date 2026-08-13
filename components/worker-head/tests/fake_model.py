@@ -84,6 +84,12 @@ for line in commands:
 
     page_dir = pages_dir / command["page"]
 
+    if MODE == "talks":
+        # A model that prints while it works, which is the whole of what a Model
+        # has to do to reach the log a User is watching.
+        print("transcribing staff 1/2")
+        print("staff 2 is smudged", file=sys.stderr)
+
     if MODE == "wrong-path":
         # Reports success, but writes its output somewhere its signature does
         # not promise — the commonest way to get a Model wrong.

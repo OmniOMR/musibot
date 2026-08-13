@@ -104,9 +104,9 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header X-Forwarded-Prefix ${MUSIBOT_PUBLIC_PREFIX}/api;
 
-        # Server-Sent Events: the API streams pipeline execution progress, and
+        # Server-Sent Events: the API streams a page's recognition log, and
         # buffering holds a stream back to deliver it all at the end, which is
-        # precisely not the point of a progress stream.
+        # precisely not the point of watching a page being read.
         proxy_buffering off;
         proxy_cache off;
         proxy_read_timeout 1h;

@@ -8,10 +8,12 @@ objects they are built from live in `domain.py`.
 from datetime import datetime
 
 from musibot.core import PageFilePath
+from musibot.core.logs import LogLevel
 from pydantic import BaseModel
 
 from musibot.api.discovery import DiscoveryWarning, Listing, PipelineListing, WarningType
 from musibot.api.domain import MusicorpusPage, PipelineExecution
+from musibot.api.logs import LogLine, SourceKind
 from musibot.api.storage import StoredFile
 
 
@@ -55,6 +57,40 @@ class MusicorpusPageView(BaseModel):
                 PipelineExecutionView.of(execution)
                 for execution in sorted(page.executions.values(), key=lambda e: e.execution_id)
             ],
+        )
+
+
+class LogLineView(BaseModel):
+    """One line of a page's log, as one SSE event carries it.
+
+    `seconds` is time since its *Pipeline Execution* started rather than a
+    timestamp: what a reader is judging is how long a step took. It is measured
+    on the `api` service's clock, the one clock every line passes through.
+
+    Nothing here says which *File* or which *Model* execution a line concerns.
+    A log line is text a human reads; a client that wants structure reads the
+    execution and the file listing, which are structured on purpose.
+    """
+
+    execution_id: int
+    seconds: float
+    # `worker` and `orchestrator` lines were printed by a *Model* or a
+    # *Pipeline*; `api` lines are the service saying what it did with the
+    # execution, and are the only ones guaranteed to appear at all.
+    kind: SourceKind
+    source: str
+    level: LogLevel
+    message: str
+
+    @classmethod
+    def of(cls, line: LogLine) -> "LogLineView":
+        return cls(
+            execution_id=line.execution_id,
+            seconds=line.seconds,
+            kind=line.kind,
+            source=line.source,
+            level=line.level,
+            message=line.message,
         )
 
 

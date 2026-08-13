@@ -20,14 +20,16 @@ from musibot.core.execution import (
     PIPELINE_EXECUTION_RESULTS_EXCHANGE,
     PIPELINE_EXECUTIONS_EXCHANGE,
 )
+from musibot.core.logs import LOGS_EXCHANGE
 
 from musibot.api.config import ApiSettings
 from musibot.api.discovery import ProviderRegistry
 from musibot.api.domain import MusicorpusPageRepository
 from musibot.api.executions import ExecutionService
+from musibot.api.logs import LogHub
 from musibot.api.messaging import Broker, MessagePublisher
 from musibot.api.public import PublicAccess
-from musibot.api.routes import executions, files, pages, pipelines, public_sessions
+from musibot.api.routes import executions, files, logs, pages, pipelines, public_sessions
 from musibot.api.storage import StoragePort
 
 logger = logging.getLogger(__name__)
@@ -51,12 +53,17 @@ def create_app(
     """
     repository = pages_repository or MusicorpusPageRepository()
     providers = registry or ProviderRegistry()
+    # Built whether or not there is a broker to feed it: the service's own
+    # account of an execution goes through it too, and a hub nobody watches
+    # discards everything it is given.
+    log_hub = LogHub(repository)
     execution_service = (
         ExecutionService(
             repository,
             publisher,
             providers,
             timeout_seconds=settings.pipeline_execution_timeout_seconds,
+            logs=log_hub,
         )
         if publisher is not None
         else None
@@ -103,6 +110,15 @@ def create_app(
                     execution_service.reply_queue, execution_service.handle_model_result
                 )
 
+            # Everything the fleet prints arrives here, whether or not anyone is
+            # watching a page — a line for a page nobody watches is dropped, and
+            # that is the whole of what happens to it.
+            await broker.subscribe(
+                exchange=LOGS_EXCHANGE,
+                exchange_type=ExchangeType.FANOUT,
+                handler=log_hub.handle_message,
+            )
+
             # Listen for announcements before asking for them, so that no reply
             # to the probe arrives before there is a queue to hold it.
             await broker.subscribe(
@@ -143,11 +159,13 @@ def create_app(
     app.state.storage = storage
     app.state.executions = execution_service
     app.state.public_access = public_access
+    app.state.logs = log_hub
 
     app.include_router(public_sessions.router)
     app.include_router(pages.router)
     app.include_router(files.router)
     app.include_router(executions.router)
+    app.include_router(logs.router)
     app.include_router(pipelines.router)
 
     @app.get("/health", tags=["meta"])

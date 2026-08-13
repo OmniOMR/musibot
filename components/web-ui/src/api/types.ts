@@ -79,6 +79,25 @@ export interface PipelineListingResponse {
   warnings: PipelineWarningView[];
 }
 
+/**
+ * One line of a page's log, as one event of the SSE stream carries it.
+ *
+ * `seconds` is time since its *Pipeline Execution* started rather than a
+ * timestamp — what a reader is judging is how long a step took — and it is
+ * measured on the service's clock, the one clock every line passes through.
+ */
+export interface LogLineView {
+  execution_id: number;
+  seconds: number;
+  /** `worker` and `orchestrator` lines were printed by a *Model* or a
+   * *Pipeline*; `api` is the service saying what it did with the execution. */
+  kind: "worker" | "orchestrator" | "api";
+  /** The *Model* or *Pipeline* that printed it, or `api` for the service. */
+  source: string;
+  level: "debug" | "info" | "warning" | "error";
+  message: string;
+}
+
 /** What starting a *Pipeline Execution* asks for. */
 export interface StartExecutionRequest {
   pipeline_name: string;

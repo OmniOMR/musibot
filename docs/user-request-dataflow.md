@@ -45,7 +45,7 @@ POST /musicorpus-pages/7Kf2mP9xLwQ/pipeline-executions
 
 The response contains a JSON representation of the *PipelineExecution* domain object with the ID equal to `1` (the first execution for this page).
 
-Then it waits for the execution to finish (complete or fail). Later, this will be done consuming an SSE stream, but for now it will do 1s polling at this endpoint:
+Then it waits for the execution to finish (complete or fail) by polling this endpoint every second:
 
 ```
 GET /musicorpus-pages/7Kf2mP9xLwQ/pipeline-executions/1
@@ -132,4 +132,4 @@ When an execution command arrives, the model reads the corresponding input files
 
 A *Model* does not multitask, it executes one command at a time.
 
-The protocol deliberately avoids standard input and output, leaving both of the *Model's* own output streams free. Whatever the model prints — with `print`, through the `logging` module, or from a library announcing itself on import — is captured by the *Worker Head* and forwarded to RabbitMQ as log messages. They go straight to the `api` service, which attaches them to the *Pipeline Execution* they belong to and streams them onward via SSE to the web UI, where they may be viewed in near real-time by the *User*. A *Model* needs no logging setup, and a stray `print` cannot corrupt the protocol. See [Worker IPC](worker-ipc.md) for why this is worth two extra file descriptors, and [RabbitMQ exchanges and messages](rabbitmq-exchanges-and-messages.md) for why the logs do not travel back through the *Orchestrator*.
+The protocol deliberately avoids standard input and output, leaving both of the *Model's* own output streams free. Whatever the model prints — with `print`, through the `logging` module, or from a library announcing itself on import — is captured by the *Worker Head* and forwarded to RabbitMQ as log messages, attributed to the *Pipeline Execution* that caused the work (which is why one rides along on every model execution request). They go straight to the `api` service, which forwards them over SSE to whoever is watching that page — in near real time, so a *User* sees the reading happen. If nobody is watching, they are dropped there; nothing is stored. A *Model* needs no logging setup, and a stray `print` cannot corrupt the protocol. See [Worker IPC](worker-ipc.md) for why this is worth two extra file descriptors, [the HTTP API](http-api.md) for the stream a *User* reads them from, and [RabbitMQ exchanges and messages](rabbitmq-exchanges-and-messages.md) for why the logs do not travel back through the *Orchestrator*.

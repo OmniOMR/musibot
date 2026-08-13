@@ -27,6 +27,7 @@ from musibot.core.execution import (
     parse_model_execution_message,
     serialize_message,
 )
+from musibot.core.logs import LOGS_EXCHANGE, LogMessage, parse_log_message
 
 from musibot.worker_head.messaging import DEFAULT_EXCHANGE, WorkMessage
 from musibot.worker_head.storage import FileStamp, InputFileMissing
@@ -67,6 +68,13 @@ class FakePublisher:
             if message.exchange == DEFAULT_EXCHANGE
         ]
         return [message for message in parsed if isinstance(message, ModelExecutionResult)]
+
+    def logs(self) -> list[LogMessage]:
+        return [
+            parse_log_message(message.body)
+            for message in self.published
+            if message.exchange == LOGS_EXCHANGE
+        ]
 
 
 class FakeStorage:
@@ -376,7 +384,7 @@ def test_a_request_naming_no_reply_queue_is_run_but_not_answered(tmp_path: Path)
 
             # The work is done — there is simply nowhere to say so.
             assert storage.uploaded == ["out.txt"]
-            assert publisher.published == []
+            assert publisher.results() == []
         finally:
             await model.shutdown()
 
@@ -424,6 +432,130 @@ def test_executions_are_run_one_at_a_time(tmp_path: Path) -> None:
     run(scenario)
 
 
+# --- the log stream ----------------------------------------------------------
+
+
+async def until(condition: Any, what: str, timeout: float = 5.0) -> None:
+    """Wait for the *Model's* output to have been drained.
+
+    Output and reports travel on two different pipes read by two different
+    tasks, so an execution returning does not mean everything the model printed
+    has been read yet — in a running *Worker* those last lines simply arrive a
+    moment later, and a test has to wait for them rather than assume.
+    """
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + timeout
+    while not condition():
+        if loop.time() > deadline:
+            raise AssertionError(f"Timed out waiting for {what}")
+        await asyncio.sleep(0.01)
+
+
+def test_what_the_model_prints_reaches_the_log_exchange(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        publisher = FakePublisher()
+        worker, model = await a_worker(tmp_path, publisher, FakeStorage(tmp_path), mode="talks")
+        try:
+            await worker.handle_start(work(a_start()))
+            await until(lambda: len(publisher.logs()) >= 3, "the model's output")
+
+            printed = {log.message: log for log in publisher.logs()}
+            assert "transcribing staff 1/2" in printed
+            assert "staff 2 is smudged" in printed
+
+            # Attributed to the Pipeline Execution that caused the work, which
+            # rode along on the request precisely so that the Model need not
+            # know about it.
+            line = printed["transcribing staff 1/2"]
+            assert line.pipeline_execution == PipelineExecutionRef(page_id=PAGE_ID, execution_id=1)
+            assert line.source.kind == "worker"
+            assert line.source.name == "fake-model"
+            assert line.source.instance_id == "w-1"
+            assert line.timestamp is not None
+
+            # stdout is ordinary output; stderr is where a model complains.
+            assert printed["transcribing staff 1/2"].level == "info"
+            assert printed["staff 2 is smudged"].level == "warning"
+        finally:
+            await model.shutdown()
+
+    run(scenario)
+
+
+def test_the_files_the_model_wrote_are_said_in_the_log(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        publisher = FakePublisher()
+        worker, model = await a_worker(tmp_path, publisher, FakeStorage(tmp_path))
+        try:
+            await worker.handle_start(work(a_start()))
+
+            assert [log.message for log in publisher.logs()] == ["wrote out.txt"]
+        finally:
+            await model.shutdown()
+
+    run(scenario)
+
+
+def test_a_model_failure_is_said_in_the_log_as_well_as_in_the_result(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        publisher = FakePublisher()
+        worker, model = await a_worker(tmp_path, publisher, FakeStorage(tmp_path), mode="fail")
+        try:
+            await worker.handle_start(work(a_start()))
+
+            [line] = publisher.logs()
+            assert line.message == "No staves found in the image."
+            assert line.level == "error"
+        finally:
+            await model.shutdown()
+
+    run(scenario)
+
+
+def test_output_printed_while_nothing_runs_belongs_to_nobody(tmp_path: Path) -> None:
+    """A model announcing itself at startup, or a library printing a banner on
+    import, has no execution to be attributed to — so it stays in this head's
+    own log and is not published."""
+
+    async def scenario() -> None:
+        publisher = FakePublisher()
+        worker, model = await a_worker(tmp_path, publisher, FakeStorage(tmp_path))
+        assert worker.description.name == "fake-model"
+        try:
+            # The fake model prints as soon as it is ready; give the reader time
+            # to have done something with it, if it were going to.
+            await asyncio.sleep(0.1)
+
+            assert publisher.logs() == []
+        finally:
+            await model.shutdown()
+
+    run(scenario)
+
+
+def test_a_broker_that_refuses_a_log_line_does_not_fail_the_execution(tmp_path: Path) -> None:
+    class RefusingPublisher(FakePublisher):
+        async def publish(self, exchange: str, *args: Any, **kwargs: Any) -> None:
+            if exchange == LOGS_EXCHANGE:
+                raise ConnectionError("the broker went away")
+            await super().publish(exchange, *args, **kwargs)
+
+    async def scenario() -> None:
+        publisher = RefusingPublisher()
+        worker, model = await a_worker(tmp_path, publisher, FakeStorage(tmp_path), mode="talks")
+        try:
+            await worker.handle_start(work(a_start()))
+
+            # The User loses a line of output, which is worth far less than the
+            # work; the execution is reported exactly as it would have been.
+            [result] = publisher.results()
+            assert result.state == "completed"
+        finally:
+            await model.shutdown()
+
+    run(scenario)
+
+
 def test_the_result_is_valid_json_on_the_wire(tmp_path: Path) -> None:
     async def scenario() -> None:
         publisher = FakePublisher()
@@ -431,7 +563,7 @@ def test_the_result_is_valid_json_on_the_wire(tmp_path: Path) -> None:
         try:
             await worker.handle_start(work(a_start()))
 
-            [message] = publisher.published
+            [message] = [m for m in publisher.published if m.exchange == DEFAULT_EXCHANGE]
             assert json.loads(message.body)["type"] == "model-execution-result"
         finally:
             await model.shutdown()

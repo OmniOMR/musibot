@@ -8,6 +8,17 @@ Versions are semver on the **HTTP API**, which is the outward contract for `pyth
 ## Unreleased
 
 
+### Added
+
+- **`POST /musicorpus-pages/{id}/logs`** — an SSE stream of everything logged for one page, so a *User* can watch a reading happen rather than waiting on a poll. Each event's `data` is one line as JSON: the `execution_id` it belongs to, `seconds` into that execution, who said it (`kind` — `worker`, `orchestrator` or `api` — and `source`), its `level`, and the `message`. Comment frames (`: ping`) keep an idle stream open and are ignored by any SSE client. The stream ends when the client hangs up or the page is deleted.
+
+  One stream per page rather than per *Pipeline Execution*, because a page may be read several times and somebody debugging a reading wants the whole story in the order it happened. It is a `POST` because a `GET` invites `EventSource`, which cannot send an `Authorization` header — and the usual way round that puts the token in the query string, where it lands in proxy logs and browser history. Read it with `fetch`.
+
+  **Nothing is replayed.** Lines produced while nobody was watching are gone: this is a *User* watching a page being read, not an audit trail, and the one service that holds all the state is not going to hold a buffer per page as well. A client that wants the whole log opens the stream before starting an execution.
+
+- **The service narrates an execution it is running.** Lines of `kind: "api"` say when an execution was requested, that it completed and how long it took, or that it failed or timed out and why. Without them a *Model* that prints nothing leaves an empty panel while something is plainly happening, and these are moments only this service knows about.
+
+
 ## 0.2.1 — 2026-08-07
 
 A packaging fault that stopped 0.2.0 starting anywhere it was actually deployed. Nothing about the HTTP API or the service's behaviour changes; if 0.2.0 runs for you, this is not urgent, and if it does not, this is why.

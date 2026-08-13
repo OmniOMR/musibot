@@ -38,6 +38,8 @@ interface RequestOptions {
   token?: string;
   body?: unknown;
   signal?: AbortSignal;
+  /** Extra headers — `Accept`, for the one endpoint that answers a stream. */
+  headers?: Record<string, string>;
 }
 
 /** The service's `detail` string, if the body was the shape it usually is. */
@@ -80,12 +82,19 @@ function errorFor(response: Response, detail: string | undefined): ApiError {
   }
 }
 
-async function request<T>(
+/**
+ * One call to the API, answered or thrown.
+ *
+ * The raw `Response` rather than a parsed body, because one endpoint — the log
+ * stream — answers with a body that never ends and must be read as it arrives.
+ * Everything else goes through `request` below.
+ */
+export async function apiFetch(
   method: string,
   path: string,
-  { token, body, signal }: RequestOptions = {},
-): Promise<T> {
-  const headers: Record<string, string> = {};
+  { token, body, signal, headers: extra }: RequestOptions = {},
+): Promise<Response> {
+  const headers: Record<string, string> = { ...extra };
   if (token !== undefined) {
     headers.Authorization = `Bearer ${token}`;
   }
@@ -103,6 +112,11 @@ async function request<T>(
   if (!response.ok) {
     throw errorFor(response, await detailOf(response));
   }
+  return response;
+}
+
+async function request<T>(method: string, path: string, options: RequestOptions = {}): Promise<T> {
+  const response = await apiFetch(method, path, options);
 
   // 204 on DELETE, and nothing to parse.
   if (response.status === 204) {

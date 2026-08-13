@@ -98,6 +98,17 @@ export default function MusicorpusPageScreen() {
     [state.executions, state.pipelines, state.files],
   );
 
+  /**
+   * Whether anything is still being read, which the log shows as a cursor.
+   *
+   * Read from the executions rather than from the log: a *Model* that has said
+   * nothing for ten seconds is still working, and a log that stopped blinking
+   * would say otherwise.
+   */
+  const reading = state.executions.some(
+    (execution) => execution.state === "running" || execution.state === "queued",
+  );
+
   /** The row the canvas is showing, which is the selection made whole. */
   const selectedRow = useMemo(
     () =>
@@ -211,8 +222,8 @@ export default function MusicorpusPageScreen() {
       {logOpen && (
         <LogPanel
           lines={log.lines}
-          streaming={log.streaming}
-          real={log.real}
+          streaming={reading}
+          problem={log.problem}
           onCollapse={() => setLogOpen(false)}
         />
       )}

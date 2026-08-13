@@ -5,7 +5,7 @@ Single-page web application for the *General public* and *Model developers*. A U
 
 ## Responsibilities
 
-- Upload page scans (JPEG), pick a pipeline, watch live progress via the API's SSE stream.
+- Upload page scans (JPEG), pick a pipeline, and watch the reading happen — the recognition log arrives over the API's SSE stream.
 - View and download recognition results.
 
 
@@ -67,7 +67,9 @@ A pipeline this app cannot drive from a single upload — one needing a *File* a
 
 The workspace behind an upload: full height, panels rather than a content column. `src/page/` holds its logic and `src/screens/page/` its parts.
 
-**Progress is polled, not streamed.** [The HTTP API](../../docs/http-api.md) promises an SSE stream and it is not implemented, so `usePageState` asks every 1.5 seconds while an execution is running and stops the moment nothing is. The consequence is visible and deliberate: a finished execution's outputs appear together rather than one at a time, so a running execution shows a spinner and never a count. **Nothing here may show a percentage** — an image-to-sequence model does not know how long its own output will be, so there is no figure to report even once streaming exists. Stopping when idle matters too: the public tier is one shared pool, and every open tab polling forever would be a permanent load on it.
+**State is polled; the log is streamed.** `usePageState` asks every 1.5 seconds while an execution is running and stops the moment nothing is, so a finished execution's outputs appear together rather than one at a time and a running execution shows a spinner and never a count. Stopping when idle matters: the public tier is one shared pool, and every open tab polling forever would be a permanent load on it. **Nothing here may show a percentage** — an image-to-sequence model does not know how long its own output will be, so there is no figure to report, which is why Musibot has no progress reporting at all.
+
+**The log is a real stream, and it is not replayed.** `usePageLog` opens `POST /musicorpus-pages/{id}/logs` with `fetch` — not `EventSource`, which cannot send the bearer header every other call uses — and holds it open for as long as the screen is, not only while something runs: the service keeps no buffer, so a stream opened after an execution had started would miss its beginning. Lines accumulate in the hook rather than in `LogPanel`, so collapsing the panel and opening it again shows the whole log; a browser reload loses it, which is what "no buffer" means. A dropped connection is retried, and the panel says so rather than letting a stopped log look like a quiet reading.
 
 **The file list is the page's contents, not any execution's outputs.** A page's folder is flat storage that several executions have written into, and a later one may overwrite what an earlier one produced — so grouping files under the run that wrote them would put one path under two headings and make one of them wrong. Executions are the page's history; files are its present. A file a *running* execution declares among its outputs is flagged *will be replaced*, read from the pipeline's *Signature* rather than guessed.
 

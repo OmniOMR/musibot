@@ -5,8 +5,8 @@ The Web API: the python service that serves the public HTTP API. Every external 
 
 ## Responsibilities
 
-- Public HTTP API — upload a page, start a pipeline execution, poll or stream status, list what the page now holds, download the result.
-- SSE stream to the Web UI for live progress.
+- Public HTTP API — upload a page, start a pipeline execution, poll status, list what the page now holds, download the result.
+- The log stream: everything *Models* and *Pipelines* print arrives here over RabbitMQ and is forwarded, over SSE, to whoever is watching that page.
 - Holds all system state, which is entirely ephemeral (a page is received, processed within minutes, downloaded, then forgotten).
 - Authenticates *Library* users via API tokens kept in a config file, and the *General public* via throwaway session tokens capped as one pool — see [Public access](../../docs/public-access.md).
 
@@ -46,6 +46,7 @@ It is a separate file from the service's dotenv config so the secrets are not mi
 ## Testing
 
 - Unit tests for the API layer, driven through FastAPI's `TestClient` with fake collaborators — no RabbitMQ or MinIO needed.
+- The log stream is driven as raw ASGI rather than through `TestClient`, because a stream that never ends is what a buffering test client cannot read.
 - Storage integration tests that run against the [local dev stack's](../../deploy/README.md) MinIO and **skip automatically when it is not reachable**, so the default `pytest` run stays hermetic. Bring MinIO up with `docker compose up` in `/deploy` to exercise them.
 
 ```bash

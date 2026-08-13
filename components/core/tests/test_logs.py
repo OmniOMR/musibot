@@ -8,7 +8,6 @@ from musibot.core.logs import (
     LOGS_EXCHANGE,
     LogMessage,
     LogSource,
-    ProgressMessage,
     parse_log_message,
     serialize_message,
 )
@@ -22,14 +21,6 @@ LOG = {
     "timestamp": "2026-07-23T15:04:05Z",
 }
 
-PROGRESS = {
-    "type": "progress",
-    "pipeline_execution": {"page_id": "7Kf2mP9xLwQa", "execution_id": 1},
-    "source": {"kind": "worker", "name": "staff-detector", "instance_id": "8Lw4tR6yBn1c"},
-    "message": "staff 3/12",
-    "fraction": 0.25,
-}
-
 
 def test_the_documented_log_parses() -> None:
     message = parse_log_message(json.dumps(LOG))
@@ -40,16 +31,8 @@ def test_the_documented_log_parses() -> None:
     assert message.source.name == "staff-detector"
 
 
-def test_the_documented_progress_parses() -> None:
-    message = parse_log_message(json.dumps(PROGRESS))
-
-    assert isinstance(message, ProgressMessage)
-    assert message.fraction == 0.25
-
-
-@pytest.mark.parametrize("payload", [LOG, PROGRESS])
-def test_log_messages_round_trip(payload: dict[str, object]) -> None:
-    message = parse_log_message(json.dumps(payload))
+def test_log_messages_round_trip() -> None:
+    message = parse_log_message(json.dumps(LOG))
 
     assert parse_log_message(serialize_message(message)) == message
 
@@ -77,18 +60,24 @@ def test_a_log_without_a_timestamp_is_allowed() -> None:
 
     message = parse_log_message(json.dumps(payload))
 
-    assert isinstance(message, LogMessage)
     assert message.timestamp is None
 
 
-def test_progress_may_report_a_message_or_a_fraction_or_neither() -> None:
-    bare = ProgressMessage(
-        pipeline_execution=PipelineExecutionRef(page_id="7Kf2mP9xLwQa", execution_id=1),
-        source=LogSource(kind="orchestrator", name="ref", instance_id="3xQ7nP2vKm9w"),
-    )
+def test_a_progress_report_is_no_longer_a_message_of_this_exchange() -> None:
+    # The exchange used to carry progress too. It does not: an execution lasts a
+    # second or two, and the models Musibot runs cannot say how far along they
+    # are. A publisher left on the old protocol is refused rather than silently
+    # taken for a log.
+    payload = {
+        "type": "progress",
+        "pipeline_execution": {"page_id": "7Kf2mP9xLwQa", "execution_id": 1},
+        "source": {"kind": "worker", "name": "staff-detector", "instance_id": "8Lw4tR6yBn1c"},
+        "message": "staff 3/12",
+        "fraction": 0.25,
+    }
 
-    assert bare.message is None
-    assert bare.fraction is None
+    with pytest.raises(ValidationError):
+        parse_log_message(json.dumps(payload))
 
 
 def test_a_log_can_be_built_in_code() -> None:

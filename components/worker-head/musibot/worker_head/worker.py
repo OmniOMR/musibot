@@ -8,11 +8,16 @@ and reports the outcome to whoever asked.
 Who asked is not this head's business: a request carries the queue its result
 belongs on, and that requester is an *Orchestrator Head* or the `api` service
 running an *ImplicitPipeline*, indistinguishably.
+
+Whatever the *Model* prints goes out on `musibot.logs` as it is printed —
+straight to the `api` service rather than back through whoever asked, so that a
+*User* sees it while an *Orchestrator* is still busy computing.
 """
 
 import asyncio
 import logging
 import random
+from datetime import UTC, datetime
 
 from aio_pika.abc import ExchangeType
 from musibot.core.discovery import (
@@ -34,11 +39,14 @@ from musibot.core.execution import (
     ModelExecutionResult,
     ModelExecutionStart,
     ModelExecutionTerminate,
+    PipelineExecutionRef,
     WorkerRef,
     parse_model_execution_message,
     routing_key,
     serialize_message,
 )
+from musibot.core.logs import LOGS_EXCHANGE, LogLevel, LogMessage, LogSource
+from musibot.core.logs import serialize_message as serialize_log_message
 from musibot.core.patterns import parse_file_patterns
 
 from musibot.worker_head.messaging import (
@@ -86,6 +94,12 @@ class WorkerHead:
         if model.description is None:
             raise RuntimeError("A Worker is built only once its Model has said `ready`")
         self.description = model.description
+
+        # From here on, everything the Model prints is forwarded to the log
+        # exchange as well as to this head's own log. Wired now rather than at
+        # construction of the ModelProcess, which happens before there is a
+        # Worker to name as the source.
+        model.output_sink = self.forward_model_output
 
         # Executions cancelled before they started. Termination is best-effort
         # and only cancels what has not begun: a Model executes one command at a
@@ -146,6 +160,43 @@ class WorkerHead:
             except Exception:
                 logger.exception("Failed to announce; will try again next heartbeat")
 
+    # --- the log stream ------------------------------------------------------
+
+    async def forward_model_output(
+        self, pipeline_execution: PipelineExecutionRef, line: str, level: LogLevel
+    ) -> None:
+        """Send one line the *Model* printed on to whoever is watching the page.
+
+        This is the whole reason the IPC keeps the *Model's* stdout and stderr
+        free: a model needs no logging setup, and `print("staff 3/12")` reaches
+        the *User* by itself.
+        """
+        await self._publish_log(pipeline_execution, line, level)
+
+    async def _publish_log(
+        self, pipeline_execution: PipelineExecutionRef, message: str, level: LogLevel = "info"
+    ) -> None:
+        """Publish one log line, fire-and-forget.
+
+        Nothing acknowledges it, and if nobody is watching that page the `api`
+        service drops it. A failure to publish is therefore not allowed to
+        become a failure of the execution: the *User* loses a line of output,
+        which is worth far less than the work.
+        """
+        log = LogMessage(
+            pipeline_execution=pipeline_execution,
+            source=LogSource(
+                kind="worker", name=self.description.name, instance_id=self.instance_id
+            ),
+            level=level,
+            message=message,
+            timestamp=datetime.now(UTC).isoformat(),
+        )
+        try:
+            await self._publisher.publish(LOGS_EXCHANGE, "", serialize_log_message(log))
+        except Exception:
+            logger.warning("Could not publish a log line", exc_info=True)
+
     # --- work ----------------------------------------------------------------
 
     async def handle_terminate(self, body: bytes) -> None:
@@ -170,6 +221,12 @@ class WorkerHead:
             return
 
         state, error = await self._run(message)
+        if state == "failed" and error is not None:
+            # Said in the log as well as in the result, because the result goes
+            # to whoever asked and the log goes to the *User*: an *Orchestrator*
+            # is free to report a failure of its own and lose the model's reason
+            # on the way, which is exactly when somebody wants to read it.
+            await self._publish_log(message.pipeline_execution, error, level="error")
         await self._report(message, work.reply_to, state, error)
 
     async def _run(self, message: ModelExecutionStart) -> tuple[ExecutionState, str | None]:
@@ -187,6 +244,7 @@ class WorkerHead:
                 page_id,
                 list(message.input),
                 dict(message.parameters),
+                message.pipeline_execution,
             )
 
             after = await asyncio.to_thread(self._storage.snapshot, page_id)
@@ -197,6 +255,11 @@ class WorkerHead:
                 len(uploaded),
                 ", ".join(uploaded) or "none",
             )
+            if uploaded:
+                # What a Model wrote is the one thing about an execution that a
+                # User cannot see until it has finished and they have listed the
+                # page, so it is worth a line even from a silent model.
+                await self._publish_log(message.pipeline_execution, f"wrote {', '.join(uploaded)}")
             self._warn_about_undeclared(message, uploaded)
 
             missing = self._missing_promised_outputs(after)
@@ -307,6 +370,10 @@ async def run_worker(
     worker = WorkerHead(model, storage, broker, head_version=head_version)
 
     await broker.declare_exchange(DISCOVERY_EXCHANGE, ExchangeType.FANOUT)
+    # Declared before any work is taken, since the first thing a Model prints
+    # must have somewhere to go. With no `api` service listening the exchange
+    # has no queue bound to it and every line is dropped, which costs nothing.
+    await broker.declare_exchange(LOGS_EXCHANGE, ExchangeType.FANOUT)
 
     await broker.consume_work(
         queue_name=work_queue_name(description.name, description.version),

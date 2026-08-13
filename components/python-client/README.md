@@ -5,7 +5,7 @@ Python package that lets external users (libraries, model developers) talk to a 
 
 ## Responsibilities
 
-- Thin, typed wrapper over the `api` service's HTTP API: upload pages, run pipelines, stream progress, download results.
+- Thin, typed wrapper over the `api` service's HTTP API: upload pages, run pipelines, download results.
 - Batch-friendly helpers for library-scale workloads (millions of pages in bursts).
 
 
@@ -61,7 +61,7 @@ Unit tests run against a fake Musibot server on an `httpx.MockTransport`, so the
 
 ## Not yet implemented
 
-- **Progress streaming.** `wait_for_execution` polls once a second; the SSE stream that replaces it is not built yet.
+- **The log stream.** `wait_for_execution` polls once a second and says nothing while it waits. The `api` service now streams a page's log over SSE (`POST /musicorpus-pages/{id}/logs`), and this client does not read it yet — so a caller watching a long batch sees nothing of what the *Models* are printing.
 - **Batch helpers.** The library-scale burst workflow in the docs is still a TODO.
 
 

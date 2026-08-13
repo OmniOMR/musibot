@@ -28,7 +28,7 @@ Working with *Files*:
 
 This is the only way to learn what a *PipelineExecution* produced: how many staves a page has is what the recognition found out, so the output *File* set is not knowable in advance. It is answered by listing object storage rather than from anything the service remembers — the service is not in the byte-path and keeps no list of its own — which also makes it true across a *File* that a later execution overwrote. The order is storage's own, lexicographic by key, which puts `Staves/10/` before `Staves/2/`.
 
-It is also how progress is watched: poll it while an execution runs and *Files* appear as they are written. Until the SSE stream below exists, polling is the whole of the mechanism, and a caller sees a finished execution's outputs arrive together rather than one at a time.
+It is also how a running execution is watched from the outside: poll it while an execution runs and *Files* appear as they are written. What the execution is *saying* while it does that is [the log stream](#the-log-stream) below.
 
 ```
 GET /musicorpus-pages/{id}/files
@@ -78,8 +78,33 @@ Endpoints to inspect available *Pipelines* and their versions.
 This listing is not configured anywhere — it is assembled from what *Orchestrators* and *Workers* announce over RabbitMQ, and it includes an *ImplicitPipeline* for every known *Model*. Beside the `pipelines` array, the response carries a top-level `warnings` array reporting name and signature conflicts between announcing providers. See [Discovery](discovery.md) for the response shape and for why the listing may lag reality by a few seconds.
 
 
-## Streaming
+## The log stream
 
-HTTP endpoints for Server-Sent-Events (SSE) streams for various use cases. Extracted out because, for example, *Pipeline Execution* completion events may be listened to for all the *Musicorpus Pages* a *User* currently has.
+- `POST /musicorpus-pages/{id}/logs` Opens a [Server-Sent Events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events) stream of everything logged for this page: what each *Model* and *Pipeline* printed, and the `api` service's own account of each *Pipeline Execution*.
 
-TBA
+One stream per *MusicorpusPage* rather than per *Pipeline Execution*. A page may be read several times, and somebody debugging a reading wants the whole story in the order it happened rather than two of them to interleave by hand; every event names the execution it belongs to.
+
+```
+POST /musicorpus-pages/{id}/logs
+
+200 OK
+Content-Type: text/event-stream
+
+data: {"execution_id": 1, "seconds": 0.0, "kind": "api", "source": "api", "level": "info", "message": "running staff-detector 2026-07-22 on image.jpg"}
+
+data: {"execution_id": 1, "seconds": 1.3, "kind": "worker", "source": "staff-detector", "level": "info", "message": "7 staves"}
+
+: ping
+
+data: {"execution_id": 1, "seconds": 2.1, "kind": "api", "source": "api", "level": "info", "message": "completed in 2.1s"}
+```
+
+`seconds` is time since that execution started, not a timestamp: what a reader is judging is how long a step took rather than what time of day it was. It is measured on the `api` service's clock — the one clock every line passes through — since a *Worker* on another machine may disagree by seconds. `kind` is `worker` or `orchestrator` for a line something printed, and `api` for the service saying what it did with the execution; `level` is `debug`, `info`, `warning` or `error`, and a *Model's* stderr arrives as `warning`. Comment frames (`: ping`) keep an idle connection open and mean nothing.
+
+The stream ends when the client hangs up or when the page is deleted. It does not end when an execution finishes — the next one on the same page arrives on the same stream.
+
+**Nothing is replayed.** The service holds no buffer, so lines produced while nobody was watching are gone, and a client that wants a whole execution's log opens the stream before starting the execution. A log here is a *User* watching a page being read, not a record kept for later; the outcome of an execution is in the execution itself, and what it produced is in the file listing.
+
+It is a `POST`, unusually for something that reads. A `GET` invites `EventSource`, which cannot send an `Authorization` header — and the usual way round that is to put the token in the query string, where it lands in proxy logs and browser history. Every request to this API authenticates the same way, so the endpoint is one a browser reads with `fetch`.
+
+> **Note:** There is no progress reporting anywhere in Musibot, and none is planned. A *Model* execution takes a second or two, and the models Musibot runs cannot say how far along they are — a detector produces every box at the end of one forward pass, and an autoregressive model does not know how many tokens it is about to emit. What a *User* watching gets is this log, plus a *File* listing that grows as *Files* are written.

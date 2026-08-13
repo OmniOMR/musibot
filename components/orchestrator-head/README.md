@@ -6,7 +6,7 @@ The Musibot-provided interface layer that a single *Orchestrator* runs inside. I
 ## Responsibilities
 
 - Connect to RabbitMQ and MinIO and expose the pipeline-execution runtime to the hosted *Orchestrator*.
-- Receive pipeline-execution requests, run the *Orchestrator*'s *Pipeline* functions, dispatch *Model* work to workers, and stream progress and results back.
+- Receive pipeline-execution requests, run the *Orchestrator*'s *Pipeline* functions, dispatch *Model* work to workers, and publish results — and whatever the *Pipeline* logs — back over RabbitMQ.
 - Present the stable Musibot-facing interface so a custom *Orchestrator* only has to implement *Pipelines*.
 
 

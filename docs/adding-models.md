@@ -155,23 +155,17 @@ Report `failed` with an `error` string rather than letting an exception take the
 A *Model* that dies fails its work anyway — every execution in flight is reported as failed, and the *Worker Head* restarts the model and resumes taking work once it says `ready` again — but it reports nothing useful about why.
 
 
-## Logging and progress
+## Logging
 
-Anything the *Model* prints to stdout or stderr is captured by the *Worker Head* as that model's log. There is no logging setup to do, and no way for a stray `print` to corrupt the protocol, because the protocol is on two other descriptors:
+Anything the *Model* prints to stdout or stderr is captured by the *Worker Head* as that model's log, published onto RabbitMQ attributed to the *Pipeline Execution* it belongs to, and shown to the *User* in the Web UI as it is printed. There is no logging setup to do, and no way for a stray `print` to corrupt the protocol, because the protocol is on two other descriptors:
 
 ```py
 print(f"transcribing staff {staff_number}")
 ```
 
-The *Worker Head* starts the *Model* with `PYTHONUNBUFFERED=1` so those lines arrive promptly rather than in delayed clumps. A *Model* not written in python has to arrange the equivalent.
+stdout is forwarded at level `info` and stderr at `warning`, which is the whole of the distinction. The *Worker Head* starts the *Model* with `PYTHONUNBUFFERED=1` so those lines arrive promptly rather than in delayed clumps. A *Model* not written in python has to arrange the equivalent.
 
-There is also an optional `progress` message, for the case where progress has to be attributed to a *specific* execution:
-
-```py
-send({"type": "progress", "execution_id": execution_id, "message": "staff 3/12", "fraction": 0.25})
-```
-
-> **Not yet implemented:** captured output and `progress` messages currently reach the *Worker Head's* own log rather than travelling onward to the `api` service and the Web UI. Write them anyway — nothing changes on the *Model* side when that is wired up.
+Write for a human watching a page being read: a line naming what is being worked on is worth printing, and a line per tensor is not. There is no progress reporting in Musibot and none is coming — an execution takes a second or two, and a model that can honestly say how far along it is is the exception rather than the rule.
 
 
 ## Loading weights

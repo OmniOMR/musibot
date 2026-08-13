@@ -8,6 +8,11 @@ This component is the wire contract, so a breaking change here ripples to the `a
 ## Unreleased
 
 
+### Removed
+
+- **`ProgressMessage` and everything that reported a fraction.** The `musibot.logs` exchange now carries `log` messages and nothing else, and `parse_log_message` returns a `LogMessage` rather than a union — a publisher still sending `progress` is refused by the parser instead of being taken for a log. Progress reporting was never implemented and is not going to be: an execution takes a second or two, and the models Musibot runs cannot honestly say how far along they are — a detector produces every box at the end of one forward pass, and an autoregressive model does not know how many tokens it is about to emit. A log line is the whole of what a *User* is told while they wait.
+
+
 ## 0.2.0 — 2026-08-07
 
 *Signatures* become patterns rather than fixed *File* paths, and a deployment can be rooted under a key prefix inside its bucket. Both are changes to the wire contract, so every component that depends on `core` moves with it.

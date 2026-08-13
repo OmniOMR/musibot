@@ -1,5 +1,9 @@
 import { useEffect, useState } from "react";
 
+import { ApiError, SessionExpired } from "../api/errors";
+import { openPageLog } from "../api/logStream";
+import type { LogLineView } from "../api/types";
+
 /**
  * The recognition log of a *MusicorpusPage*.
  *
@@ -7,42 +11,20 @@ import { useEffect, useState } from "react";
  * read twice, and somebody debugging a reading wants the whole story in the
  * order it happened, not two stories to interleave by hand.
  *
+ * The stream is held open for as long as this screen is, and not only while
+ * something is running. Nothing is replayed — the service keeps no buffer, so a
+ * line produced while nobody was watching is gone — and a stream opened only
+ * once an execution had started would miss its first lines. The cost is one
+ * idle connection per open page, which the service is happy to hold.
  *
- * ## The lines below are fake, and this is the file that has to change
- *
- * Nothing real produces them yet. The api service has no log endpoint and the
- * SSE protocol behind it is not designed — `docs/http-api.md` marks streaming
- * TBA. What is written here is a stand-in that arrives on a timer, so that the
- * panel can be built and looked at properly: the zebra striping needs several
- * lines to be visible at all, the pill's count needs something to count, and
- * "does it scroll sensibly as lines arrive" is not a question a static mock
- * answers.
- *
- * When the endpoint exists, **the change is to this file and to nothing that
- * renders**. `LogPanel` already takes the shape below; replace `simulate` with
- * a subscription that appends to the same state and the panel will not know the
- * difference. Concretely, what the real implementation has to do that this one
- * does not:
- *
- * - open the stream for `pageId`, authenticated with `token` — both are already
- *   parameters here for that reason, and both are already correct at the call
- *   site;
- * - keep the connection across a re-render, and close it on unmount;
- * - reconnect when it drops, without replaying lines already shown;
- * - accumulate rather than replace, because the transport delivers increments
- *   and the panel wants the whole page's history;
- * - stop when every execution has finished, the way `usePageState` stops
- *   polling, so that an idle tab is not a standing load on a shared tier.
- *
- * The one thing that must survive the swap is the timestamp. It is seconds
- * elapsed since the page's first execution began, not a wall clock, because
- * what a reader is judging is how long a step took rather than what time of day
- * it was.
+ * Lines accumulate here rather than in the panel, so collapsing the panel and
+ * opening it again shows the whole log rather than whatever arrived since. A
+ * browser reload does lose it, which is what "no buffer" means.
  */
 
 /** One line of the log, as the panel draws it. */
 export interface LogLine {
-  /** Seconds since the first execution began, already formatted. */
+  /** Seconds into its *Pipeline Execution*, already formatted. */
   at: string;
   text: string;
   /** `error` is the only line worth colouring; everything else is ink. */
@@ -51,52 +33,35 @@ export interface LogLine {
 
 export interface PageLog {
   lines: LogLine[];
-  /** True while lines are still arriving, which the panel shows as a cursor. */
-  streaming: boolean;
-  /**
-   * False until a real log exists. The panel says so rather than letting the
-   * stand-in be mistaken for the recognition that actually ran.
-   */
-  real: boolean;
+  /** Set when the log is not being watched and will not resume by itself. */
+  problem: string | null;
 }
 
-/**
- * A plausible reading, borrowed from the design's own simulation.
- *
- * Deliberately not derived from the page's real executions. A stand-in that
- * quoted the actual pipeline names would be much harder to tell from a real
- * log, and the one thing this must not do is be mistaken for one.
- */
-const SIMULATED: LogLine[] = [
-  { at: "00.0", text: "POST /api/musicorpus-pages → 201", tone: "normal" },
-  { at: "00.2", text: "execution 1: page-to-musicxml v1.2 queued", tone: "normal" },
-  { at: "01.1", text: "staff-detector v0.4: 7 staves", tone: "normal" },
-  { at: "01.3", text: "layout.json written (2.1 kB)", tone: "normal" },
-  { at: "02.0", text: "crnn-handwritten v2.1: staff 1/7", tone: "normal" },
-  { at: "02.9", text: "crnn-handwritten v2.1: staff 2/7", tone: "normal" },
-  { at: "03.7", text: "crnn-handwritten v2.1: staff 3/7", tone: "normal" },
-  { at: "04.4", text: "staff 3: low confidence on 2 symbols", tone: "error" },
-  { at: "05.1", text: "crnn-handwritten v2.1: staff 4/7", tone: "normal" },
-  { at: "06.0", text: "crnn-handwritten v2.1: staff 5/7", tone: "normal" },
-  { at: "06.8", text: "crnn-handwritten v2.1: staff 6/7", tone: "normal" },
-  { at: "07.6", text: "crnn-handwritten v2.1: staff 7/7", tone: "normal" },
-  { at: "08.1", text: "assembling transcription.musicxml", tone: "normal" },
-  { at: "08.4", text: "transcription.musicxml written (41 kB)", tone: "normal" },
-  { at: "08.4", text: "execution 1 finished in 8.4 s", tone: "normal" },
-];
+/** How long to wait before opening the stream again after it dropped. */
+const RECONNECT_MS = 2000;
 
 /**
- * How fast the stand-in plays.
+ * How the panel draws one line.
  *
- * The timestamps are the ones a real run would print; playing them back at
- * full speed would mean nine seconds of watching, which is a long time to wait
- * to see whether a panel scrolls. A quarter of that is enough to see lines
- * arrive one at a time.
+ * The service's own lines carry the story of the execution — what was started,
+ * what it produced, how long it took — and are shown unattributed, because
+ * "api:" in front of them would be noise. Everything else is named by the
+ * *Model* or *Pipeline* that printed it, which is the only way to tell two
+ * models apart in one reading.
  */
-const PLAYBACK = 0.25;
+export function toLogLine(view: LogLineView): LogLine {
+  return {
+    at: view.seconds.toFixed(1).padStart(4, "0"),
+    text: view.kind === "api" ? view.message : `${view.source}: ${view.message}`,
+    // A `warning` stays ink: a *Model's* stderr is forwarded at that level, and
+    // libraries write perfectly ordinary chatter there.
+    tone: view.level === "error" ? "error" : "normal",
+  };
+}
 
 export function usePageLog(pageId: string, token: string | null): PageLog {
   const [lines, setLines] = useState<LogLine[]>([]);
+  const [problem, setProblem] = useState<string | null>(null);
 
   useEffect(() => {
     if (token === null) {
@@ -106,20 +71,51 @@ export function usePageLog(pageId: string, token: string | null): PageLog {
     // A different page is a different log. Without this, switching pages would
     // show the previous one's lines until the new ones caught up.
     setLines([]);
+    setProblem(null);
 
-    const timers = SIMULATED.map((line, index) =>
-      setTimeout(
-        () => setLines((shown) => [...shown, line]),
-        Number.parseFloat(line.at) * 1000 * PLAYBACK + index,
-      ),
-    );
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    async function watch() {
+      try {
+        const stream = await openPageLog(token!, pageId, controller.signal);
+        // Connected. Said now rather than when the next line arrives, which for
+        // a page nothing is being done to may be never.
+        setProblem(null);
+
+        for await (const view of stream) {
+          setLines((shown) => [...shown, toLogLine(view)]);
+        }
+        // The service ended the stream: the page is gone, or the service
+        // restarted. Either way there is nothing further to watch.
+        if (!controller.signal.aborted) {
+          setProblem("The log stream ended.");
+        }
+      } catch (caught) {
+        if (controller.signal.aborted) {
+          return; // an unmount, not a failure
+        }
+        if (
+          caught instanceof SessionExpired ||
+          (caught instanceof ApiError && caught.status === 404)
+        ) {
+          setProblem("This page is no longer available.");
+          return;
+        }
+        // A dropped connection, most likely. Try again — a *User* watching a
+        // page being read should not have to reload to keep watching.
+        setProblem("Reconnecting…");
+        timer = setTimeout(() => void watch(), RECONNECT_MS);
+      }
+    }
+
+    void watch();
 
     return () => {
-      for (const timer of timers) {
-        clearTimeout(timer);
-      }
+      controller.abort();
+      clearTimeout(timer);
     };
   }, [pageId, token]);
 
-  return { lines, streaming: lines.length < SIMULATED.length, real: false };
+  return { lines, problem };
 }

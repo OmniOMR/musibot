@@ -117,13 +117,14 @@ Here `input` **is** the staging list: the *Worker Head* downloads exactly these 
 > **Note:** Termination is best-effort and only cancels what has not started. A *Model* executes one command at a time and the [worker IPC](worker-ipc.md) has no way to interrupt one, so a *Model* already working runs to completion and its result is discarded. This is deliberate — interrupting a model mid-execution would mean killing the process, and restarting a model that holds gigabytes of weights costs far more than letting one execution finish.
 
 
-## Logs and progress
+## Logs
 
-Log lines and progress updates streamed from *Models* and *Pipelines* up to the `api` service, which forwards them to the Web UI over SSE. See [User request dataflow](user-request-dataflow.md) §6.
+Log lines streamed from *Models* and *Pipelines* up to the `api` service, which forwards them to whoever is watching that page over SSE. See [User request dataflow](user-request-dataflow.md) §6.
 
 - `musibot.logs` (fanout) — published to by *Worker Heads* and *Orchestrator Heads*, consumed by the `api` service.
     - `log` — one line of output, from a *Model* or a *Pipeline*.
-    - `progress` — a fractional progress report.
+
+This exchange carries **only** log lines. There is no progress message and there is not going to be one: a *Model* execution takes a second or two, and the models Musibot runs cannot honestly report a fraction — a detector produces every box at the end of a single forward pass, and an autoregressive model does not know how many tokens it is about to emit. A percentage would therefore be invented, and an invented percentage is worse than none.
 
 ```json
 {
@@ -138,4 +139,4 @@ Log lines and progress updates streamed from *Models* and *Pipelines* up to the 
 
 Logs travel **straight to the `api` service**, rather than back through the *Orchestrator* that requested the work. A *Model's* output would otherwise have to wait on a *Pipeline* that is busy computing, which is exactly when a *User* most wants to see that something is happening; and it would make every *Orchestrator* a relay for traffic it has no use for. The cost is that each log message must name the *Pipeline Execution* it belongs to — which is why `pipeline_execution` rides along on every model execution.
 
-Log traffic is fire-and-forget. Nothing is acknowledged, retried or ordered across publishers, and a message that arrives after its *Pipeline Execution* has finished is dropped. Logs are for a human watching a page being read, not an audit trail.
+Log traffic is fire-and-forget. Nothing is acknowledged, retried or ordered across publishers, and a *Worker* publishes whether or not anybody is listening — with no `api` service running, the exchange has no queue bound to it and every line is discarded by the broker at no cost. The `api` service in turn keeps no buffer: a line about a page nobody is watching is dropped and cannot be asked for afterwards. Logs are for a human watching a page being read, not an audit trail.
