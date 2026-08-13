@@ -66,7 +66,8 @@ Two things need doing before this works:
 .venv/bin/musibot-api --host 0.0.0.0 \
     --root-path /musibot/api \
     --s3-bucket musibot --s3-key-prefix s3/ \
-    --s3-public-url http://localhost:8000
+    --s3-public-url http://localhost:8000 \
+    --public-access-enabled true
 ```
 
 Those last three are the arrangement that makes presigned URLs survive being served from a path prefix — the bucket is named after the prefix's first segment and the rest of it becomes the key prefix. [Deployment](../docs/deployment.md) explains why there is no other option. Set `MUSIBOT_API_UPSTREAM` if you run the service somewhere other than port 8080.
