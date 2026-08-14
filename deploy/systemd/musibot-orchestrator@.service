@@ -1,0 +1,74 @@
+# One Musibot Orchestrator: a process running one set of Pipelines.
+#
+# A template unit, so that one file serves every deployed orchestrator. The
+# instance name — the part after the @ — names the orchestrator, and everything
+# that differs between them is reached through it:
+#
+#   systemctl enable --now musibot-orchestrator@hello
+#     ExecStart       /opt/musibot/orchestrators/<instance>/venv/bin/<its console script>
+#     EnvironmentFile /etc/musibot/orchestrator-<instance>.env
+#
+# Which orchestrator this is, is therefore not in this file. It is
+# MUSIBOT_ORCHESTRATOR_COMMAND in the environment file — an Orchestrator is a
+# program of its own, with its own console script, its own settings and its own
+# dependencies, and this unit only knows how to run one.
+#
+# Scaling an orchestrator horizontally means more instances of this unit against
+# the same command, suffixed `_2`, `_3`. Instances announcing the same Pipelines
+# are taken to be one Orchestrator scaled, which is exactly what that is, and
+# they share the Pipelines' work queues as competing consumers. Their
+# environment files may be symlinks to one original — nothing in them is
+# per-instance.
+#
+# Unlike a Worker there is no StateDirectory: an Orchestrator keeps no local
+# mirror of a page. Its Pipelines fetch Files from MinIO as they need them and
+# write straight back, so nothing it does touches the disk.
+#
+# Copied to /etc/systemd/system/musibot-orchestrator@.service. The whole
+# installation is in ../../docs/deploying-to-a-vm.md.
+
+[Unit]
+Description=Musibot Orchestrator (%i)
+Documentation=https://github.com/OmniOMR/musibot/blob/main/docs/deploying-to-a-vm.md
+Wants=network-online.target
+After=network-online.target rabbitmq-server.service minio.service
+
+# A process that cannot reach RabbitMQ fails fast and would otherwise restart
+# forever at RestartSec intervals.
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=exec
+User=musibot
+Group=musibot
+
+EnvironmentFile=/etc/musibot/orchestrator-%i.env
+
+# The orchestrator's own console script, from its own virtual environment. It is
+# an environment variable rather than a literal path because which program an
+# instance runs is the one thing that differs between instances — see the
+# environment file.
+ExecStart=/bin/sh -c 'exec ${MUSIBOT_ORCHESTRATOR_COMMAND}'
+
+Restart=on-failure
+RestartSec=5s
+
+# A stopped Orchestrator says goodbye to the registry, flushes what its running
+# Pipelines had to say, and lets an execution in flight report itself.
+TimeoutStopSec=60
+
+# An Orchestrator writes nothing to disk: a Pipeline reads and writes Files
+# through MinIO and never through the filesystem. If a Pipeline ever genuinely
+# needs scratch space, PrivateTmp= below is where it goes — the fix is not a
+# weaker ProtectSystem=.
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+
+[Install]
+WantedBy=multi-user.target

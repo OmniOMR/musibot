@@ -12,7 +12,7 @@ How a running Musibot system is assembled from its components. Full narrative in
 - **[nginx/university-proxy.conf](nginx/university-proxy.conf)** — local stack only. A stand-in for the university's proxy, which publishes Musibot under a path prefix and strips that prefix before forwarding. It exists to be the thing we do not control.
 - **[rabbitmq/20-musibot.conf](rabbitmq/20-musibot.conf)** — publishes the RabbitMQ management UI under the deployment's path prefix. Dropped into RabbitMQ's `conf.d` alongside the image's own defaults.
 - **[minio/minio.env.example](minio/minio.env.example)** — VM only. What the .deb's own `minio.service` reads out of `/etc/default/minio`.
-- **[systemd/](systemd/)** — the units the VM runs Musibot's own services under: `musibot-api.service`, the templated `musibot-worker@.service` (one unit, any model), and an example environment file for each. Model-specific configuration lives with the model — see [components/models/zeus](../components/models/zeus/README.md).
+- **[systemd/](systemd/)** — the units the VM runs Musibot's own services under: `musibot-api.service`, the templated `musibot-worker@.service` (one unit, any model), the templated `musibot-orchestrator@.service` (one unit, any orchestrator), and an example environment file for each. Model-specific configuration lives with the model — see [components/models/zeus](../components/models/zeus/README.md).
 
 The runbook that uses all of them is [Deploying onto a VM](../docs/deploying-to-a-vm.md).
 
@@ -27,6 +27,15 @@ docker compose up -d
 ```
 
 It deliberately does **not** start Musibot's own services (`api`, *Orchestrators*, *Workers*). Those you start yourself, from your IDE or shell, pointed at this stack — which is what you want while developing them. Plugging a locally-running service into a stack is the same act whether the stack is this one or a production one; see [Writing pipelines](../docs/writing-pipelines.md).
+
+The full set, none of which needs an argument against this stack, is the `api` service, one *Worker* per *Model*, and one process per *Orchestrator*:
+
+```bash
+components/api/.venv/bin/musibot-api
+components/worker-head/.venv/bin/musibot-worker-head \
+    --model-command "../models/hello-model/.venv/bin/python -m hello_model"
+components/orchestrators/hello-orchestrator/.venv/bin/musibot-hello-orchestrator
+```
 
 | Service | Address | Credentials |
 | --- | --- | --- |

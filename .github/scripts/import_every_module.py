@@ -21,8 +21,13 @@ Run it locally the same way CI does:
 
     python -m venv /tmp/prodcheck
     /tmp/prodcheck/bin/pip install ./components/core ./components/api \\
-        ./components/worker-head ./components/python-client
+        ./components/worker-head ./components/orchestrator-head \\
+        ./components/python-client ./components/orchestrators/hello-orchestrator
     /tmp/prodcheck/bin/python .github/scripts/import_every_module.py
+
+It walks the `musibot` namespace package, so an *Orchestrator* outside it — such
+as `hello_orchestrator` — is not reached here. The console script check in the
+workflow is what imports one of those.
 """
 
 import importlib

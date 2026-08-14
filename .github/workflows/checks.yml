@@ -47,6 +47,13 @@ jobs:
           - component: worker-head
             path: components/worker-head
             install: -e ../core -e '.[dev]'
+          - component: orchestrator-head
+            path: components/orchestrator-head
+            install: -e ../core -e '.[dev]'
+            stack: true
+          - component: hello-orchestrator
+            path: components/orchestrators/hello-orchestrator
+            install: -e ../../core -e ../../orchestrator-head -e '.[dev]'
           - component: python-client
             path: components/python-client
             install: -e ../core -e '.[dev]'
@@ -71,10 +78,11 @@ jobs:
           # and that floor is not exercised here.
           python-version: '3.12'
 
-      # Only `api` has tests that reach a broker and object storage. They skip
-      # themselves when nothing is listening, which is precisely how a gap goes
-      # unnoticed, so CI starts the real thing rather than accepting the skip.
-      # The buckets are not created here because those tests make their own.
+      # `api` and `orchestrator-head` have tests that reach a broker and object
+      # storage. They skip themselves when nothing is listening, which is
+      # precisely how a gap goes unnoticed, so CI starts the real thing rather
+      # than accepting the skip. The buckets are not created here because those
+      # tests make their own.
       - name: Start RabbitMQ and MinIO
         if: matrix.stack
         run: docker compose -f deploy/docker-compose.yml up -d --wait rabbitmq minio
@@ -118,8 +126,11 @@ jobs:
         with:
           python-version: '3.12'
 
-      # Not editable, and not from a git link: a plain install of the four
+      # Not editable, and not from a git link: a plain install of the
       # distributions a deployment installs, resolved the same way.
+      # `hello-orchestrator` is here as the one *Orchestrator* in the
+      # repository: it is deployed the same way, and its `--help` below is what
+      # exercises the orchestrator head's own startup path.
       - name: Install with runtime dependencies only
         run: |
           python -m venv .venv
@@ -127,7 +138,9 @@ jobs:
             ./components/core \
             ./components/api \
             ./components/worker-head \
-            ./components/python-client
+            ./components/orchestrator-head \
+            ./components/python-client \
+            ./components/orchestrators/hello-orchestrator
 
       - name: Import every module
         run: .venv/bin/python .github/scripts/import_every_module.py
@@ -139,6 +152,7 @@ jobs:
         run: |
           .venv/bin/musibot-api --help > /dev/null
           .venv/bin/musibot-worker-head --help > /dev/null
+          .venv/bin/musibot-hello-orchestrator --help > /dev/null
 
   web-ui:
     name: web-ui

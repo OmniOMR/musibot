@@ -7,7 +7,7 @@ Everything below installs onto one machine. Splitting *Workers* onto their own V
 
 ## What ends up on the machine
 
-Six things run, and nginx is the only one the world can reach:
+Seven things run, and nginx is the only one the world can reach:
 
 | | Runs as | Listens on | Started by |
 | --- | --- | --- | --- |
@@ -16,6 +16,7 @@ Six things run, and nginx is the only one the world can reach:
 | RabbitMQ | `rabbitmq` | `:5672`, `:15672` | `rabbitmq-server.service` (from apt) |
 | Web API | `musibot` | `127.0.0.1:8080` | `musibot-api.service` (this repo) |
 | Workers | `musibot` | nothing | `musibot-worker@<instance>.service` (this repo) |
+| Orchestrators | `musibot` | nothing | `musibot-orchestrator@<instance>.service` (this repo) |
 | Web UI | — | — | static files, served by nginx |
 
 The university proxy publishes the instance at `https://quest.ms.mff.cuni.cz/musibot/` and forwards to port 80 on this VM, **stripping the `/musibot` prefix on the way**. Nothing on the VM terminates TLS.
@@ -40,10 +41,12 @@ On disk:
     workers/<instance>/venv/     one Worker Head, per systemd instance
     models/<codebase>/venv/      a Model's own environment, when it needs one
     models/<codebase>/snapshots/ its weights — several of them
+    orchestrators/<instance>/venv/  one Orchestrator, per systemd instance
 /etc/musibot/
     api.env                      the Web API's configuration
     api-tokens.json              the Library API tokens
     worker-<instance>.env        one per worker instance
+    orchestrator-<instance>.env  one per orchestrator instance
     nginx.env                    the addresses nginx's config is rendered from
 /var/lib/musibot/<instance>/     a Worker's scratch mirror of the pages it is working on
 /var/lib/minio/                  the objects
@@ -88,15 +91,15 @@ Three separate systems have their own idea of a user — the operating system, R
 
 | Account | Lives in | Created by | Who uses it |
 | --- | --- | --- | --- |
-| `musibot` | unix | `useradd`, section 1 | the `musibot-api` and `musibot-worker@*` units |
+| `musibot` | unix | `useradd`, section 1 | the `musibot-api`, `musibot-worker@*` and `musibot-orchestrator@*` units |
 | `minio-user` | unix | `useradd`, section 3 | the `minio` unit |
 | `rabbitmq` | unix | the `rabbitmq-server` package | the broker |
 | `www-data` | unix | Ubuntu itself | nginx |
-| `musibot` | RabbitMQ | `rabbitmqctl add_user`, section 2 | the `api` service and every *Worker Head* |
+| `musibot` | RabbitMQ | `rabbitmqctl add_user`, section 2 | the `api` service and every *Worker Head* and *Orchestrator Head* |
 | `admin` | RabbitMQ | `rabbitmqctl add_user`, section 2 | a human, at `/musibot/rabbitmq/` |
 | `guest` | RabbitMQ | the package, by default | nobody — it is deleted |
 | `musibot-admin` | MinIO | `MINIO_ROOT_USER`, section 3 | a human, with `mc` and at `/musibot/minio/` |
-| *a generated access key* | MinIO | `mc admin user svcacct add`, section 3 | the `api` service and every *Worker Head* |
+| *a generated access key* | MinIO | `mc admin user svcacct add`, section 3 | the `api` service and every *Worker Head* and *Orchestrator Head* |
 | `alice`, … | `api-tokens.json` | you, section 4 | *Library* users of the HTTP API |
 
 Two of those are worth pointing at directly.
@@ -138,7 +141,7 @@ Two versions are needed before anything else is installed:
 | | Version | Why |
 | --- | --- | --- |
 | The system's | 3.14 | Ubuntu's own. Left alone; nothing of Musibot's runs on it. |
-| The core services | **3.12** | The `api` service and every *Worker Head*. |
+| The core services | **3.12** | The `api` service, every *Worker Head*, and every *Orchestrator*. |
 | Zeus | 3.10 | Installed later, in [its own section](../components/models/zeus/README.md). |
 
 3.14 would very likely work — it satisfies the 3.11 floor `core` sets — but every component here is developed and tested on 3.12, and a first deployment is not the place to also find out what a two-version jump costs. Moving up later is a venv rebuilt and a service restarted, per component and independently. Every `python3.12` below is that decision and nothing more.
@@ -520,7 +523,53 @@ A model appearing in that listing is the *Worker* announcing itself; a model dis
 **Then the real model.** [components/models/zeus](../components/models/zeus/README.md) is the worked case: two virtual environments, a snapshot to download, and an identity that comes out of the snapshot rather than out of the configuration.
 
 
-## 8. Checking the whole thing
+## 8. An orchestrator
+
+A *Worker* runs a *Model*; an *Orchestrator* runs the *Pipelines* that string *Models* together. Musibot works without one — every *Model* is offered as an [ImplicitPipeline](domain-model.md) — so this section is optional until there is a *Pipeline* worth deploying.
+
+One templated unit serves all of them, the same shape as the worker unit:
+
+```bash
+sudo cp /opt/musibot/repo/deploy/systemd/musibot-orchestrator@.service /etc/systemd/system/
+sudo systemctl daemon-reload
+```
+
+An *Orchestrator* is a single process on the same python as the rest of Musibot, with a venv of its own because its *Pipelines* bring their own dependencies. It needs no state directory and no special hardware: a *Pipeline* fetches *Files* from MinIO as it needs them and writes straight back, so nothing it does touches the disk.
+
+```bash
+sudo -u musibot python3.12 -m venv /opt/musibot/orchestrators/hello/venv
+sudo -u musibot /opt/musibot/orchestrators/hello/venv/bin/pip install \
+    'musibot-core @ git+https://github.com/OmniOMR/musibot.git@core/v0.1.0#subdirectory=components/core' \
+    'musibot-orchestrator-head @ git+https://github.com/OmniOMR/musibot.git@main#subdirectory=components/orchestrator-head' \
+    'musibot-hello-orchestrator @ git+https://github.com/OmniOMR/musibot.git@main#subdirectory=components/orchestrators/hello-orchestrator'
+
+sudo install -o root -g musibot -m 0640 \
+    /opt/musibot/repo/deploy/systemd/orchestrator.env.example /etc/musibot/orchestrator-hello.env
+sudo nano /etc/musibot/orchestrator-hello.env
+```
+
+One line in that file says which *Orchestrator* this instance is — an *Orchestrator* is a program of its own, so the unit runs whatever this names:
+
+```ini
+MUSIBOT_ORCHESTRATOR_COMMAND="/opt/musibot/orchestrators/hello/venv/bin/musibot-hello-orchestrator"
+```
+
+The rest is the same RabbitMQ and MinIO configuration everything else has, plus whatever settings that particular *Orchestrator* adds. Those extra settings are not decoration: they are how its *Pipelines* are parametrized, and pinning a *Model* version through one is how the same implementation is deployed twice, once stable and once in development (see [Writing pipelines](writing-pipelines.md)). Its own `--help` lists them.
+
+```bash
+sudo systemctl enable --now musibot-orchestrator@hello
+journalctl -u musibot-orchestrator@hello -f
+
+curl -s http://127.0.0.1:8080/pipelines
+# hello-pipeline 1.0.0, 1 instance, orchestrator hello-orchestrator
+```
+
+A *Pipeline* appearing in that listing without `"implicit": true` is an *Orchestrator* announcing itself. Nothing was configured on the `api` service's side, exactly as with a *Worker*.
+
+Scaling one horizontally is more instances of the unit against the same command, suffixed `_2`, `_3`: they announce the same *Pipelines*, share each *Pipeline's* work queue as competing consumers, and are therefore one *Orchestrator* scaled.
+
+
+## 9. Checking the whole thing
 
 From a machine that is not the VM, against the public URL, with a token from `api-tokens.json`:
 
@@ -568,12 +617,14 @@ Each component updates on its own, which is what the per-component versioning is
 | --- | --- | --- |
 | `api` or `core` | reinstall in `/opt/musibot/api/venv`, `systemctl restart musibot-api` | **all state**, see below |
 | `worker-head` or `core` | reinstall in that worker's venv, `systemctl restart musibot-worker@<instance>` | executions that worker is running |
+| `orchestrator-head` or `core` | reinstall in that orchestrator's venv, `systemctl restart musibot-orchestrator@<instance>` | executions that orchestrator is running |
+| an *Orchestrator* (its *Pipelines*) | as above | as above |
 | a *Model* | reinstall in the model's venv, restart its worker | as above |
 | a *Model*'s weights | edit `MUSIBOT_MODEL_COMMAND`, restart its worker | the old model version disappears from the registry |
 | `web-ui` | build, rsync, swap the symlink | nothing |
 | nginx config, unit files | `git pull` in `/opt/musibot/repo`, re-render or re-copy, reload | nothing |
 
-**A change to `core` is the one that is not per-component.** `core` is the wire contract — the message protocol and the page model — so the `api` service and every *Worker Head*, on this VM and on any other, have to be moved together. Each lives in its own virtual environment, so "together" is a thing you do rather than a thing the machine does for you: update every environment in one pass, then restart everything, `api` last.
+**A change to `core` is the one that is not per-component.** `core` is the wire contract — the message protocol and the page model — so the `api` service and every *Worker Head* and *Orchestrator Head*, on this VM and on any other, have to be moved together. Each lives in its own virtual environment, so "together" is a thing you do rather than a thing the machine does for you: update every environment in one pass, then restart everything, `api` last.
 
 Nothing enforces this today. A *Worker Head* announces its own version and the `api` service does not even read it, and `core`'s version is not announced at all, so a *Worker* left behind on an older `core` is not refused and not reported — it simply misbehaves in whatever way the protocol change implies. It is recorded in [Rough edges](rough-edges.md); until it is closed, the discipline above is the whole of the mechanism, which is a reason to update `core` deliberately and never incidentally.
 

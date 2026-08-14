@@ -26,6 +26,14 @@
             "path": "components/worker-head"
         },
         {
+            "name": "orchestrator-head",
+            "path": "components/orchestrator-head"
+        },
+        {
+            "name": "hello-orchestrator",
+            "path": "components/orchestrators/hello-orchestrator"
+        },
+        {
             "name": "python-client",
             "path": "components/python-client"
         },
