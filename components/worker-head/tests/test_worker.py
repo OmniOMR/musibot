@@ -32,7 +32,7 @@ from musibot.core.logs import LOGS_EXCHANGE, LogMessage, parse_log_message
 
 from musibot.worker_head.messaging import DEFAULT_EXCHANGE, WorkMessage
 from musibot.worker_head.storage import FileStamp, InputFileMissing
-from musibot.worker_head.worker import WorkerHead, work_queue_name
+from musibot.worker_head.worker import WorkerHead
 from tests.test_model_process import a_model, run
 
 PAGE_ID = "7Kf2mP9xLwQa"
@@ -207,12 +207,6 @@ def test_a_goodbye_names_this_instance(tmp_path: Path) -> None:
             await model.shutdown()
 
     run(scenario)
-
-
-def test_the_work_queue_is_named_after_what_it_consumes() -> None:
-    assert work_queue_name("staff-detector", "2026-07-22") == (
-        "musibot.model.staff-detector@2026-07-22"
-    )
 
 
 # --- work --------------------------------------------------------------------

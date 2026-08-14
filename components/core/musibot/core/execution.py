@@ -8,6 +8,7 @@ These are DTOs: they cross a process boundary, so they are parsed rather than
 trusted.
 """
 
+from dataclasses import dataclass
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, Discriminator, TypeAdapter
@@ -38,6 +39,71 @@ def generate_model_execution_id() -> str:
     number to borrow, unlike a *Pipeline Execution*; it carries its own.
     """
     return random_id()
+
+
+# --- Work queues -------------------------------------------------------------
+
+# Only the queues that *more than one process declares* are here. A queue
+# belonging to one process alone — an `api` service's reply queue, a head's
+# control queue — is that process's own business and is named where it is
+# declared: nobody else can be wrong about it. These two cannot be anybody's own
+# business, which is the whole reason they are protocol. See
+# `docs/service-configuration.md`, "What is not configuration".
+
+MODEL_WORK_QUEUE_PREFIX = "musibot.model."
+PIPELINE_WORK_QUEUE_PREFIX = "musibot.pipeline."
+"""Queues are named after what they consume, so that what a queue is for is
+evident in the RabbitMQ management UI."""
+
+
+@dataclass(frozen=True)
+class QueueDeclaration:
+    """How a queue must be declared, by every process that declares it.
+
+    This is protocol rather than a local decision because RabbitMQ makes it one:
+    a second declaration that disagrees with the first is refused outright with
+    `PRECONDITION_FAILED`, taking the channel down with it. So a *Worker Head*
+    and an *Orchestrator Head* cannot each decide these flags for themselves and
+    still work together — which is exactly the test for what belongs in `core`.
+    """
+
+    name: str
+    exclusive: bool
+    auto_delete: bool
+    durable: bool
+
+
+def _work_queue(prefix: str, name: str, version: str) -> QueueDeclaration:
+    """The shared queue that everything providing one name and version consumes.
+
+    It is **not exclusive**: being shared by every competing consumer is the
+    whole point of it, and is how a *Model* or a *Pipeline* scales horizontally.
+    It **auto-deletes**, so a departed provider leaves nothing behind to
+    accumulate messages.
+
+    And it is **durable**, which is the one flag that looks wrong. Nothing in
+    Musibot is meant to outlive a broker restart — but RabbitMQ 4 refuses a
+    transient queue that is not exclusive, and this one cannot be exclusive.
+    Durability here costs nothing: the queue still auto-deletes with its last
+    consumer, and every message in it is published non-persistent, so a broker
+    restart still discards whatever was in flight.
+    """
+    return QueueDeclaration(
+        name=prefix + routing_key(name, version),
+        exclusive=False,
+        auto_delete=True,
+        durable=True,
+    )
+
+
+def model_work_queue(name: str, version: str) -> QueueDeclaration:
+    """The queue the *Workers* running one *Model* consume."""
+    return _work_queue(MODEL_WORK_QUEUE_PREFIX, name, version)
+
+
+def pipeline_work_queue(name: str, version: str) -> QueueDeclaration:
+    """The queue the *Orchestrators* providing one *Pipeline* consume."""
+    return _work_queue(PIPELINE_WORK_QUEUE_PREFIX, name, version)
 
 
 # --- Shared pieces -----------------------------------------------------------

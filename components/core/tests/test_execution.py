@@ -15,10 +15,13 @@ from musibot.core.execution import (
     PipelineExecutionResult,
     PipelineExecutionStart,
     PipelineExecutionTerminate,
+    QueueDeclaration,
     WorkerRef,
     generate_model_execution_id,
+    model_work_queue,
     parse_model_execution_message,
     parse_pipeline_execution_message,
+    pipeline_work_queue,
     routing_key,
     serialize_message,
 )
@@ -217,3 +220,25 @@ def test_model_execution_ids_are_distinct() -> None:
 def test_the_exchange_names_match_the_documentation() -> None:
     assert PIPELINE_EXECUTIONS_EXCHANGE == "musibot.pipeline-executions"
     assert MODEL_EXECUTIONS_EXCHANGE == "musibot.model-executions"
+
+
+def test_a_work_queue_is_named_after_what_it_consumes() -> None:
+    assert model_work_queue("staff-detector", "2026-07-22").name == (
+        "musibot.model.staff-detector@2026-07-22"
+    )
+    assert pipeline_work_queue("hello-world", "1.0.0").name == "musibot.pipeline.hello-world@1.0.0"
+
+
+@pytest.mark.parametrize(
+    "queue",
+    [model_work_queue("staff-detector", "2026-07-22"), pipeline_work_queue("hello-world", "1.0.0")],
+)
+def test_a_work_queue_is_shared_auto_deleting_and_durable(queue: QueueDeclaration) -> None:
+    # Shared, because competing consumers on one queue is how a Model or a
+    # Pipeline scales; auto-deleting, so a departed provider leaves nothing
+    # behind; and durable only because RabbitMQ 4 refuses a transient queue
+    # that is not exclusive. Two processes declaring these differently get
+    # PRECONDITION_FAILED, which is why they are here and not in each head.
+    assert queue.exclusive is False
+    assert queue.auto_delete is True
+    assert queue.durable is True

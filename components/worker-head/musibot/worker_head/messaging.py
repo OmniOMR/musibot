@@ -14,6 +14,7 @@ from typing import Protocol
 import aio_pika
 from aio_pika.abc import AbstractExchange, AbstractRobustConnection, ExchangeType
 from musibot.core import RabbitSettings
+from musibot.core.execution import QueueDeclaration
 
 logger = logging.getLogger(__name__)
 
@@ -119,35 +120,32 @@ class Broker:
     async def consume_work(
         self,
         *,
-        queue_name: str,
+        work_queue: QueueDeclaration,
         exchange: str,
         routing_key: str,
         handler: WorkHandler,
     ) -> None:
         """Consume the shared work queue for this *Worker's* one *Model*.
 
-        The queue is named after what it consumes and shared by every *Worker*
-        running that model — several of them on it are competing consumers,
-        which is exactly how a *Model* scales horizontally. It auto-deletes, so
-        a departed *Worker* leaves nothing behind to accumulate messages.
+        How that queue is declared is not decided here — it comes from `core`,
+        because every process declaring it has to agree and RabbitMQ refuses the
+        ones that do not. See `musibot.core.execution.QueueDeclaration`.
 
         A message is acknowledged the instant execution begins, never when it
         ends: a *Worker* that crashes mid-execution must not have its work
         redelivered and the model run twice. The execution simply times out
-        from the `api` service's point of view instead.
-
-        The queue is declared **durable** even though nothing in Musibot is
-        meant to outlive a broker restart: RabbitMQ 4 refuses transient queues
-        that are not exclusive, and this one cannot be exclusive precisely
-        because it is shared. Durability here costs nothing — the queue still
-        auto-deletes with its last consumer, and the messages in it are
-        published non-persistent, so a broker restart still loses them.
+        from the `api` service's point of view instead. That part *is* decided
+        here — it is this head's policy about its own model, not something
+        another process could contradict.
         """
         declared = self._exchanges.get(exchange) or await self.declare_exchange(
             exchange, ExchangeType.DIRECT
         )
         queue = await self._channel.declare_queue(
-            queue_name, exclusive=False, auto_delete=True, durable=True
+            work_queue.name,
+            exclusive=work_queue.exclusive,
+            auto_delete=work_queue.auto_delete,
+            durable=work_queue.durable,
         )
         await queue.bind(declared, routing_key=routing_key)
 
@@ -164,7 +162,7 @@ class Broker:
                 logger.exception("Dropping a work message that failed to handle")
 
         await queue.consume(on_message)
-        logger.info("Consuming %r for routing key %r", queue_name, routing_key)
+        logger.info("Consuming %r for routing key %r", work_queue.name, routing_key)
 
     async def subscribe(
         self,

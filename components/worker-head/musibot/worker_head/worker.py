@@ -41,6 +41,7 @@ from musibot.core.execution import (
     ModelExecutionTerminate,
     PipelineExecutionRef,
     WorkerRef,
+    model_work_queue,
     parse_model_execution_message,
     routing_key,
     serialize_message,
@@ -61,14 +62,6 @@ from musibot.worker_head.model_process import ModelFailed, ModelProcess, ModelPr
 from musibot.worker_head.storage import FileStamp, InputFileMissing, PageStoragePort
 
 logger = logging.getLogger(__name__)
-
-WORK_QUEUE_PREFIX = "musibot.model."
-"""Queues are named after what they consume, so that what a queue is for is
-evident in the RabbitMQ management UI."""
-
-
-def work_queue_name(name: str, version: str) -> str:
-    return WORK_QUEUE_PREFIX + routing_key(name, version)
 
 
 class WorkerHead:
@@ -403,7 +396,7 @@ async def run_worker(
     await broker.declare_exchange(FILE_CHANGES_EXCHANGE, ExchangeType.FANOUT)
 
     await broker.consume_work(
-        queue_name=work_queue_name(description.name, description.version),
+        work_queue=model_work_queue(description.name, description.version),
         exchange=MODEL_EXECUTIONS_EXCHANGE,
         routing_key=routing_key(description.name, description.version),
         handler=worker.handle_start,

@@ -14,6 +14,10 @@ Versions are semver on the **IPC contract** between the worker head and a *Model
 
 - **A *Worker* announces the *Files* it wrote.** After uploading a *Model's* output it publishes a `files-changed` notice on `musibot.file-changes` naming those paths, attributed to the *Pipeline Execution* that caused them, so a client watching that page can show a *File* as it appears instead of at its next poll. Published after the upload and never before — a client told about a *File* that has not reached storage yet would fetch a `404` — and fire-and-forget, like the log: object storage is the truth about what a page holds, so a broker that refuses a notice costs latency rather than work. Nothing in the IPC contract changes.
 
+### Changed
+
+- **The work queue is declared through `core`.** Its name and its declaration flags now come from `musibot.core.execution.model_work_queue()` instead of being written out here, because an *Orchestrator Head* declares the same kind of queue and RabbitMQ refuses two declarations that disagree. Nothing about the queue changes — same name, same flags — and nothing in the IPC contract does either. `WORK_QUEUE_PREFIX` and `work_queue_name()` are gone from `musibot.worker_head.worker`, and `Broker.consume_work` takes a `work_queue` declaration rather than a `queue_name`.
+
 ### Removed
 
 - **`progress` is no longer a message of the IPC.** A *Model* sending one is now ignored exactly as any other unknown message type is, so nothing breaks, and the `ProgressMessage` it was forwarded as is gone from `core`. Progress reporting is not coming back: an execution takes a second or two, and the models Musibot runs cannot say how far along they are — a detector produces every box at the end of one forward pass, and an autoregressive model does not know how many tokens it is about to emit.

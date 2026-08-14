@@ -16,6 +16,19 @@ The `musibot.core` package re-exports the general-purpose pieces — settings, l
 The `musibot` package is a namespace package shared by every Musibot distribution, so this component provides `musibot.core` and deliberately ships no `musibot/__init__.py`.
 
 
+## This library performs no I/O
+
+The line worth holding is not "standard library only" — pydantic and pydantic-settings are here. It is that **`core` never opens a socket or a file**: it is types, validation, constants and settings, and nothing in it talks to RabbitMQ or MinIO. Three things depend on that:
+
+- **`python-client` installs on end-user machines.** Its only dependencies are this and `httpx`, and it needs this one for page-path validation and message shapes. Putting aio-pika and boto3 here would hand every external library user an AMQP client and the AWS SDK they will never call.
+- **The test suite needs no infrastructure**, which is what makes it the fast one.
+- **A wire contract that imports a transport is harder to reimplement**, on the day something that is not python reads these messages.
+
+So `api`, `worker-head` and `orchestrator-head` each own a thin `Broker` over aio-pika and their own storage module over boto3, and the duplication is accepted. It is smaller than it looks: the three storage modules ask genuinely different questions (the `api` service presigns and lists but never touches bytes; the two heads only touch bytes), and of the ~70 shared lines in a `Broker`, none has changed since it was written. What *has* changed — the RabbitMQ 4 durable-queue fix — landed in the role-specific consume method, which a shared class could only have expressed as a flag.
+
+What must not be duplicated is anything two processes could disagree about, and that is why the queue declarations are here rather than in each head. **If a fourth `Broker` appears, or a second cross-cutting broker fix lands, promote the whole thing** into an optional `musibot-core[amqp]` extra rather than copying it again.
+
+
 ## Development
 
 Pure library, no runtime process. Requires **python 3.11+**, which through `worker-head` becomes the floor for any environment a worker head runs in. Keep dependencies minimal so every consumer can depend on it without conflicts — a *Model* that can meet both constraints shares the worker head's venv, and one that cannot falls back to its own venv across the IPC boundary (see `docs/deployment.md`).

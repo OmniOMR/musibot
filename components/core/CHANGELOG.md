@@ -10,6 +10,8 @@ This component is the wire contract, so a breaking change here ripples to the `a
 
 ### Added
 
+- **Work queue declarations** (`musibot.core.execution`) — `model_work_queue()` and `pipeline_work_queue()` return a `QueueDeclaration` naming the shared queue for one *Model* or one *Pipeline* and saying how it must be declared. **A head must now declare its work queue through these rather than spelling the name and flags out itself.** They are here because RabbitMQ makes them protocol: a second declaration that disagrees with the first is refused with `PRECONDITION_FAILED` and takes the channel down, so a *Worker Head* and an *Orchestrator Head* cannot each decide for themselves — which is the same test that put the exchange names here. Queues belonging to one process alone, such as a reply queue, are deliberately absent: nobody else can be wrong about those. The names and flags are exactly what worker heads already used, so nothing on a running system changes.
+
 - **`musibot.core.file_changes`** — the `musibot.file-changes` exchange and its one `files-changed` message: the *Files* an execution has just written, named by their paths and attributed to the *Pipeline Execution* that wrote them. Published by whoever uploaded them, consumed by the `api` service, which forwards it to a client watching that page so that a *File* can be shown as it appears rather than at the next poll. Paths are `PageFilePath`, so one escaping its page is refused by the parser rather than by whoever acts on it. Deletions are not carried: they do not propagate out of a *Model* at all.
 
 ### Changed
