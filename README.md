@@ -38,7 +38,7 @@ Interfaces:
 
 - [Python Client](docs/python-client-reference.md)
 - [HTTP API](docs/http-api.md)
-- Orchestrator Head API (TBA, see `docs/writing-pipelines.md` for now)
+- [Orchestrator Head API](components/orchestrator-head/README.md)
 - [RabbitMQ exchanges and messages](docs/rabbitmq-exchanges-and-messages.md)
 - [Worker IPC](docs/worker-ipc.md)
 

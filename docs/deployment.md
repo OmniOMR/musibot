@@ -92,6 +92,8 @@ Nothing is shared across that boundary — no python objects, no imported packag
 
 Deploying an *Orchestrator* is similar to deploying a *Model*, except much simpler. The *Orchestrator* may run on the VM where all the core services run (unless scaling becomes an issue) and it is a single process that does not need the complex runtime environment of a *Model*. It just connects to RabbitMQ and MinIO. It runs the same python version as the other core services but should have its own venv due to having custom additional dependencies that may conflict (depends on what its *Pipelines* need).
 
+It needs no state directory either, which is the one way it is simpler than a *Worker*: a *Pipeline* fetches *Files* from object storage as it needs them and writes straight back, rather than working in a local mirror. The step-by-step is [An orchestrator](deploying-to-a-vm.md#8-an-orchestrator), and what a *Pipeline* is written against is [Writing pipelines](writing-pipelines.md).
+
 
 ## API tokens
 

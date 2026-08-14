@@ -88,8 +88,8 @@ The first two rows are the trap: a teammate re-installs from a newer commit, pip
 | `api` | yes | From tags. Semver on the HTTP API. |
 | `python-client` | yes | From tags. Semver, independent of the API's cadence. |
 | `worker-head` | yes | From tags. Semver on the IPC contract. |
-| `orchestrator-head` | not yet | No implementation yet — same scheme when there is one. |
-| `orchestrators` | no | A *Pipeline* is identified by name and version; see its README. |
+| `orchestrator-head` | yes | From tags. Semver on the interface a *Pipeline* is written against. |
+| `orchestrators` | no | A *Pipeline* is identified by name and version, declared in its code — the same rule as a *Model's*, and for the same reason. The package version is packaging only. |
 | `models` | no | A *Model*'s version is a domain concept — it is what a *Pipeline* pins and what discovery announces — so it stays a written-down constant in the model's `pyproject.toml`, not something derived from repository history. |
 | `web-ui` | yes | From tags, like the rest — but the version is only ever the tag. Nothing builds this from `pyproject.toml`, so `package.json` stays at `0.0.0` and is not the record. Its own version, decoupled from the API it targets. |
 
