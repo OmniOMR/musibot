@@ -1,0 +1,69 @@
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[project]
+name = "musibot-orchestrator-head"
+dynamic = ["version"]
+description = "Runs a set of Musibot pipelines and connects them to Musibot"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.11"
+# Unlike the worker head, this is not kept minimal: an *Orchestrator* runs in
+# this process and is coupled to Musibot's domain by design. `musibot-core` is
+# named but not sourced here: it is not on any package index, so whoever
+# installs this has to say where it comes from — a path in development, a git
+# link in deployment. See docs/versioning-and-releases.md.
+dependencies = [
+    "musibot-core>=0.1.0",
+    "boto3>=1.34",
+    "aio-pika>=9.4",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.6",
+    "mypy>=1.11",
+    "boto3-stubs[s3]>=1.34",
+]
+
+# No console script. An *Orchestrator Head* is never started on its own — the
+# *Orchestrator* is the program, and it calls `Orchestrator.run()`. See
+# docs/writing-pipelines.md.
+
+# `musibot-core` is a sibling in this monorepo, installed from its path so that
+# an editable checkout of core is picked up here. This is uv-specific and pip
+# ignores it, so an install from a git link has to name core explicitly — see
+# docs/versioning-and-releases.md.
+[tool.uv.sources]
+musibot-core = { path = "../core", editable = true }
+
+# The version is read from the git tags rather than written down here, so that
+# every commit builds as a distinct version — see docs/versioning-and-releases.md.
+# `root` points at the repository root because setuptools-scm refuses to run from
+# a subdirectory even when it can see the repository above it. `--match` and
+# `tag_regex` keep this component reading its own tags only, and strip the
+# `orchestrator-head/v` prefix off the version they yield.
+[tool.hatch.version]
+source = "vcs"
+raw-options.root = "../.."
+raw-options.git_describe_command = ["git", "describe", "--dirty", "--tags", "--long", "--match", "orchestrator-head/v*"]
+raw-options.tag_regex = '^orchestrator-head/v(?P<version>\d+\.\d+\.\d+.*)$'
+
+[tool.hatch.build.targets.wheel]
+packages = ["musibot"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.mypy]
+strict = true
+plugins = ["pydantic.mypy"]
+files = ["musibot", "tests"]
+namespace_packages = true
+explicit_package_bases = true
+mypy_path = "."
