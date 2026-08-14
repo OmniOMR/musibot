@@ -1,0 +1,64 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "musibot-omniomr-orchestrator"
+version = "1.0.0"
+description = "The OmniOMR project's Musibot pipelines"
+readme = "README.md"
+license = "Apache-2.0"
+# The floor `core` sets, and unlike a Model a Pipeline has no way around it: it
+# runs inside the Orchestrator Head's own process.
+requires-python = ">=3.11"
+# OpenCV is the *headless* build on purpose: this runs as a service and never
+# opens a window, and the ordinary `opencv-python` drags in GUI libraries that a
+# VM does not have and should not need. numpy is declared although OpenCV brings
+# it, because the slicing uses it directly.
+#
+# `musibot-orchestrator-head` carries no version floor for the same reason
+# hello-orchestrator's does not: the head has no release tag yet, so a checkout
+# builds it below any floor that could be written. Put one in once it is tagged.
+dependencies = [
+    "musibot-orchestrator-head",
+    "opencv-python-headless>=4.9",
+    "numpy>=1.26",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.6",
+    "mypy>=1.11",
+]
+
+[project.scripts]
+musibot-omniomr-orchestrator = "omniomr_orchestrator:main"
+
+# Siblings in this monorepo, installed from their paths so that an editable
+# checkout of either is picked up here. This is uv-specific and pip ignores it.
+[tool.uv.sources]
+musibot-core = { path = "../../core", editable = true }
+musibot-orchestrator-head = { path = "../../orchestrator-head", editable = true }
+
+# The version is written down rather than derived from git tags, as it is for
+# `models`: what a *User* pins is the *Pipeline's* version, which is a domain
+# concept declared in the code, and this package version is packaging only.
+[tool.hatch.build.targets.wheel]
+packages = ["omniomr_orchestrator"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.mypy]
+strict = true
+plugins = ["pydantic.mypy"]
+files = ["omniomr_orchestrator", "tests"]
+# The tests share fixtures through `tests.fakes`, so mypy has to be told where
+# the package root is or it sees that module under two names.
+namespace_packages = true
+explicit_package_bases = true
+mypy_path = "."

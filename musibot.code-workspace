@@ -34,6 +34,10 @@
             "path": "components/orchestrators/hello-orchestrator"
         },
         {
+            "name": "omniomr-orchestrator",
+            "path": "components/orchestrators/omniomr-orchestrator"
+        },
+        {
             "name": "python-client",
             "path": "components/python-client"
         },
