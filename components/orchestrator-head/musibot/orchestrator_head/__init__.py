@@ -12,6 +12,7 @@ from musibot.core.discovery import Signature
 from musibot.core.execution import NameAndVersion
 
 from musibot.orchestrator_head.config import OrchestratorHeadSettings
+from musibot.orchestrator_head.orchestrator import Orchestrator
 from musibot.orchestrator_head.pipeline import (
     ExecutionLog,
     ExecutionRuntime,
@@ -29,6 +30,7 @@ __all__ = [
     "InvalidPipeline",
     "ModelExecutionFailed",
     "NameAndVersion",
+    "Orchestrator",
     "OrchestratorHeadSettings",
     "PageStorage",
     "PageStoragePort",
