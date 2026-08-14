@@ -11,7 +11,10 @@ A release is a git tag whose prefix is the component's folder under `components/
 
 ```
 core/v0.1.0          api/v0.1.0          python-client/v0.1.0          worker-head/v0.1.0
+orchestrator-head/v0.1.0                 omniomr-orchestrator/v0.1.0
 ```
+
+A component nested deeper than one level — `components/orchestrators/omniomr-orchestrator` — is tagged by its own folder name rather than the path to it. The name is what is unique and what somebody types.
 
 Slashes are legal in git refs, and this is the same layout Go modules mandate for monorepos, so it is a well-trodden convention rather than a local invention. It answers the three questions you actually ask about a component:
 
@@ -89,7 +92,7 @@ The first two rows are the trap: a teammate re-installs from a newer commit, pip
 | `python-client` | yes | From tags. Semver, independent of the API's cadence. |
 | `worker-head` | yes | From tags. Semver on the IPC contract. |
 | `orchestrator-head` | yes | From tags. Semver on the interface a *Pipeline* is written against. |
-| `orchestrators` | no | A *Pipeline* is identified by name and version, declared in its code — the same rule as a *Model's*, and for the same reason. The package version is packaging only. |
+| `orchestrators` | one of them | An *Orchestrator* that is **deployed** is released like anything else, from tags, because that is what makes `pip install` of a newer commit behave — `omniomr-orchestrator` is. One that exists to be exercised is not: `hello-orchestrator` keeps a written-down version and no tags. Either way that number is not what a *User* pins; a *Pipeline* is identified by its own name and version, declared in the code. |
 | `models` | no | A *Model*'s version is a domain concept — it is what a *Pipeline* pins and what discovery announces — so it stays a written-down constant in the model's `pyproject.toml`, not something derived from repository history. |
 | `web-ui` | yes | From tags, like the rest — but the version is only ever the tag. Nothing builds this from `pyproject.toml`, so `package.json` stays at `0.0.0` and is not the record. Its own version, decoupled from the API it targets. |
 

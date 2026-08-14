@@ -132,8 +132,8 @@ sudo -u musibot curl -Lo \
 # the worker head, on the 3.12 the rest of Musibot is developed on
 sudo -u musibot python3.12 -m venv /opt/musibot/workers/dvorak-ola-2.0-2025-03-09/venv
 sudo -u musibot /opt/musibot/workers/dvorak-ola-2.0-2025-03-09/venv/bin/pip install \
-    'musibot-core @ git+https://github.com/OmniOMR/musibot.git@core/v0.1.0#subdirectory=components/core' \
-    'musibot-worker-head @ git+https://github.com/OmniOMR/musibot.git@worker-head/v0.1.0#subdirectory=components/worker-head'
+    'musibot-core @ git+https://github.com/OmniOMR/musibot.git@core/v0.3.0#subdirectory=components/core' \
+    'musibot-worker-head @ git+https://github.com/OmniOMR/musibot.git@worker-head/v0.3.0#subdirectory=components/worker-head'
 ```
 
 A CPU-only VM wants the CPU wheel of torch rather than the default one, which drags in several gigabytes of CUDA that will never run: `pip install --index-url https://download.pytorch.org/whl/cpu torch` before the line above.

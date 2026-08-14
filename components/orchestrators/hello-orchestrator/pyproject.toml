@@ -19,17 +19,8 @@ requires-python = ">=3.11"
 # on any package index, so whoever installs this has to say where it comes from
 # — a path in development, a git link in deployment. See
 # docs/versioning-and-releases.md.
-#
-# The head carries no version floor, unlike the `musibot-core>=0.1.0` that every
-# other component declares. It has no `orchestrator-head/v*` tag yet, so a
-# checkout builds it as something like `0.1.dev76+g44da046` — which PEP 440
-# orders *below* 0.1.0, making any floor unsatisfiable and an editable install
-# fail with `ResolutionImpossible`. See "When the build needs git" in
-# docs/versioning-and-releases.md. Put the floor in once the head is first
-# tagged; until then this orchestrator is deployed from the same commit as the
-# head it runs inside anyway.
 dependencies = [
-    "musibot-orchestrator-head",
+    "musibot-orchestrator-head>=0.1.0",
     "pillow>=10.0",
 ]
 

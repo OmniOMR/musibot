@@ -8,6 +8,11 @@ The Web UI has no outward contract of its own: nothing depends on it, and it dep
 ## Unreleased
 
 
+## 0.1.1 — 2026-08-14
+
+A page screen that shows something the moment it opens, and stops polling: what it displays now arrives on the streams the `api` service grew in 0.3.0. Needs an `api` service of that version or newer.
+
+
 ### Added
 
 - **A page opens showing something.** Nothing was selected when a page screen opened, so a visitor who had just dropped a scan in watched an empty canvas while the recognition ran, and an empty one afterwards until they thought to click a row. Musibot now selects the *File* most worth looking at and re-selects as better ones appear — the scan, then the boxes over it, then the staff crops, then the transcription — and leaves the choice alone the moment the visitor makes one of their own. A *File* the order does not name is never chosen for somebody unless it is the only thing the page holds: a model may write anything, and showing an arbitrary file is worse than showing the scan.

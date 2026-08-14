@@ -49,8 +49,8 @@ sudo -u musibot /opt/musibot/models/zeus/venv/bin/pip install \
 # the worker head, on 3.12
 sudo -u musibot python3.12 -m venv /opt/musibot/workers/solo26-zod-bw-auth-ft-2026-07-20/venv
 sudo -u musibot /opt/musibot/workers/solo26-zod-bw-auth-ft-2026-07-20/venv/bin/pip install \
-    'musibot-core @ git+https://github.com/OmniOMR/musibot.git@core/v0.1.0#subdirectory=components/core' \
-    'musibot-worker-head @ git+https://github.com/OmniOMR/musibot.git@worker-head/v0.1.0#subdirectory=components/worker-head'
+    'musibot-core @ git+https://github.com/OmniOMR/musibot.git@core/v0.3.0#subdirectory=components/core' \
+    'musibot-worker-head @ git+https://github.com/OmniOMR/musibot.git@worker-head/v0.3.0#subdirectory=components/worker-head'
 ```
 
 Replace `@main` with a release tag to pin one. Every Zeus commit builds as a distinct version, so a plain `pip install` of a newer commit replaces what is there.

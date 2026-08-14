@@ -1,10 +1,10 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
 name = "musibot-omniomr-orchestrator"
-version = "1.0.0"
+dynamic = ["version"]
 description = "The OmniOMR project's Musibot pipelines"
 readme = "README.md"
 license = "Apache-2.0"
@@ -16,11 +16,12 @@ requires-python = ">=3.11"
 # VM does not have and should not need. numpy is declared although OpenCV brings
 # it, because the slicing uses it directly.
 #
-# `musibot-orchestrator-head` carries no version floor for the same reason
-# hello-orchestrator's does not: the head has no release tag yet, so a checkout
-# builds it below any floor that could be written. Put one in once it is tagged.
+# `musibot-orchestrator-head` is named but not sourced here: it is not on any
+# package index, so whoever installs this has to say where it comes from — a
+# path in development, a git link in deployment. See
+# docs/versioning-and-releases.md.
 dependencies = [
-    "musibot-orchestrator-head",
+    "musibot-orchestrator-head>=0.1.0",
     "opencv-python-headless>=4.9",
     "numpy>=1.26",
 ]
@@ -41,9 +42,21 @@ musibot-omniomr-orchestrator = "omniomr_orchestrator:main"
 musibot-core = { path = "../../core", editable = true }
 musibot-orchestrator-head = { path = "../../orchestrator-head", editable = true }
 
-# The version is written down rather than derived from git tags, as it is for
-# `models`: what a *User* pins is the *Pipeline's* version, which is a domain
-# concept declared in the code, and this package version is packaging only.
+# The version is read from the git tags rather than written down here, so that
+# every commit builds as a distinct version — see docs/versioning-and-releases.md.
+# This is a *deployed* component, installed by pip from a git link, so a written
+# version would be the trap that document describes: pip compares version strings
+# and nothing else, so reinstalling a newer commit under an unchanged version
+# does nothing, silently, and the VM keeps running the code it had.
+#
+# This number is not what a *User* pins. That is the *Pipeline's* version, which
+# is configuration here and moves for different reasons — see CHANGELOG.md.
+[tool.hatch.version]
+source = "vcs"
+raw-options.root = "../../.."
+raw-options.git_describe_command = ["git", "describe", "--dirty", "--tags", "--long", "--match", "omniomr-orchestrator/v*"]
+raw-options.tag_regex = '^omniomr-orchestrator/v(?P<version>\d+\.\d+\.\d+.*)$'
+
 [tool.hatch.build.targets.wheel]
 packages = ["omniomr_orchestrator"]
 

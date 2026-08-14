@@ -8,8 +8,12 @@ This guide explains the basics of using the Musibot python client to have music 
 We assume you have your own local python project, in which you need to utilize Musibot service in some way. Let's start by installing the python client package:
 
 ```bash
-pip3 install 'musibot-client @ git+https://github.com/OmniOMR/musibot.git@main#subdirectory=components/python-client'
+pip3 install \
+  'musibot-core @ git+https://github.com/OmniOMR/musibot.git@core/v0.3.0#subdirectory=components/core' \
+  'musibot-client @ git+https://github.com/OmniOMR/musibot.git@python-client/v0.3.0#subdirectory=components/python-client'
 ```
+
+Both, and in one command. The client depends on `musibot-core`, which is not on any package index, so pip has to be told where that comes from too — given it here, it uses this one and never goes looking. See [Versioning and releases](versioning-and-releases.md).
 
 
 ## Processing a Musicorpus page folder by a pipeline

@@ -8,6 +8,11 @@ This component is the wire contract, so a breaking change here ripples to the `a
 ## Unreleased
 
 
+## 0.3.0 — 2026-08-14
+
+The `files-changed` stream, and the shared queue declarations that let a second kind of head exist beside the *Worker Head*. Both are additions to the wire contract; the storage defaults also move to what a published deployment needs, and that one every service in a deployment has to follow together.
+
+
 ### Added
 
 - **Work queue declarations** (`musibot.core.execution`) — `model_work_queue()` and `pipeline_work_queue()` return a `QueueDeclaration` naming the shared queue for one *Model* or one *Pipeline* and saying how it must be declared. **A head must now declare its work queue through these rather than spelling the name and flags out itself.** They are here because RabbitMQ makes them protocol: a second declaration that disagrees with the first is refused with `PRECONDITION_FAILED` and takes the channel down, so a *Worker Head* and an *Orchestrator Head* cannot each decide for themselves — which is the same test that put the exchange names here. Queues belonging to one process alone, such as a reply queue, are deliberately absent: nobody else can be wrong about those. The names and flags are exactly what worker heads already used, so nothing on a running system changes.

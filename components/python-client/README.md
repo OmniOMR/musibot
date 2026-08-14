@@ -81,8 +81,8 @@ Not published to PyPI yet. While Musibot is on `0.x` and only the team is runnin
 
 ```bash
 pip install \
-  'musibot-core @ git+https://github.com/OmniOMR/musibot.git@core/v0.1.0#subdirectory=components/core' \
-  'musibot-client @ git+https://github.com/OmniOMR/musibot.git@python-client/v0.1.0#subdirectory=components/python-client'
+  'musibot-core @ git+https://github.com/OmniOMR/musibot.git@core/v0.3.0#subdirectory=components/core' \
+  'musibot-client @ git+https://github.com/OmniOMR/musibot.git@python-client/v0.3.0#subdirectory=components/python-client'
 ```
 
 This is the component most likely to go to PyPI first, as `musibot-client`, once there are users outside the team. See [Versioning and releases](../../docs/versioning-and-releases.md).

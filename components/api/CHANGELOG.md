@@ -8,6 +8,11 @@ Versions are semver on the **HTTP API**, which is the outward contract for `pyth
 ## Unreleased
 
 
+## 0.3.0 — 2026-08-14
+
+Three streams replace polling — the log of a page being read, the *Files* its executions write, and every execution of yours that ends — and the service narrates what it is doing so that a silent *Model* is not a silent page. A development instance now needs no flags at all.
+
+
 ### Changed
 
 - **The defaults are the local stack as it is published, so development needs no flags.** `docker compose up` and then `musibot-api` with no arguments is now the whole of starting Musibot locally: the service listens on `0.0.0.0` (the nginx container reaches it at `host.docker.internal:8080`), serves under `root_path=/musibot/api`, issues presigned URLs against `http://localhost:8000`, and has the public tier on — which the Web UI cannot work without, since every visitor arrives holding no token. The bucket and key prefix come from `core` and moved with it.

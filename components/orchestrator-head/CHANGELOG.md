@@ -7,6 +7,9 @@ Versions are semver on the **interface a *Pipeline* is written against**: the `P
 
 ## Unreleased
 
+
+## 0.1.0 — 2026-08-14
+
 First implementation. Everything below is new.
 
 

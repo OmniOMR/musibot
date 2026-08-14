@@ -13,7 +13,7 @@ requires-python = ">=3.11"
 # so whoever installs this has to say where it comes from — a path in
 # development, a git link in deployment. See docs/versioning-and-releases.md.
 dependencies = [
-    "musibot-core>=0.1.0",
+    "musibot-core>=0.3.0",
     "fastapi>=0.115",
     "uvicorn[standard]>=0.30",
     "boto3>=1.34",

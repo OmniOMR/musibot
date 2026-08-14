@@ -349,8 +349,8 @@ Note that a password with `@`, `:` or `/` in it has to be percent-encoded there,
 ```bash
 sudo -u musibot python3.12 -m venv /opt/musibot/api/venv
 sudo -u musibot /opt/musibot/api/venv/bin/pip install \
-    'musibot-core @ git+https://github.com/OmniOMR/musibot.git@core/v0.1.0#subdirectory=components/core' \
-    'musibot-api @ git+https://github.com/OmniOMR/musibot.git@api/v0.1.0#subdirectory=components/api'
+    'musibot-core @ git+https://github.com/OmniOMR/musibot.git@core/v0.3.0#subdirectory=components/core' \
+    'musibot-api @ git+https://github.com/OmniOMR/musibot.git@api/v0.3.0#subdirectory=components/api'
 ```
 
 **`musibot-core` has to be named explicitly**, every time, in the same command. It is a dependency of `musibot-api` but is on no package index, so pip cannot resolve it on its own; given both, pip uses the one you supplied. Omitting it fails clearly rather than subtly — `Could not find a version that satisfies the requirement musibot-core>=0.1.0` — which is the good outcome. See [Versioning and releases](versioning-and-releases.md).
@@ -490,8 +490,8 @@ A model with no snapshot to speak of is named after itself — `hello` below, si
 ```bash
 sudo -u musibot python3.12 -m venv /opt/musibot/workers/hello/venv
 sudo -u musibot /opt/musibot/workers/hello/venv/bin/pip install \
-    'musibot-core @ git+https://github.com/OmniOMR/musibot.git@core/v0.1.0#subdirectory=components/core' \
-    'musibot-worker-head @ git+https://github.com/OmniOMR/musibot.git@worker-head/v0.1.0#subdirectory=components/worker-head' \
+    'musibot-core @ git+https://github.com/OmniOMR/musibot.git@core/v0.3.0#subdirectory=components/core' \
+    'musibot-worker-head @ git+https://github.com/OmniOMR/musibot.git@worker-head/v0.3.0#subdirectory=components/worker-head' \
     'musibot-hello-model @ git+https://github.com/OmniOMR/musibot.git@main#subdirectory=components/models/hello-model'
 
 sudo install -o root -g musibot -m 0640 \
@@ -525,7 +525,7 @@ A model appearing in that listing is the *Worker* announcing itself; a model dis
 
 ## 8. An orchestrator
 
-A *Worker* runs a *Model*; an *Orchestrator* runs the *Pipelines* that string *Models* together. Musibot works without one — every *Model* is offered as an [ImplicitPipeline](domain-model.md) — so this section is optional until there is a *Pipeline* worth deploying.
+A *Worker* runs a *Model*; an *Orchestrator* runs the *Pipelines* that string *Models* together. Musibot works without one — every *Model* is offered as an [ImplicitPipeline](domain-model.md) — but without one there is no page-level recognition, so an instance serving the *Web UI* wants [omniomr-orchestrator](../components/orchestrators/omniomr-orchestrator/README.md), which is what the rest of this section installs.
 
 One templated unit serves all of them, the same shape as the worker unit:
 
@@ -537,32 +537,43 @@ sudo systemctl daemon-reload
 An *Orchestrator* is a single process on the same python as the rest of Musibot, with a venv of its own because its *Pipelines* bring their own dependencies. It needs no state directory and no special hardware: a *Pipeline* fetches *Files* from MinIO as it needs them and writes straight back, so nothing it does touches the disk.
 
 ```bash
-sudo -u musibot python3.12 -m venv /opt/musibot/orchestrators/hello/venv
-sudo -u musibot /opt/musibot/orchestrators/hello/venv/bin/pip install \
-    'musibot-core @ git+https://github.com/OmniOMR/musibot.git@core/v0.1.0#subdirectory=components/core' \
-    'musibot-orchestrator-head @ git+https://github.com/OmniOMR/musibot.git@main#subdirectory=components/orchestrator-head' \
-    'musibot-hello-orchestrator @ git+https://github.com/OmniOMR/musibot.git@main#subdirectory=components/orchestrators/hello-orchestrator'
+sudo -u musibot python3.12 -m venv /opt/musibot/orchestrators/omniomr/venv
+sudo -u musibot /opt/musibot/orchestrators/omniomr/venv/bin/pip install \
+    'musibot-core @ git+https://github.com/OmniOMR/musibot.git@core/v0.3.0#subdirectory=components/core' \
+    'musibot-orchestrator-head @ git+https://github.com/OmniOMR/musibot.git@orchestrator-head/v0.1.0#subdirectory=components/orchestrator-head' \
+    'musibot-omniomr-orchestrator @ git+https://github.com/OmniOMR/musibot.git@omniomr-orchestrator/v0.1.0#subdirectory=components/orchestrators/omniomr-orchestrator'
 
 sudo install -o root -g musibot -m 0640 \
-    /opt/musibot/repo/deploy/systemd/orchestrator.env.example /etc/musibot/orchestrator-hello.env
-sudo nano /etc/musibot/orchestrator-hello.env
+    /opt/musibot/repo/deploy/systemd/orchestrator.env.example /etc/musibot/orchestrator-omniomr.env
+sudo nano /etc/musibot/orchestrator-omniomr.env
 ```
 
 One line in that file says which *Orchestrator* this instance is — an *Orchestrator* is a program of its own, so the unit runs whatever this names:
 
 ```ini
-MUSIBOT_ORCHESTRATOR_COMMAND="/opt/musibot/orchestrators/hello/venv/bin/musibot-hello-orchestrator"
+MUSIBOT_ORCHESTRATOR_COMMAND="/opt/musibot/orchestrators/omniomr/venv/bin/musibot-omniomr-orchestrator"
 ```
+
+Its own settings then say which *Models* its *Pipelines* run, and **a deployment pins both explicitly** — the defaults are whatever the development stack happened to be running, which is exactly the kind of thing that goes stale without anybody noticing:
+
+```ini
+MUSIBOT_LAYOUT_MODEL="dvorak-ola@2.0-2025-03-09"
+MUSIBOT_STAFF_MODEL="ayce-long@2026-08-03-192253-final"
+```
+
+Those two must name *Models* this instance actually runs — the same name and version a *Worker* announces (section 7), not the snapshot's filename. A *Pipeline* pinned to a *Model* nobody serves announces itself happily and then times out every execution it is given.
 
 The rest is the same RabbitMQ and MinIO configuration everything else has, plus whatever settings that particular *Orchestrator* adds. Those extra settings are not decoration: they are how its *Pipelines* are parametrized, and pinning a *Model* version through one is how the same implementation is deployed twice, once stable and once in development (see [Writing pipelines](writing-pipelines.md)). Its own `--help` lists them.
 
 ```bash
-sudo systemctl enable --now musibot-orchestrator@hello
-journalctl -u musibot-orchestrator@hello -f
+sudo systemctl enable --now musibot-orchestrator@omniomr
+journalctl -u musibot-orchestrator@omniomr -f
 
 curl -s http://127.0.0.1:8080/pipelines
-# hello-pipeline 1.0.0, 1 instance, orchestrator hello-orchestrator
+# mzk-page 1 and mzk-staff 1, 1 instance each, orchestrator omniomr
 ```
+
+Those two names are the ones the *Web UI* offers on its landing page, so an instance where they are missing shows a visitor a picker with nothing recommended in it.
 
 A *Pipeline* appearing in that listing without `"implicit": true` is an *Orchestrator* announcing itself. Nothing was configured on the `api` service's side, exactly as with a *Worker*.
 
@@ -632,8 +643,8 @@ Reinstalling is a plain `pip install` of the newer ref — no `--force-reinstall
 
 ```bash
 sudo -u musibot /opt/musibot/api/venv/bin/pip install \
-    'musibot-core @ git+https://github.com/OmniOMR/musibot.git@core/v0.2.0#subdirectory=components/core' \
-    'musibot-api @ git+https://github.com/OmniOMR/musibot.git@api/v0.2.0#subdirectory=components/api'
+    'musibot-core @ git+https://github.com/OmniOMR/musibot.git@core/v0.3.0#subdirectory=components/core' \
+    'musibot-api @ git+https://github.com/OmniOMR/musibot.git@api/v0.3.0#subdirectory=components/api'
 
 sudo -u musibot /opt/musibot/api/venv/bin/pip show musibot-api | grep Version
 sudo systemctl restart musibot-api

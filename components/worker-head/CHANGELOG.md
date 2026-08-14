@@ -8,6 +8,11 @@ Versions are semver on the **IPC contract** between the worker head and a *Model
 ## Unreleased
 
 
+## 0.3.0 — 2026-08-14
+
+What a *Model* prints and what it writes now reach the *User* as they happen. And a page's local mirror is no longer shared between concurrent executions, which is what the first real *Pipeline* needed and did not get.
+
+
 ### Added
 
 - **A *Model's* output now reaches the *User*.** Every line the model prints on stdout or stderr is published on the `musibot.logs` exchange as it is read — stdout at level `info`, stderr at `warning` — attributed to the *Pipeline Execution* that caused the work, and the `api` service streams it to whoever is watching that page. This is what the IPC's two dedicated file descriptors were always for: a *Model* needs no logging setup, and `print("staff 3/12")` is the whole of the obligation. Nothing in the IPC contract changes, so a *Model* written against 0.2.1 needs nothing done to it. Two lines of the head's own go out beside them: what the model wrote, and, when an execution fails, why — the latter because the result travels to whoever asked while the log travels to the *User*, and an *Orchestrator* is free to report a failure of its own and lose the model's reason on the way.

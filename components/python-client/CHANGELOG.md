@@ -8,6 +8,11 @@ Versions are semver, independent of the `api` service's release cadence. This is
 ## Unreleased
 
 
+## 0.3.0 — 2026-08-14
+
+Collections rather than pages, and nothing polls any more. Needs an `api` service of 0.3.0 or newer, which serves the stream `wait_for_execution` now waits on.
+
+
 ### Added
 
 - **`process_pages`: a whole collection, not a loop.** Hand it an iterable of `BatchJob`s and it keeps several pages in flight, yielding a `BatchResult` as each finishes. Built for the two workloads that asked for it — a library running its collection through, and a benchmark rig measuring a *Pipeline* over a dataset on disk — so the shape follows from those: results carry the `key` you gave the job, they arrive as pages finish rather than in order, and **a failed page is a result rather than an exception**, because one unreadable scan among a million is not a reason to stop. Jobs are pulled lazily, one page at a time as a worker frees up, so a generator that fetches each scan never has more than `concurrency` of them in memory. Stopping early deletes the pages still in flight.
