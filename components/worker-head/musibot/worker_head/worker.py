@@ -17,6 +17,8 @@ straight to the `api` service rather than back through whoever asked, so that a
 import asyncio
 import logging
 import random
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 
 from aio_pika.abc import ExchangeType
@@ -95,6 +97,11 @@ class WorkerHead:
         # construction of the ModelProcess, which happens before there is a
         # Worker to name as the source.
         model.output_sink = self.forward_model_output
+
+        # One lock per page whose mirror is in use, and how many executions are
+        # waiting on it — so an entry goes away when the last one is done rather
+        # than accumulating one per page this Worker has ever seen.
+        self._page_mirrors: dict[str, tuple[asyncio.Lock, int]] = {}
 
         # Executions cancelled before they started. Termination is best-effort
         # and only cancels what has not begun: a Model executes one command at a
@@ -233,7 +240,11 @@ class WorkerHead:
             )
             return
 
-        state, error = await self._run(message)
+        # The page's mirror is held for the whole execution, so that two
+        # executions on one page cannot be in flight in this process at once.
+        async with self._mirrored_page(message.page_id):
+            state, error = await self._run(message)
+
         if state == "failed" and error is not None:
             # Said in the log as well as in the result, because the result goes
             # to whoever asked and the log goes to the *User*: an *Orchestrator*
@@ -241,6 +252,46 @@ class WorkerHead:
             # on the way, which is exactly when somebody wants to read it.
             await self._publish_log(message.pipeline_execution, error, level="error")
         await self._report(message, work.reply_to, state, error)
+
+    @asynccontextmanager
+    async def _mirrored_page(self, page_id: str) -> AsyncIterator[None]:
+        """Hold this page's local mirror for one execution, then discard it.
+
+        One page is one directory, shared by every execution of this *Worker*
+        that touches that page — so two of them may not be in flight at once
+        here. The first to finish would delete the mirror out from under the
+        others, and they would fail reporting that a *File* staged for them does
+        not exist while it sits in object storage perfectly intact.
+
+        Nothing exercised that until a *Pipeline* ran one *Model* over every
+        staff of a page at once, which is the thing a *Pipeline* is for.
+
+        This costs almost no throughput: a *Model* executes one command at a
+        time anyway (`ModelProcess` serializes on its own lock), so what is
+        given up is overlapping one execution's staging with another's forward
+        pass, and only between executions on the same page. Different pages are
+        untouched, and so is a second *Worker* running the same *Model* — the
+        way this work is meant to spread.
+        """
+        lock, holders = self._page_mirrors.get(page_id, (asyncio.Lock(), 0))
+        self._page_mirrors[page_id] = (lock, holders + 1)
+
+        try:
+            async with lock:
+                try:
+                    yield
+                finally:
+                    # The mirror is scratch space for one execution rather than
+                    # a cache, so it goes as soon as this execution is done with
+                    # it — while the lock is still held, so that the next
+                    # execution on this page stages into an empty directory.
+                    await asyncio.to_thread(self._storage.discard, page_id)
+        finally:
+            _, holders = self._page_mirrors[page_id]
+            if holders <= 1:
+                del self._page_mirrors[page_id]
+            else:
+                self._page_mirrors[page_id] = (lock, holders - 1)
 
     async def _run(self, message: ModelExecutionStart) -> tuple[ExecutionState, str | None]:
         """Stage, execute, and send back what changed."""
@@ -303,9 +354,6 @@ class WorkerHead:
             # for an answer that is never coming.
             logger.exception("Model execution %s failed unexpectedly", message.model_execution_id)
             return "failed", str(failure)
-
-        finally:
-            await asyncio.to_thread(self._storage.discard, page_id)
 
     def _missing_promised_outputs(self, present: dict[str, FileStamp]) -> list[str]:
         """Which *Files* the *Signature* promised outright but are not there.

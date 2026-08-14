@@ -14,6 +14,12 @@ Versions are semver on the **IPC contract** between the worker head and a *Model
 
 - **A *Worker* announces the *Files* it wrote.** After uploading a *Model's* output it publishes a `files-changed` notice on `musibot.file-changes` naming those paths, attributed to the *Pipeline Execution* that caused them, so a client watching that page can show a *File* as it appears instead of at its next poll. Published after the upload and never before — a client told about a *File* that has not reached storage yet would fetch a `404` — and fire-and-forget, like the log: object storage is the truth about what a page holds, so a broker that refuses a notice costs latency rather than work. Nothing in the IPC contract changes.
 
+### Fixed
+
+- **Two executions on one page no longer share that page's local mirror.** A *Worker* mirrors a page into one directory and discarded it when *an* execution finished — so when several executions of the same page were in flight at once, the first to finish deleted the mirror out from under the rest. They then failed reporting that an input *File* did not exist, while it sat in object storage perfectly intact. A page's mirror is now held exclusively for the execution using it and discarded before the next one stages into it.
+
+  Nothing exercised this until a *Pipeline* ran one *Model* over every staff of a page at once, which is what a *Pipeline* is for: the first real one lost 8 of 9 staves to it. It costs no throughput worth measuring — a *Model* executes one command at a time anyway, so what is given up is overlapping one execution's staging with another's forward pass, and only between executions of the same page. Different pages are untouched, and so is a second *Worker* running the same *Model*.
+
 ### Changed
 
 - **The work queue is declared through `core`.** Its name and its declaration flags now come from `musibot.core.execution.model_work_queue()` instead of being written out here, because an *Orchestrator Head* declares the same kind of queue and RabbitMQ refuses two declarations that disagree. Nothing about the queue changes — same name, same flags — and nothing in the IPC contract does either. `WORK_QUEUE_PREFIX` and `work_queue_name()` are gone from `musibot.worker_head.worker`, and `Broker.consume_work` takes a `work_queue` declaration rather than a `queue_name`.

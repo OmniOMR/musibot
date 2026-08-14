@@ -6,6 +6,7 @@ RabbitMQ are faked, since those are what a test cannot reasonably run.
 
 import asyncio
 import json
+import shutil
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -94,11 +95,15 @@ class FakeStorage:
         self.staged: list[tuple[str, list[str]]] = []
         self.uploaded: list[str] = []
         self.discarded: list[str] = []
+        # Staging and discarding in the order they happened, which is what says
+        # whether two executions shared one page's mirror.
+        self.events: list[tuple[str, str]] = []
 
     def stage_inputs(self, page_id: str, file_paths: list[str]) -> None:
         if self._missing_input:
             raise InputFileMissing(f"The input file {file_paths[0]!r} is not in the page")
         self.staged.append((page_id, file_paths))
+        self.events.append(("staged", page_id))
         (self._pages_dir / page_id).mkdir(parents=True, exist_ok=True)
 
     def snapshot(self, page_id: str) -> dict[str, FileStamp]:
@@ -120,16 +125,20 @@ class FakeStorage:
 
     def discard(self, page_id: str) -> None:
         self.discarded.append(page_id)
+        self.events.append(("discarded", page_id))
+        shutil.rmtree(self._pages_dir / page_id, ignore_errors=True)
 
 
 def a_start(
-    model_execution_id: str = "8Lw4tR6yBn1c", input_files: list[str] | None = None
+    model_execution_id: str = "8Lw4tR6yBn1c",
+    input_files: list[str] | None = None,
+    page_id: str = PAGE_ID,
 ) -> bytes:
     return serialize_message(
         ModelExecutionStart(
             model_execution_id=model_execution_id,
             model=NameAndVersion(name="fake-model", version="1.0.0"),
-            page_id=PAGE_ID,
+            page_id=page_id,
             input=input_files if input_files is not None else ["image.jpg"],
             parameters={},
             pipeline_execution=PipelineExecutionRef(page_id=PAGE_ID, execution_id=1),
@@ -203,6 +212,66 @@ def test_a_goodbye_names_this_instance(tmp_path: Path) -> None:
             goodbye = parse_discovery_message(message.body)
             assert isinstance(goodbye, Goodbye)
             assert goodbye.provider.instance_id == "w-1"
+        finally:
+            await model.shutdown()
+
+    run(scenario)
+
+
+def test_two_executions_on_one_page_do_not_share_its_mirror(tmp_path: Path) -> None:
+    """A *Pipeline* runs one *Model* over every staff of a page at once.
+
+    All of those executions are the same page, and this *Worker* mirrors a page
+    into one directory — so if two of them are in flight here at the same time,
+    the first to finish deletes the mirror out from under the second, which then
+    fails saying that a *File* staged for it does not exist while it sits in
+    object storage perfectly intact.
+
+    The events therefore have to nest, `staged … discarded` twice over, and
+    never interleave. This is asserted rather than the failure reproduced,
+    because the failure needs the two to overlap at just the wrong moment and
+    this holds whatever the timing.
+    """
+
+    async def scenario() -> None:
+        publisher = FakePublisher()
+        storage = FakeStorage(tmp_path)
+        worker, model = await a_worker(tmp_path, publisher, storage)
+        try:
+            await asyncio.gather(
+                worker.handle_start(work(a_start("execution-one"))),
+                worker.handle_start(work(a_start("execution-two"))),
+            )
+
+            assert storage.events == [
+                ("staged", PAGE_ID),
+                ("discarded", PAGE_ID),
+                ("staged", PAGE_ID),
+                ("discarded", PAGE_ID),
+            ]
+            assert [result.state for result in publisher.results()] == ["completed", "completed"]
+        finally:
+            await model.shutdown()
+
+    run(scenario)
+
+
+def test_executions_on_different_pages_are_not_held_up_by_each_other(tmp_path: Path) -> None:
+    # Only the page's own mirror is exclusive. Two pages have two directories
+    # and nothing to disagree about, so they overlap as before.
+    async def scenario() -> None:
+        publisher = FakePublisher()
+        storage = FakeStorage(tmp_path)
+        worker, model = await a_worker(tmp_path, publisher, storage)
+        try:
+            other_page = "pageBBBBBBBB"
+            await asyncio.gather(
+                worker.handle_start(work(a_start("execution-one"))),
+                worker.handle_start(work(a_start("execution-two", page_id=other_page))),
+            )
+
+            assert storage.events[:2] == [("staged", PAGE_ID), ("staged", other_page)]
+            assert [result.state for result in publisher.results()] == ["completed", "completed"]
         finally:
             await model.shutdown()
 
