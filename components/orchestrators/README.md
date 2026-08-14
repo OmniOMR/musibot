@@ -5,15 +5,20 @@ Some *Orchestrators* ship inside this monorepo (this folder) and others live in 
 
 ## What an orchestrator provides
 
-A set of *Pipelines* — `async` python functions that read and write *MusicorpusPage* *Files* and invoke *Models*. Unlike a *Model* (isolated behind a subprocess), an *Orchestrator* is tightly coupled to Musibot: it imports `orchestrator-head` and `core` and runs in-process with them.
+A set of *Pipelines* — subclasses of `Pipeline` that read and write *MusicorpusPage* *Files* and invoke *Models*, registered as **instances**, so one implementation can be registered twice with different parameters. Unlike a *Model* (isolated behind a subprocess), an *Orchestrator* is tightly coupled to Musibot: it imports `orchestrator-head` and `core` and runs in-process with them. See [Writing pipelines](../../docs/writing-pipelines.md).
 
 
-## Layout (per reference orchestrator in this folder)
+## In this folder
+
+- [hello-orchestrator](hello-orchestrator/) — recognises nothing, and exercises everything: it runs a *Model*, reads what that *Model* wrote, and writes a *File* of its own. The worked example to read first, and the counterpart of `hello-model`.
+
+
+## Layout (per orchestrator in this folder)
 
 ```
 orchestrators/<orchestrator-name>/
   pyproject.toml         # deps for THIS orchestrator's pipelines
-  <orchestrator-name>/   # pipeline implementations
+  <orchestrator_name>/   # pipeline implementations, and the startup script
   tests/
   README.md
 ```
@@ -31,9 +36,9 @@ Install the orchestrator together with `orchestrator-head` into a venv and start
 
 ## Testing
 
-Per-orchestrator unit tests for pipeline logic, plus integration tests exercising a full pipeline against fake models.
+Per-orchestrator unit tests for pipeline logic, using `PipelineRunner` from the head's `testing` module: it runs a *Pipeline* against an in-memory page with no broker, no object storage and no *Models*, so a test needs none of Musibot running and no async test framework.
 
 
 ## Versioning
 
-A *Pipeline* is identified by name and version; an orchestrator bundles a set of them.
+A *Pipeline* is identified by name and version, and both are declared in its code — the same rule as a *Model's*, and for the same reason: what a *User* pinned should not change because the package was rebuilt. An orchestrator bundles a set of them, and its own package version is packaging only.
