@@ -8,6 +8,11 @@ The Web UI has no outward contract of its own: nothing depends on it, and it dep
 ## Unreleased
 
 
+## 0.2.0 — 2026-08-15
+
+Whatever format the scanner made it in, and four real pages to try it on. Musibot takes PNG, BMP, TIFF and a one-page PDF as well as JPEG; the samples on the landing page are public-domain scans rather than drawn stand-ins; and the page header offers the one file a visitor came for instead of everything a reading produced. All of it is in the browser, so this asks nothing new of the service — still an `api` of 0.3.0 or newer, as 0.1.1 required.
+
+
 ### Added
 
 - **The four sample pages are real scans.** "Nothing to hand? Take one of ours" offered four thumbnails drawn out of ruled lines — deliberately not photographs of anything, so that a placeholder could not ship unnoticed. The scans are here now: an engraved Lied of 1893, a nineteenth-century manuscript trombone part, a cropped staff in handwriting, and a photograph of a printed sheet lying on a carpet. Clicking one puts it through the upload flow exactly as though it had come off your own disk, so the samples demonstrate what Musibot is and is not good at rather than only what it looks like.
