@@ -3,8 +3,7 @@ import ButtonBase from "@mui/material/ButtonBase";
 import Typography from "@mui/material/Typography";
 
 import { mono, paper } from "../../theme";
-import SampleArt from "./SampleArt";
-import { SAMPLE_SHEETS, type SampleSheet } from "./samples";
+import { SAMPLE_DRAG_TYPE, SAMPLE_SHEETS, type SampleSheet } from "./samples";
 
 /**
  * "Nothing to hand? Take one of ours."
@@ -48,6 +47,10 @@ export default function SampleSheets({ onChoose }: { onChoose: (sample: SampleSh
           <ButtonBase
             key={sample.id}
             draggable
+            onDragStart={(event: React.DragEvent) => {
+              event.dataTransfer.setData(SAMPLE_DRAG_TYPE, sample.id);
+              event.dataTransfer.effectAllowed = "copy";
+            }}
             onClick={() => onChoose(sample)}
             sx={{
               display: "block",
@@ -67,12 +70,32 @@ export default function SampleSheets({ onChoose }: { onChoose: (sample: SampleSh
                 justifyContent: "center",
                 border: `1px solid ${paper["300"]}`,
                 borderRadius: 1,
-                // White, because a thumbnail is a scan held up off the sheet —
-                // the one place the top of the ramp is right.
-                bgcolor: sample.art === "photo" ? paper["100"] : paper["000"],
+                // The drop zone's own surface, so the row of samples reads as
+                // part of the way in rather than as four white cards stuck
+                // underneath it. The scans bring their own white.
+                bgcolor: paper["100"],
               }}
             >
-              <SampleArt art={sample.art} />
+              {/* Fitted rather than cropped, and inset rather than bled to the
+                  edges: at this size the useful thing a thumbnail says is what
+                  shape the page is. A staff crop is a strip and reads as one,
+                  which is the distinction the label beside it is making.
+
+                  No alt text. The label and file name below are the button's
+                  accessible name already, and a second reading of "printed
+                  page" is noise to somebody listening rather than looking. */}
+              <Box
+                component="img"
+                src={sample.thumbnail}
+                alt=""
+                // Not the drag source. Chrome hands a dragged image over as a
+                // file, so grabbing this would upload the four-kilobyte
+                // thumbnail instead of the scan it stands for. The drag is the
+                // button's, and it carries the sample's id — see
+                // `SAMPLE_DRAG_TYPE`.
+                draggable={false}
+                sx={{ maxHeight: 56, maxWidth: "88%", display: "block" }}
+              />
             </Box>
             <Typography
               sx={{

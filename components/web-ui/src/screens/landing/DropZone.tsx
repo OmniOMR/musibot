@@ -5,22 +5,34 @@ import { useRef, useState } from "react";
 
 import { cuni, paper, serif } from "../../theme";
 import { ACCEPTED_UPLOAD_TYPES } from "../../upload/prepareUpload";
+import { draggedSample, type SampleSheet } from "./samples";
 
 /**
  * Where a page arrives.
  *
- * Drop, or choose from the file picker — both end at the same callback, and so
- * will a sample dragged up from below. What happens to the file afterwards is
- * not this component's business and is not built yet: nothing here validates,
- * uploads or navigates, and `onChoose` is the seam the upload flow is written
- * behind.
+ * Drop, choose from the file picker, or drag one of Musibot's own samples up
+ * from below. What happens afterwards is not this component's business:
+ * nothing here validates, uploads or navigates, and the two callbacks are the
+ * seam the upload flow is written behind.
+ *
+ * A sample is its own callback rather than a `File` because a drag cannot carry
+ * one. What is on screen is a thumbnail, and a browser hands a dragged image
+ * over as a file — so a sample announces which sample it is and the scan is
+ * fetched by name, the same way a click gets it.
  *
  * The dashed border is the one place in the design that is not a hairline, and
  * that is deliberate — a dashed rectangle is the web's idiom for "put something
  * here", and the drop zone is the only element on the page asking to be given
  * something.
  */
-export default function DropZone({ onChoose }: { onChoose: (file: File) => void }) {
+export default function DropZone({
+  onChoose,
+  onChooseSample,
+}: {
+  onChoose: (file: File) => void;
+  /** One of Musibot's own samples, dragged up from the row below. */
+  onChooseSample: (sample: SampleSheet) => void;
+}) {
   const input = useRef<HTMLInputElement>(null);
   const [isOver, setOver] = useState(false);
 
@@ -41,6 +53,17 @@ export default function DropZone({ onChoose }: { onChoose: (file: File) => void 
         onDrop={(event) => {
           event.preventDefault();
           setOver(false);
+
+          // One of ours first. A sample carries its id and not its picture, so
+          // that the scan is fetched by name rather than the thumbnail being
+          // uploaded — a browser will hand a dragged image over as a file, and
+          // that file is four kilobytes of nothing.
+          const sample = draggedSample(event.dataTransfer);
+          if (sample !== undefined) {
+            onChooseSample(sample);
+            return;
+          }
+
           const file = firstFileOf(event.dataTransfer);
           if (file) {
             onChoose(file);

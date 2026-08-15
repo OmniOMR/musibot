@@ -46,10 +46,15 @@ The page is **full-bleed**: the ivory runs edge to edge with no card or frame ar
 
 `src/links.ts` holds every address pointing outside the app: the interactive HTTP API docs, the python client, the project, and the address libraries are told to write to. They name things outside this repository and go stale without anything here failing to build, so they are in one file rather than scattered through the markup.
 
-Two placeholders are still in the landing page and both are meant to be noticed:
+**The four sample pages are real scans**, and each is two files. The scan itself is in `public/samples/`, fetched by name when somebody picks it, because it is a *File* they are about to upload rather than part of the interface. Its thumbnail is in `src/screens/landing/thumbnails/` and imported by `samples.ts`, so the bundler hashes it and it is cached like any other asset — it is a few kilobytes and it is drawn whether or not anybody clicks. Replacing a sample means replacing both, at the same base name.
 
-- **The four sample pages are drawn, not photographed.** `src/screens/landing/SampleArt.tsx` renders ruled lines standing in for a scan, exactly as the design file did. Real JPEGs go in `public/samples/`, after which that file goes away. The stand-ins are obviously not photographs on purpose — a placeholder that looked real would ship unnoticed.
-- **Nothing is uploaded yet.** The drop zone and the samples both call back with what was chosen and the landing screen drops it; that callback is the seam the upload flow plugs into.
+The four are chosen for what they demonstrate rather than for what they are: clean print, handwriting, an already-cropped staff, and a photograph taken at an angle. Three are page-shaped and one is a strip, so the samples exercise both of `looksLikeSingleStaff`'s answers too.
+
+All four are public domain: two nineteenth-century manuscripts, and two engraved editions old enough that both the music and the plates have long since fallen out of copyright. That is a constraint on any replacement, not a coincidence — the landing page serves these to the public, and a sample is the one image on the site Musibot is redistributing rather than merely reading.
+
+The phone photo is a composite. It is a real photograph of a real sheet on a real carpet; what was printed on that sheet has been taken off it and the public-domain engraving printed on in its place. No part of the frame is replaced by another image — the original ink was removed by filling it with paper borrowed from elsewhere on the same sheet, and the engraving is then warped into the sheet's corners and *multiplied* over the result, so outside the page the factor is exactly one and there is no edge anywhere to give it away. Every physical thing in it is genuine: the paper's grain and tone, the uneven light, the shadow, the crease, the perspective. Only the music was never there.
+
+They are not all JPEGs, and `fetchSample` derives the media type from the name rather than assuming one. The engraved page is a bilevel PNG, which is a twelfth the size of the same scan as a JPEG and loses nothing — line art is what PNG is good at and what JPEG is worst at. Every sample must be a format `isAcceptedUpload` takes, since a sample goes through `prepareUpload` exactly as the visitor's own file does; a test asserts it.
 
 
 ## The upload flow

@@ -10,6 +10,12 @@ The Web UI has no outward contract of its own: nothing depends on it, and it dep
 
 ### Added
 
+- **The four sample pages are real scans.** "Nothing to hand? Take one of ours" offered four thumbnails drawn out of ruled lines — deliberately not photographs of anything, so that a placeholder could not ship unnoticed. The scans are here now: an engraved Lied of 1893, a nineteenth-century manuscript trombone part, a cropped staff in handwriting, and a photograph of a printed sheet lying on a carpet. Clicking one puts it through the upload flow exactly as though it had come off your own disk, so the samples demonstrate what Musibot is and is not good at rather than only what it looks like.
+
+  All four are public domain, which is a requirement on any replacement rather than a happy accident: a sample is the one image on the site that Musibot redistributes rather than merely reads.
+
+  **Dragging one up works too**, which is what the row has always invited and never done. A drag now carries which sample it is rather than the picture on screen: that picture is a thumbnail a few kilobytes wide, and a browser will hand a dragged image over as a file, so the alternative was uploading the thumbnail and having Musibot read it back to you.
+
 - **A scanner's PDF can be uploaded directly.** Somebody scans a sheet of music and their scanner hands them a one-page PDF, which Musibot refused — so the file had to be opened, exported as an image and uploaded again, for a document that already holds nothing but the scan. Drop the PDF now and Musibot rasterises its first page at 300 DPI, which is the resolution OMR is written for and the one flatbed scanners default to: for a scan wrapped in a PDF this substantially recovers the image already inside the file rather than approximating it. A score exported from notation software has no native resolution and simply renders cleanly, which makes it about the best page Musibot can be given.
 
   **Only the first page, and it says so.** A PDF of several pages has the rest left unread, and the choice card tells you how many there were before you start the reading — one page at a time is what this app is, and losing the others quietly is the one way the flow could lie to you.

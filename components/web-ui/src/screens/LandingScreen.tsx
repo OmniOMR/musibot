@@ -139,7 +139,10 @@ export default function LandingScreen() {
           </Box>
 
           <Box sx={{ flex: "1 1 0", minWidth: 0, width: "100%" }}>
-            <DropZone onChoose={(file) => void choose(file)} />
+            <DropZone
+              onChoose={(file) => void choose(file)}
+              onChooseSample={(sample) => void chooseSample(sample.fileName)}
+            />
             {problem !== null && (
               <Box sx={{ mt: 1.5 }}>
                 <NoticeCard
