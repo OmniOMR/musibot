@@ -8,6 +8,18 @@ The Web UI has no outward contract of its own: nothing depends on it, and it dep
 ## Unreleased
 
 
+### Changed
+
+- **The token sequence is shown only when it is what was selected.** Selecting either transcription format used to show both, on the reasoning that they are two views of one answer and nobody wants to click twice. But they are for two different readers, and most visitors are the first kind: they came to see whether Musibot read their music correctly, and a wall of LMX under every staff was one more thing to scroll past to reach the next one. Selecting `transcription.musicxml` now shows the notation alone; the tokens appear when `transcription.lmx` is what was selected, and the panel no longer fetches a file it was not going to show. The other direction is unchanged — selecting the tokens still shows the notation above them, because that is what the same answer looks like to everybody.
+
+
+### Fixed
+
+- **A page transcription was engraved as one endless line.** Every reading was drawn as a single unbroken staff. That is right for a staff crop, which is one line of music and has no systems of its own to honour, and wrong for a whole page: a page's systems are written in its MusicXML, and running them together turned a sheet of music into one line disappearing off the side of the panel. Page-level readings now break where the file says they break, and staff-level ones are drawn as before.
+
+- **Measure rests were dropping out of the engraving.** OSMD wants a `<duration>` on every rest, and a measure rest carries none — neither the ones MuseScore exports nor the ones LMX produces. Musibot repairs the document on the way in, but the repair had never taken effect: it wrote the number into a property that exists only on HTML elements, so what OSMD received was an empty `<duration/>`, and the repaired document reached it having lost the `<?xml` declaration by which OSMD tells a score from a URL to fetch one from. A score with a full-bar rest in it renders now.
+
+
 ## 0.1.1 — 2026-08-14
 
 A page screen that shows something the moment it opens, and stops polling: what it displays now arrives on the streams the `api` service grew in 0.3.0. Needs an `api` service of that version or newer.

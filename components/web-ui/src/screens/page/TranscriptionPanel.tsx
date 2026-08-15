@@ -18,11 +18,13 @@ import { pathsOf, readingsFor, tokensOf, type Reading } from "../../transcriptio
  * of the width, because comparing the reading against the scan is the whole
  * reason for looking at either.
  *
- * Each reading shows the notation engraved from MusicXML and, underneath, the
- * LMX the model actually emitted. The second is not a fallback for the first —
- * they are for two different readers. A musician checks whether the notation
- * looks right; somebody working on the model reads the token sequence, where a
- * wrong duration is a wrong token rather than a subtly wrong stem.
+ * Each reading shows the notation engraved from MusicXML, and underneath it the
+ * LMX the model actually emitted — but only when the LMX is what was selected.
+ * The second is not a fallback for the first; they are for two different
+ * readers. A musician checks whether the notation looks right, and is only
+ * pushed further from the next staff by a wall of tokens between them. Somebody
+ * working on the model reads the sequence, where a wrong duration is a wrong
+ * token rather than a subtly wrong stem, and asks for it by name.
  */
 export default function TranscriptionPanel({
   pageId,
@@ -147,7 +149,7 @@ function ReadingView({
               : "…"}
           </Box>
         ) : (
-          <ScoreView musicXml={musicXml} isSingleStaff={reading.folder !== ""} />
+          <ScoreView musicXml={musicXml} singleStaff={reading.folder !== ""} />
         )}
       </Box>
 
@@ -163,7 +165,9 @@ function ReadingView({
  * being read is a sequence and the boundaries are the content — a reader
  * counting tokens against notes needs to see where each one ends. Wrapping
  * rather than scrolling sideways: a long reading is long, and a horizontal
- * scrollbar would hide the end of it.
+ * scrollbar would hide the end of it. Nor is it capped in height and scrolled
+ * inside itself. It is only here because somebody selected the LMX, and a
+ * reader who asked for the tokens wants all of them, in the panel's own scroll.
  */
 function Tokens({ lmx }: { lmx: string }) {
   const tokens = tokensOf(lmx);
@@ -192,8 +196,6 @@ function Tokens({ lmx }: { lmx: string }) {
           border: `1px solid ${paper["200"]}`,
           borderRadius: 1,
           bgcolor: paper["100"],
-          // maxHeight: 220,
-          overflow: "auto",
         }}
       >
         {tokens.map((tokenText, index) => (

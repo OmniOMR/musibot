@@ -13,10 +13,8 @@ import { fileNameOf, instanceLabel, subdivisionOf } from "../scene/scene";
  * that comparison possible.
  *
  * A reading is assembled from whatever the folder holds rather than from the
- * file that happened to be clicked. `transcription.musicxml` is what gets
- * rendered as notation and `transcription.lmx` is the token sequence a model
- * developer reads underneath it; selecting either shows both, because they are
- * two views of one answer and nobody wants to click twice.
+ * file that happened to be clicked, so the notation is always engraved when the
+ * folder has MusicXML to engrave it from.
  */
 export interface Reading {
   /** The folder these files live in — `` at page level, `Staves/3/` below it. */
@@ -25,7 +23,7 @@ export interface Reading {
   label: string | null;
   /** The rendered notation's source, if the folder holds one. */
   musicXmlPath: string | null;
-  /** The token sequence, if the folder holds one. */
+  /** The token sequence, if the folder holds one and the tokens were asked for. */
   lmxPath: string | null;
 }
 
@@ -48,12 +46,20 @@ export function opensTranscription(selected: FileRow | null): boolean {
  * `transcription.mscz` sitting beside them is a *File* the page holds and the
  * overview lists, but it is a MuseScore document and there is nothing this
  * panel could show of it.
+ *
+ * The two are not symmetric. Notation is what a reading looks like to anybody,
+ * so MusicXML is engraved whenever the folder holds it; the LMX underneath is a
+ * model developer's view of the same answer, and a visitor who came to see
+ * whether Musibot read their music correctly only scrolls past a wall of tokens
+ * to get to the next staff. So the tokens are shown when they are what was
+ * selected, and left out when the notation was.
  */
 export function readingsFor(selected: FileRow | null, files: FileView[]): Reading[] {
   if (!opensTranscription(selected) || selected === null) {
     return [];
   }
 
+  const wantsTokens = selected.name === "transcription.lmx";
   const subdivision = subdivisionOf(selected.paths[0]);
   const folders = new Set<string>();
   for (const path of selected.paths) {
@@ -61,21 +67,16 @@ export function readingsFor(selected: FileRow | null, files: FileView[]): Readin
   }
 
   const held = new Set(files.map((file) => file.path));
+  const heldIn = (folder: string, name: string): string | null =>
+    held.has(`${folder}${name}`) ? `${folder}${name}` : null;
 
   return [...folders]
     .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
     .map((folder) => ({
       folder,
       label: subdivision === null ? null : instanceLabel(`${folder}transcription.musicxml`),
-      musicXmlPath: held.has(`${folder}transcription.musicxml`)
-        ? `${folder}transcription.musicxml`
-        : null,
-      lmxPath:
-        selected.name === "transcription.lmx"
-          ? held.has(`${folder}transcription.lmx`)
-            ? `${folder}transcription.lmx`
-            : null
-          : null,
+      musicXmlPath: heldIn(folder, "transcription.musicxml"),
+      lmxPath: wantsTokens ? heldIn(folder, "transcription.lmx") : null,
     }));
 }
 
@@ -108,7 +109,7 @@ export function preprocessMusicXmlForOSMD(musicXml: string): string {
   const parser = new DOMParser();
   const doc = parser.parseFromString(musicXml, "application/xml");
 
-  // repair MusicXML part by part
+  // repair MusicXML part by part, because divisions is a per-part value
   for (const part of doc.querySelectorAll("part")) {
     // get the divisions value for this part
     const divisions = parseInt(part.querySelector("divisions")?.textContent || "1");
@@ -117,12 +118,15 @@ export function preprocessMusicXmlForOSMD(musicXml: string): string {
     // But measure rests do not have it (at least those exported by MuseScore)
     // and LMX does not produce it. So we add a duration element to every
     // measure rest that does not have it with duration equal to four beats.
-    for (const measureRest of doc.querySelectorAll(`rest[measure="yes"]`)) {
+    for (const measureRest of part.querySelectorAll(`rest[measure="yes"]`)) {
       if (measureRest.parentElement?.querySelector("duration")) {
         continue;
       }
       const duration = doc.createElement("duration");
-      duration.innerText = String(divisions * 4);
+      // textContent, not innerText: this is an XML document, so createElement
+      // gives a plain Element and innerText would be an expando property that
+      // the serializer never sees — an empty <duration/> is no duration at all.
+      duration.textContent = String(divisions * 4);
       measureRest.after(duration);
     }
   }

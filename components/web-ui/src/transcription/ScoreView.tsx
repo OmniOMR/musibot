@@ -21,9 +21,9 @@ import { preprocessMusicXmlForOSMD } from "./transcription";
  * the ruler on the canvas. It also has to be told to render again whenever the
  * panel's width changes, since engraving is a layout decision and not a style.
  *
- * The staff is engraved as one unbroken line, so a long reading is a wide one.
- * The container stays at the panel's width and lets the drawing overflow it;
- * the card around it scrolls sideways. Growing the container to the drawing
+ * A single staff is engraved as one unbroken line, so a long reading is a wide
+ * one. The container stays at the panel's width and lets the drawing overflow
+ * it; the card around it scrolls sideways. Growing the container to the drawing
  * instead would make its `clientWidth` a measure of the content rather than of
  * the space available, and the resize check below would then be watching the
  * thing it causes.
@@ -34,16 +34,25 @@ import { preprocessMusicXmlForOSMD } from "./transcription";
  *
  * OSMD's own scale is chosen for a page of music on a screen; in a panel beside
  * the scan it is bigger than it needs to be, and each staff pushes the next one
- * further down. Seven tenths fits appreciably more of a reading into the same
+ * further down. Three fifths fits appreciably more of a reading into the same
  * column while staying comfortably legible.
  */
 const ZOOM = 0.6;
+
 export default function ScoreView({
   musicXml,
-  isSingleStaff,
+  singleStaff,
 }: {
   musicXml: string;
-  isSingleStaff: boolean;
+  /**
+   * Whether this reading is one staff rather than a whole page.
+   *
+   * A staff crop is a single line of music, and breaking it into systems the
+   * way a page is laid out would be Musibot inventing a structure the crop does
+   * not have. A page has its own systems, written in the MusicXML, and running
+   * them together into one endless line is just as wrong the other way.
+   */
+  singleStaff: boolean;
 }) {
   const container = useRef<HTMLDivElement | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "failed">("loading");
@@ -70,13 +79,28 @@ export default function ScoreView({
 
         const osmd = new OpenSheetMusicDisplay(element, {
           backend: "svg",
+          // Musibot already says whose page this is, in the header and in the
+          // panel's own label; `compacttight` is the preset that drops the
+          // title, subtitle, composer and part names a file repeats above every
+          // staff, and tightens the spacing between systems while it is there.
           drawingParameters: "compacttight",
           drawMeasureNumbers: false,
+          // Beaming is a notational decision, and the transcription already
+          // made it. Letting OSMD beam by its own rules would show something
+          // other than what Musibot read.
           autoBeam: false,
+          // Engraving is re-run on resize below, which is finer control than
+          // OSMD's own listener gives.
           autoResize: false,
-          renderSingleHorizontalStaffline: isSingleStaff,
+          renderSingleHorizontalStaffline: singleStaff,
           newSystemFromXML: true,
           autoGenerateMultipleRestMeasuresFromRestMeasures: false,
+          // OSMD has some peculiarities about what it renders and what not, and
+          // `preprocessMusicXmlForOSMD` works around them. It has to run here
+          // rather than on the way into `load` below, because it re-serialises
+          // the document and loses the `<?xml` declaration — which is the only
+          // thing by which `load` recognises a string as a score at all, rather
+          // than as a URL to fetch one from.
           onXMLRead: preprocessMusicXmlForOSMD,
         });
 
@@ -122,7 +146,7 @@ export default function ScoreView({
       // they are there.
       element.replaceChildren();
     };
-  }, [musicXml]);
+  }, [musicXml, singleStaff]);
 
   return (
     <Box sx={{ position: "relative", minHeight: state === "ready" ? 0 : 96 }}>
