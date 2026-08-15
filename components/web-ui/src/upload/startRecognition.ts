@@ -39,7 +39,12 @@ export async function startRecognition({
   const stored = await fetch(url, {
     method: "PUT",
     body: file,
-    headers: { "Content-Type": "image/jpeg" },
+    // What the bytes actually are, which is not what `uploadPath` calls them —
+    // a PNG goes to `image.jpg` like everything else. See the note on
+    // `ACCEPTED_IMAGE_TYPES`. Safe to send: the presigned signature covers the
+    // bucket and key and does not sign this header, so storage records it
+    // without checking it against anything.
+    headers: { "Content-Type": file.type === "" ? "image/jpeg" : file.type },
   });
   if (!stored.ok) {
     throw new ApiError(`The page could not be uploaded (${stored.status}).`, stored.status);

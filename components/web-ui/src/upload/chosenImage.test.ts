@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { guessExplanation, isJpeg, looksLikeSingleStaff, STAFF_ASPECT_RATIO } from "./chosenImage";
+import { guessExplanation, looksLikeSingleStaff, STAFF_ASPECT_RATIO } from "./chosenImage";
 
 /** Real dimensions from the `UFAL.OmniOMR` corpus the threshold was measured on. */
 const PORTRAIT_PAGE = { width: 2481, height: 3508 }; // 0.71
@@ -49,17 +49,5 @@ describe("guessExplanation", () => {
 
   it("says what it assumed for a staff", () => {
     expect(guessExplanation(TYPICAL_STAFF)).toContain("single staff");
-  });
-});
-
-describe("isJpeg", () => {
-  it("trusts the browser's type when there is one", () => {
-    expect(isJpeg(new File([], "scan.jpg", { type: "image/jpeg" }))).toBe(true);
-    expect(isJpeg(new File([], "scan.png", { type: "image/png" }))).toBe(false);
-  });
-
-  it("falls back to the name when a drag carried no type", () => {
-    expect(isJpeg(new File([], "scan.JPEG"))).toBe(true);
-    expect(isJpeg(new File([], "scan.pdf"))).toBe(false);
   });
 });

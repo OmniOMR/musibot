@@ -8,7 +8,26 @@ The Web UI has no outward contract of its own: nothing depends on it, and it dep
 ## Unreleased
 
 
+### Added
+
+- **A scanner's PDF can be uploaded directly.** Somebody scans a sheet of music and their scanner hands them a one-page PDF, which Musibot refused — so the file had to be opened, exported as an image and uploaded again, for a document that already holds nothing but the scan. Drop the PDF now and Musibot rasterises its first page at 300 DPI, which is the resolution OMR is written for and the one flatbed scanners default to: for a scan wrapped in a PDF this substantially recovers the image already inside the file rather than approximating it. A score exported from notation software has no native resolution and simply renders cleanly, which makes it about the best page Musibot can be given.
+
+  **Only the first page, and it says so.** A PDF of several pages has the rest left unread, and the choice card tells you how many there were before you start the reading — one page at a time is what this app is, and losing the others quietly is the one way the flow could lie to you.
+
+- **TIFF scans are read too.** The format an archive or a flatbed scanner reaches for first, and the one Musibot could not take, because no browser decodes a TIFF: Safari manages it through macOS, Chrome and Firefox have never done it at all. Musibot now decodes it itself, covering the compressions a scanner actually produces — CCITT Group 4 among them, which is what a bilevel scan is nearly always stored as. The tail the decoder does not cover, such as 16-bit samples or CMYK, is reported as a file that could not be read rather than left to fail later.
+
+  A multi-page TIFF is treated exactly as a multi-page PDF: the first page is read, and the choice card says how many there were. A page held in the file as a reduced-resolution thumbnail is skipped rather than mistaken for the scan.
+
+
 ### Changed
+
+- **PNG and BMP scans are accepted, not only JPEG.** The upload form was the only thing in Musibot that cared what format a page was in: every *Model* opens a page's image with `cv.imread`, which decides on the file's magic bytes and never looks at its name, so a PNG has always read perfectly well once renamed to `.jpg`. The form takes both without the rename, and the drop zone says so.
+
+  A PNG is uploaded as it arrived, because a scan is line art and JPEG's ringing lands exactly on the thin dark strokes that recognition reads — re-encoding a lossless file to gain a file extension would be paying in the one currency that matters here. A BMP is re-encoded, because it is not compressed at all: a 300 DPI A4 bitmap is around 25 MB of the same page a JPEG carries in one, and nothing limits an upload's size, so it would have gone through slowly rather than failed.
+
+  That passing-through is a hack, and it is marked as one in the source. A PNG lands at `image.jpg`, because that is the path a *Signature* names — so a page whose `image.jpg` is a PNG is not a conforming *MusicorpusPage*, and anything reading such a corpus by the standard rather than by sniffing is entitled to be wrong about it. BMP, TIFF and PDF do not have this problem, since they arrive as real JPEGs. The fix for PNG belongs in the specification, not in this app.
+
+- **An outsized page is scaled down rather than lost.** Everything that gets re-encoded passes over a canvas, and a browser asked for a larger one than it allows does not fail — it hands back a blank, which would have reached the visitor as a page that read as empty. Anything over 25 megapixels is now drawn smaller: a 600 DPI archival scan, or the page of a PDF whose sheet was never a sheet of paper. Every ordinary size, up to A3 and tabloid at 300 DPI, is untouched.
 
 - **"Download results" is now "Download MusicXML", and saves the one file.** The button in the page header fetched everything a reading had produced, which for a page read staff by staff is the crops, the layout, a MusicXML and an LMX per staff — dozens of saves, from one click, in a browser that asks about each. Almost nobody wanted any of it: a visitor comes to Musibot to turn a scan into MusicXML, and that is the page's own `transcription.musicxml`. So that is what the button saves, and it is disabled until the reading has written one. Everything else is still downloadable a row at a time from the file list, which is where somebody who wants a single staff's tokens is already looking.
 

@@ -221,6 +221,28 @@ export default function PipelineChoice({
             {guessExplanation(image)}
           </Typography>
 
+          {/* What Musibot decided on the visitor's behalf while preparing the
+              file — currently only that a multi-page PDF lost all but its
+              first page. Said before "Start reading" rather than after, and
+              set apart from the guess above, which is about the image itself.
+              Losing pages silently would be the one way this flow lies. */}
+          {image.notice !== null && (
+            <Typography
+              sx={{
+                fontSize: "0.8125rem",
+                lineHeight: 1.55,
+                color: paper["800"],
+                bgcolor: paper["150"],
+                border: `1px solid ${paper["300"]}`,
+                borderRadius: 1,
+                px: 1.25,
+                py: 1,
+              }}
+            >
+              {image.notice}
+            </Typography>
+          )}
+
           {pipelines === null && problem === null ? (
             <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, py: 2 }}>
               <CircularProgress size={18} />

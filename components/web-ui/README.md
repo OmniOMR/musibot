@@ -5,7 +5,7 @@ Single-page web application for the *General public* and *Model developers*. A U
 
 ## Responsibilities
 
-- Upload page scans (JPEG), pick a pipeline, and watch the reading happen — the recognition log arrives over the API's SSE stream.
+- Upload page scans (JPEG, PNG, BMP, TIFF or a one-page PDF), pick a pipeline, and watch the reading happen — the recognition log arrives over the API's SSE stream.
 - View and download recognition results.
 
 
@@ -54,7 +54,22 @@ Two placeholders are still in the landing page and both are meant to be noticed:
 
 ## The upload flow
 
-A file arrives three ways — dropped, chosen from the picker, or taken from the samples — and all three end in `LandingScreen`, which asks two questions: is it a JPEG, and how should it be read. The second is `PipelineChoice`, a card that opens over the landing page. It is a step and not a route, because nothing exists on the server yet for an address to name.
+A file arrives three ways — dropped, chosen from the picker, or taken from the samples — and all three end in `LandingScreen`, which asks two questions: is it an image Musibot takes, and how should it be read. The second is `PipelineChoice`, a card that opens over the landing page. It is a step and not a route, because nothing exists on the server yet for an address to name.
+
+The first is `isAcceptedUpload`, and its answer is JPEG, PNG, BMP, TIFF or PDF. What happens next is `prepareUpload`, the seam every chosen file passes through:
+
+| Format | What happens | Why |
+| --- | --- | --- |
+| JPEG, PNG | uploaded untouched | a scan is line art, and JPEG's ringing lands on exactly the strokes recognition reads |
+| BMP | re-encoded as JPEG | not compressed at all — 300 DPI A4 is ~25 MB |
+| TIFF | decoded by UTIF, re-encoded as JPEG | no browser hands one to an `<img>`, so it could not even be measured as it arrived |
+| PDF | first page rasterised at 300 DPI | there is no image in it to pass through |
+
+Neither a multi-page PDF nor a multi-page TIFF is silently truncated: the page count comes back and the choice card says so before anything is uploaded. Both formats also pass through `fit` in `canvasSize.ts`, because a canvas asked for more pixels than the browser allows returns a blank rather than an error, and a blank page reads as a failed recognition rather than as a failed upload.
+
+`pdfjs-dist` and `utif2` are reached with `await import()` from `src/upload/pdfPage.ts` and `src/upload/tiffPage.ts`, which exist to be the lazy chunks: **nothing on the eager path may import them**, or the landing page starts paying 166 kB gzipped plus a 1.3 MB worker for formats most visitors never use. `npm run build` shows whether that still holds — `pdfPage-*.js`, `tiffPage-*.js` and `pdf.worker.min-*.mjs` should be their own files, and `index-*.js` should mention none of them.
+
+**A PNG is uploaded to `image.jpg` like everything else, which diverges from the Musicorpus Specification** — see the note on `ACCEPTED_UPLOAD_TYPES` in `src/upload/prepareUpload.ts` for why that works and what the honest fix would be. BMP, TIFF and PDF do not have this problem, because they arrive as real JPEGs.
 
 **The two defaults are hardcoded**, in `src/pipelines.ts`: `mzk-page` v1 for a whole page and `mzk-staff` v1 for a single cropped staff (MZK is the Moravian Library, Moravská zemská knihovna). "The one we recommend" is a product decision and there is nothing in a *Pipeline's* announcement that could carry it. Nothing guarantees they are deployed — pipelines are announced over RabbitMQ by whatever is connected — so when one is missing its option is disabled, the card says so, and the *All pipelines* list is opened rather than left for the visitor to find.
 

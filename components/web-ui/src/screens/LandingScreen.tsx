@@ -11,7 +11,8 @@ import SiteFooter from "../components/SiteFooter";
 import SiteHeader from "../components/SiteHeader";
 import * as links from "../links";
 import { paper } from "../theme";
-import { isJpeg, readChosenImage, type ChosenImage } from "../upload/chosenImage";
+import type { ChosenImage } from "../upload/chosenImage";
+import { isAcceptedUpload, prepareUpload } from "../upload/prepareUpload";
 import DropZone from "./landing/DropZone";
 import HowItWorks from "./landing/HowItWorks";
 import PipelineChoice from "./landing/PipelineChoice";
@@ -38,8 +39,8 @@ import SampleSheets from "./landing/SampleSheets";
  *
  * The upload flow lives here rather than in the drop zone because it is not
  * the drop zone's: a file arrives by drop, by file picker or by sample, and all
- * three end at the same two questions — is it a JPEG, and how should it be
- * read. The second is `PipelineChoice`, which opens over this page rather than
+ * three end at the same two questions — is it an image Musibot takes, and how
+ * should it be read. The second is `PipelineChoice`, which opens over this page rather than
  * replacing it. It is a step and not a route, because nothing has been created
  * on the server yet and so there is nothing an address could name.
  */
@@ -48,20 +49,23 @@ export default function LandingScreen() {
   const [problem, setProblem] = useState<{ title: string; body: string } | null>(null);
 
   async function choose(file: File) {
-    if (!isJpeg(file)) {
+    if (!isAcceptedUpload(file)) {
       setProblem({
-        title: "That file isn’t a JPEG",
-        body: "Musibot reads JPEG scans and photographs. PDFs need to be exported to one JPEG per page first.",
+        title: "Musibot can’t read that kind of file",
+        body: "It takes a scan or a photograph — JPEG, PNG, BMP or TIFF — or a PDF of a scanned page.",
       });
       return;
     }
     setProblem(null);
     try {
-      setImage(await readChosenImage(file));
-    } catch {
+      setImage(await prepareUpload(file));
+    } catch (error) {
       setProblem({
-        title: "That image could not be opened",
-        body: "The file is named like a JPEG but could not be read as one. It may be truncated, or saved in another format under a .jpg name.",
+        title: "That file could not be opened",
+        body:
+          error instanceof Error && error.message !== ""
+            ? error.message
+            : "Musibot could not make a page out of it. Another copy of the file, or another format, usually works.",
       });
     }
   }

@@ -7,39 +7,50 @@
  * nothing if the visitor changes their mind.
  */
 export interface ChosenImage {
+  /** The bytes that will be uploaded — see `prepareUpload`, not always what was picked. */
   file: File;
   width: number;
   height: number;
   /** An object URL for the thumbnail. Revoke it when the flow ends. */
   previewUrl: string;
+  /**
+   * Something about the file the visitor should be told, or `null`.
+   *
+   * Not a problem — the upload is going ahead. It is for what Musibot decided
+   * on their behalf and they would otherwise never learn, which so far is one
+   * thing: a PDF of several pages, of which only the first is being read.
+   */
+  notice: string | null;
 }
 
 /**
- * Musibot reads JPEG and nothing else.
+ * Load the file far enough to know how big it is.
  *
- * The browser's own sniffing is trusted first; a file dragged from somewhere
- * that did not set a type falls back to its name, which is a guess but a better
- * one than refusing a page that would have worked.
+ * Which formats reach this, and which of them arrive re-encoded, is
+ * `prepareUpload`'s business. By here it is always something the browser
+ * decodes natively.
  */
-export function isJpeg(file: File): boolean {
-  if (file.type !== "") {
-    return file.type === "image/jpeg";
-  }
-  return /\.jpe?g$/i.test(file.name);
-}
-
-/** Load the file far enough to know how big it is. */
 export function readChosenImage(file: File): Promise<ChosenImage> {
   return new Promise((resolve, reject) => {
     const previewUrl = URL.createObjectURL(file);
     const image = new Image();
 
     image.onload = () => {
-      resolve({ file, width: image.naturalWidth, height: image.naturalHeight, previewUrl });
+      resolve({
+        file,
+        width: image.naturalWidth,
+        height: image.naturalHeight,
+        previewUrl,
+        notice: null,
+      });
     };
     image.onerror = () => {
       URL.revokeObjectURL(previewUrl);
-      reject(new Error("That image could not be read."));
+      reject(
+        new Error(
+          "That file is named like an image but could not be read as one. It may be truncated, or saved in another format under that name.",
+        ),
+      );
     };
 
     image.src = previewUrl;

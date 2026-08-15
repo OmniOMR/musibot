@@ -4,6 +4,7 @@ import Typography from "@mui/material/Typography";
 import { useRef, useState } from "react";
 
 import { cuni, paper, serif } from "../../theme";
+import { ACCEPTED_UPLOAD_TYPES } from "../../upload/prepareUpload";
 
 /**
  * Where a page arrives.
@@ -68,7 +69,7 @@ export default function DropZone({ onChoose }: { onChoose: (file: File) => void 
           Drop a page here
         </Typography>
         <Typography sx={{ mt: 0.75, fontSize: "0.875rem", color: paper["600"] }}>
-          JPEG · one page at a time
+          JPEG, PNG, BMP, TIFF or PDF · one page at a time
         </Typography>
 
         <Button
@@ -83,7 +84,7 @@ export default function DropZone({ onChoose }: { onChoose: (file: File) => void 
           component="input"
           ref={input}
           type="file"
-          accept="image/jpeg"
+          accept={ACCEPTED_UPLOAD_TYPES.join(",")}
           sx={{ display: "none" }}
           onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
             const file = event.target.files?.item(0);
