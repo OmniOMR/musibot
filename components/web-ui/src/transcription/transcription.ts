@@ -70,7 +70,12 @@ export function readingsFor(selected: FileRow | null, files: FileView[]): Readin
       musicXmlPath: held.has(`${folder}transcription.musicxml`)
         ? `${folder}transcription.musicxml`
         : null,
-      lmxPath: held.has(`${folder}transcription.lmx`) ? `${folder}transcription.lmx` : null,
+      lmxPath:
+        selected.name === "transcription.lmx"
+          ? held.has(`${folder}transcription.lmx`)
+            ? `${folder}transcription.lmx`
+            : null
+          : null,
     }));
 }
 

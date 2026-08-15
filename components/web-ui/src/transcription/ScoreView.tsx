@@ -37,8 +37,14 @@ import { preprocessMusicXmlForOSMD } from "./transcription";
  * further down. Seven tenths fits appreciably more of a reading into the same
  * column while staying comfortably legible.
  */
-const ZOOM = 0.7;
-export default function ScoreView({ musicXml }: { musicXml: string }) {
+const ZOOM = 0.6;
+export default function ScoreView({
+  musicXml,
+  isSingleStaff,
+}: {
+  musicXml: string;
+  isSingleStaff: boolean;
+}) {
   const container = useRef<HTMLDivElement | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "failed">("loading");
   const [problem, setProblem] = useState<string | null>(null);
@@ -64,28 +70,17 @@ export default function ScoreView({ musicXml }: { musicXml: string }) {
 
         const osmd = new OpenSheetMusicDisplay(element, {
           backend: "svg",
-          // Musibot already says whose page this is, in the header and in the
-          // panel's own label. A title block and part names above every staff
-          // would be the file repeating it, several times down a column.
           drawingParameters: "compacttight",
-          drawTitle: false,
-          drawSubtitle: false,
-          drawComposer: false,
-          drawPartNames: false,
-          drawPartAbbreviations: false,
-          // Engraving is re-run on resize below, which is finer control than
-          // OSMD's own listener gives.
+          drawMeasureNumbers: false,
+          autoBeam: false,
           autoResize: false,
-          renderSingleHorizontalStaffline: true,
+          renderSingleHorizontalStaffline: isSingleStaff,
           newSystemFromXML: true,
           autoGenerateMultipleRestMeasuresFromRestMeasures: false,
+          onXMLRead: preprocessMusicXmlForOSMD,
         });
 
-        // OSMD has some peculiarities about what it renders
-        // and what not. This method tries to fix them.
-        const processedMusicXml = preprocessMusicXmlForOSMD(musicXml);
-
-        await osmd.load(processedMusicXml);
+        await osmd.load(musicXml);
         if (cancelled) {
           return;
         }

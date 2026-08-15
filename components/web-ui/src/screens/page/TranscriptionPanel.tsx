@@ -147,7 +147,7 @@ function ReadingView({
               : "…"}
           </Box>
         ) : (
-          <ScoreView musicXml={musicXml} />
+          <ScoreView musicXml={musicXml} isSingleStaff={reading.folder !== ""} />
         )}
       </Box>
 
@@ -192,7 +192,7 @@ function Tokens({ lmx }: { lmx: string }) {
           border: `1px solid ${paper["200"]}`,
           borderRadius: 1,
           bgcolor: paper["100"],
-          maxHeight: 220,
+          // maxHeight: 220,
           overflow: "auto",
         }}
       >
@@ -202,7 +202,7 @@ function Tokens({ lmx }: { lmx: string }) {
             component="span"
             sx={{
               fontFamily: mono,
-              fontSize: "0.71875rem",
+              fontSize: "0.6rem",
               lineHeight: 1.5,
               color: paper["900"],
               bgcolor: paper["000"],
