@@ -94,3 +94,34 @@ export function pathsOf(readings: Reading[]): string[] {
 export function tokensOf(lmx: string): string[] {
   return lmx.trim().split(/\s+/).filter(Boolean);
 }
+
+/**
+ * Adjusts given MusicXML string so that OSMD does not crash
+ * on edgecases.
+ */
+export function preprocessMusicXmlForOSMD(musicXml: string): string {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(musicXml, "application/xml");
+
+  // repair MusicXML part by part
+  for (const part of doc.querySelectorAll("part")) {
+    // get the divisions value for this part
+    const divisions = parseInt(part.querySelector("divisions")?.textContent || "1");
+
+    // OSMD expects the duration element for rests.
+    // But measure rests do not have it (at least those exported by MuseScore)
+    // and LMX does not produce it. So we add a duration element to every
+    // measure rest that does not have it with duration equal to four beats.
+    for (const measureRest of doc.querySelectorAll(`rest[measure="yes"]`)) {
+      if (measureRest.parentElement?.querySelector("duration")) {
+        continue;
+      }
+      const duration = doc.createElement("duration");
+      duration.innerText = String(divisions * 4);
+      measureRest.after(duration);
+    }
+  }
+
+  const serializer = new XMLSerializer();
+  return serializer.serializeToString(doc);
+}

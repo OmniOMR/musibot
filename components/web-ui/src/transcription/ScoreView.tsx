@@ -3,6 +3,7 @@ import CircularProgress from "@mui/material/CircularProgress";
 import { useEffect, useRef, useState } from "react";
 
 import { paper } from "../theme";
+import { preprocessMusicXmlForOSMD } from "./transcription";
 
 /**
  * One reading, engraved.
@@ -80,7 +81,11 @@ export default function ScoreView({ musicXml }: { musicXml: string }) {
           autoGenerateMultipleRestMeasuresFromRestMeasures: false,
         });
 
-        await osmd.load(musicXml);
+        // OSMD has some peculiarities about what it renders
+        // and what not. This method tries to fix them.
+        const processedMusicXml = preprocessMusicXmlForOSMD(musicXml);
+
+        await osmd.load(processedMusicXml);
         if (cancelled) {
           return;
         }
@@ -102,7 +107,11 @@ export default function ScoreView({ musicXml }: { musicXml: string }) {
       } catch (error) {
         if (!cancelled) {
           setProblem(
-            error instanceof Error ? error.message : "This transcription could not be rendered.",
+            error instanceof Error
+              ? error.message
+              : typeof error?.toString == "function"
+                ? error.toString()
+                : "This transcription could not be rendered.",
           );
           setState("failed");
         }
