@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import type { FileView } from "../api/types";
 import type { FileRow } from "../page/files";
 import {
+  musicXmlSaveName,
   opensTranscription,
+  pageMusicXml,
   pathsOf,
   preprocessMusicXmlForOSMD,
   readingsFor,
@@ -124,6 +126,90 @@ describe("readingsFor", () => {
 
   it("has nothing to show for a selection that is not a transcription", () => {
     expect(readingsFor(row("image.jpg", ["image.jpg"]), PAGE)).toEqual([]);
+  });
+});
+
+describe("pageMusicXml", () => {
+  it("finds the page's own MusicXML", () => {
+    expect(pageMusicXml([file("image.jpg"), file("transcription.musicxml")])).toBe(
+      "transcription.musicxml",
+    );
+  });
+
+  it("has none until the reading has written one", () => {
+    expect(pageMusicXml([])).toBeNull();
+    expect(pageMusicXml([file("image.jpg"), file("layout.json")])).toBeNull();
+  });
+
+  it("has none when the page was read staff by staff", () => {
+    // Thirty fragments of somebody's music is not somebody's music. Those are
+    // for a reader who went looking, and the file list is where they look.
+    const files = [
+      file("Staves/1/image.jpg"),
+      file("Staves/1/transcription.musicxml"),
+      file("Staves/2/transcription.musicxml"),
+    ];
+
+    expect(pageMusicXml(files)).toBeNull();
+  });
+
+  it("falls back to a lone staff's, which is all of that page's music", () => {
+    // Somebody who uploaded one crop ran a staff-level pipeline, which writes
+    // nothing at page level. The one file it did write is still their music.
+    const files = [file("Staves/1/image.jpg"), file("Staves/1/transcription.musicxml")];
+
+    expect(pageMusicXml(files)).toBe("Staves/1/transcription.musicxml");
+  });
+
+  it("prefers the page's own over a staff's, however many staves there are", () => {
+    const files = [
+      file("transcription.musicxml"),
+      file("Staves/1/transcription.musicxml"),
+      file("Staves/2/transcription.musicxml"),
+    ];
+
+    expect(pageMusicXml(files)).toBe("transcription.musicxml");
+  });
+
+  it("prefers the page's own even when a single staff also holds one", () => {
+    const files = [file("Staves/1/transcription.musicxml"), file("transcription.musicxml")];
+
+    expect(pageMusicXml(files)).toBe("transcription.musicxml");
+  });
+
+  it("is not fooled by a file that merely ends the same way", () => {
+    expect(pageMusicXml([file("Staves/1/other-transcription.musicxml")])).toBeNull();
+  });
+});
+
+describe("musicXmlSaveName", () => {
+  it("names the file after the scan it was read from", () => {
+    // Every page calls it transcription.musicxml, so three readings saved from
+    // three pages are three files a visitor cannot tell apart — and a browser
+    // does not ask about the second and third, it appends a number.
+    expect(musicXmlSaveName("nocturne-op9.jpg")).toBe("nocturne-op9.musicxml");
+  });
+
+  it("replaces the extension rather than adding to it", () => {
+    // What was uploaded was an image. `x.jpg.musicxml` names it as both.
+    expect(musicXmlSaveName("scan.JPEG")).toBe("scan.musicxml");
+    expect(musicXmlSaveName("kyrie.p3.v2.png")).toBe("kyrie.p3.v2.musicxml");
+    expect(musicXmlSaveName("scan")).toBe("scan.musicxml");
+  });
+
+  it("keeps a separator out of a name that is not a path", () => {
+    // A browser handed a name with a slash in it either refuses it or writes
+    // somewhere nobody asked it to.
+    expect(musicXmlSaveName("../../etc/passwd.jpg")).toBe("....etcpasswd.musicxml");
+    expect(musicXmlSaveName("C:\\scans\\kyrie.jpg")).toBe("C:scanskyrie.musicxml");
+  });
+
+  it("falls back to the file's own name when there is nothing to name it after", () => {
+    // A page reached without the session that uploaded it knows no file name.
+    expect(musicXmlSaveName(null)).toBe("transcription.musicxml");
+    expect(musicXmlSaveName("")).toBe("transcription.musicxml");
+    expect(musicXmlSaveName(".jpg")).toBe("transcription.musicxml");
+    expect(musicXmlSaveName("   ")).toBe("transcription.musicxml");
   });
 });
 

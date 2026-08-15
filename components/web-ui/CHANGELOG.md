@@ -10,6 +10,12 @@ The Web UI has no outward contract of its own: nothing depends on it, and it dep
 
 ### Changed
 
+- **"Download results" is now "Download MusicXML", and saves the one file.** The button in the page header fetched everything a reading had produced, which for a page read staff by staff is the crops, the layout, a MusicXML and an LMX per staff — dozens of saves, from one click, in a browser that asks about each. Almost nobody wanted any of it: a visitor comes to Musibot to turn a scan into MusicXML, and that is the page's own `transcription.musicxml`. So that is what the button saves, and it is disabled until the reading has written one. Everything else is still downloadable a row at a time from the file list, which is where somebody who wants a single staff's tokens is already looking.
+
+  A page uploaded as a single staff crop has no page-level MusicXML, only a `Staves/1/transcription.musicxml` — and that one file is nonetheless all of that page's music, so the button offers it. It is when a page holds *several* staff readings and no page-level one that there is nothing to offer, because thirty fragments of somebody's music is not somebody's music.
+
+  The saved file is named after the scan it was read from: `nocturne-op9.jpg` comes back as `nocturne-op9.musicxml`, rather than as `transcription.musicxml` like every other page's. A visitor who reads three scans could not otherwise tell the three files apart, and a browser handed the same name three times does not ask — it appends a number.
+
 - **The token sequence is shown only when it is what was selected.** Selecting either transcription format used to show both, on the reasoning that they are two views of one answer and nobody wants to click twice. But they are for two different readers, and most visitors are the first kind: they came to see whether Musibot read their music correctly, and a wall of LMX under every staff was one more thing to scroll past to reach the next one. Selecting `transcription.musicxml` now shows the notation alone; the tokens appear when `transcription.lmx` is what was selected, and the panel no longer fetches a file it was not going to show. The other direction is unchanged — selecting the tokens still shows the notation above them, because that is what the same answer looks like to everybody.
 
 

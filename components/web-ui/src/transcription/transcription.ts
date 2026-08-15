@@ -34,6 +34,54 @@ export function isTranscription(path: string): boolean {
   return TRANSCRIPTION.test(fileNameOf(path));
 }
 
+/** The one *File* a visitor came for: the whole page, as MusicXML. */
+export const PAGE_MUSICXML = "transcription.musicxml";
+
+/**
+ * The one MusicXML that is the whole of what this page was read as.
+ *
+ * The page's own file when there is one. Failing that, a lone staff's — a
+ * visitor who uploaded a single crop ran a staff-level pipeline, which writes
+ * `Staves/1/transcription.musicxml` and nothing at page level, and that one
+ * file is nonetheless all of their music.
+ *
+ * Nothing when a page holds several, because several is what a page read staff
+ * by staff produces, and handing somebody thirty fragments is not handing them
+ * their music. Those are for a reader who went looking, and the file list
+ * beside the canvas is where they go looking.
+ */
+export function pageMusicXml(files: FileView[]): string | null {
+  const scores = files.filter((file) => fileNameOf(file.path) === PAGE_MUSICXML);
+  if (scores.some((file) => file.path === PAGE_MUSICXML)) {
+    return PAGE_MUSICXML;
+  }
+  return scores.length === 1 ? scores[0].path : null;
+}
+
+/**
+ * What to call the MusicXML once it is on somebody's disk.
+ *
+ * `transcription.musicxml` is what the *File* is called on the page, and it is
+ * what it is called on every other page too. A visitor who reads three scans
+ * gets three files whose names say nothing about which is which — and a browser
+ * does not ask about the second and third, it quietly appends a number. So the
+ * saved file is named after the scan it was read from, and `nocturne-op9.jpg`
+ * comes back as `nocturne-op9.musicxml`.
+ *
+ * The extension is replaced rather than appended: what the visitor uploaded was
+ * an image, and `nocturne-op9.jpg.musicxml` names it as both.
+ */
+export function musicXmlSaveName(uploadedName: string | null): string {
+  // A name is the visitor's, so it is theirs to be strange. Separators are the
+  // one thing that cannot survive — a saved name is not a path, and a browser
+  // handed one either refuses it or writes somewhere nobody asked it to.
+  const stem = (uploadedName ?? "")
+    .replaceAll(/[\\/]/g, "")
+    .replace(/\.[^.]*$/, "")
+    .trim();
+  return stem === "" ? PAGE_MUSICXML : `${stem}.musicxml`;
+}
+
 /** Whether selecting this row should open the panel at all. */
 export function opensTranscription(selected: FileRow | null): boolean {
   return selected !== null && selected.paths.some(isTranscription);

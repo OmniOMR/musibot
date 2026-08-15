@@ -5,7 +5,7 @@ import Typography from "@mui/material/Typography";
 import { useMemo, useState } from "react";
 import { Link as RouterLink, useParams } from "react-router";
 
-import { downloadFiles } from "../api/download";
+import { downloadFile, downloadFiles } from "../api/download";
 import { SessionExpired } from "../api/errors";
 import ContentWidth from "../components/ContentWidth";
 import NoticeCard from "../components/NoticeCard";
@@ -25,7 +25,7 @@ import PageHeader from "./page/PageHeader";
 import RunPipelineDialog from "./page/RunPipelineDialog";
 import ScenePanel from "./page/ScenePanel";
 import TranscriptionPanel from "./page/TranscriptionPanel";
-import { opensTranscription } from "../transcription/transcription";
+import { musicXmlSaveName, opensTranscription, pageMusicXml } from "../transcription/transcription";
 
 /**
  * One *MusicorpusPage* — the screen the work happens on.
@@ -93,13 +93,7 @@ export default function MusicorpusPageScreen() {
     [state.files, state.executions, overwritten],
   );
 
-  const results = useMemo(
-    () =>
-      sections
-        .flatMap((section) => section.rows.filter((row) => !row.isSource))
-        .flatMap((row) => row.paths),
-    [sections],
-  );
+  const musicXml = useMemo(() => pageMusicXml(state.files), [state.files]);
 
   const empty = useMemo(
     () => finishedEmpty(state.executions, state.pipelines, state.files),
@@ -140,9 +134,24 @@ export default function MusicorpusPageScreen() {
     if (token === null) {
       return;
     }
+    await saving(() => downloadFiles(token, pageId, toDownload));
+  }
+
+  /** The one file the header offers, under the name of the scan it was read from. */
+  async function downloadMusicXml() {
+    if (token === null || musicXml === null) {
+      return;
+    }
+    await saving(() =>
+      downloadFile(token, pageId, musicXml, musicXmlSaveName(tracked?.fileName ?? null)),
+    );
+  }
+
+  /** Either download, with a failure put where the visitor is looking. */
+  async function saving(fetching: () => Promise<void>) {
     setProblem(null);
     try {
-      await downloadFiles(token, pageId, toDownload);
+      await fetching();
     } catch (error) {
       setProblem(error instanceof Error ? error.message : "That could not be downloaded.");
     }
@@ -163,8 +172,8 @@ export default function MusicorpusPageScreen() {
         fileName={tracked?.fileName ?? null}
         expiresAt={session.expiryOf(pageId)}
         now={now}
-        downloadable={results.length}
-        onDownloadResults={() => void download(results)}
+        hasMusicXml={musicXml !== null}
+        onDownloadMusicXml={() => void downloadMusicXml()}
       />
 
       {problem !== null && (

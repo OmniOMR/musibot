@@ -10,6 +10,30 @@ import { createFileUrls } from "./client";
  * under the *File's* own name rather than the signed URL's.
  */
 export async function downloadFiles(token: string, pageId: string, paths: string[]): Promise<void> {
+  await fetchAndSave(token, pageId, paths, saveNameOf);
+}
+
+/**
+ * Fetch one *File* and save it under a name of the caller's choosing.
+ *
+ * A *File* saved on its own is not being filed beside its siblings, so its name
+ * on the page is not the useful one. See `musicXmlSaveName`.
+ */
+export async function downloadFile(
+  token: string,
+  pageId: string,
+  path: string,
+  saveAs: string,
+): Promise<void> {
+  await fetchAndSave(token, pageId, [path], () => saveAs);
+}
+
+async function fetchAndSave(
+  token: string,
+  pageId: string,
+  paths: string[],
+  nameOf: (path: string) => string,
+): Promise<void> {
   if (paths.length === 0) {
     return;
   }
@@ -25,7 +49,7 @@ export async function downloadFiles(token: string, pageId: string, paths: string
     if (!response.ok) {
       throw new Error(`${path} could not be downloaded (${response.status}).`);
     }
-    save(await response.blob(), saveNameOf(path));
+    save(await response.blob(), nameOf(path));
   }
 }
 

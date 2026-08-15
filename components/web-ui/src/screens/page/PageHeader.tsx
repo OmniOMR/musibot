@@ -11,7 +11,7 @@ import { mono, paper, serif } from "../../theme";
  *
  * Not `SiteHeader`. This one identifies the page rather than the site, and the
  * three things on the right are the three things a visitor needs from here: how
- * long they have, the way back to their other pages, and their results.
+ * long they have, the way back to their other pages, and their music.
  *
  * The expiry is stated in words and rounded to minutes. It is the single most
  * important fact on the screen — nothing here survives the hour, and a visitor
@@ -23,16 +23,23 @@ export default function PageHeader({
   fileName,
   expiresAt,
   now,
-  onDownloadResults,
-  downloadable,
+  onDownloadMusicXml,
+  hasMusicXml,
 }: {
   pageId: string;
   fileName: string | null;
   expiresAt: Date | null;
   now: Date;
-  onDownloadResults: () => void;
-  /** How many *Files* "Download results" would fetch. Zero disables it. */
-  downloadable: number;
+  onDownloadMusicXml: () => void;
+  /**
+   * Whether the page's own MusicXML has been written yet.
+   *
+   * The one button in the header does one thing, and it is the thing a visitor
+   * came here for. Everything else a reading produces — the crops, the boxes,
+   * the tokens, a MusicXML per staff — is downloadable a row at a time from the
+   * file list, which is where somebody who wants those is already looking.
+   */
+  hasMusicXml: boolean;
 }) {
   return (
     <Box
@@ -104,11 +111,11 @@ export default function PageHeader({
         </Button>
         <Button
           variant="contained"
-          disabled={downloadable === 0}
-          onClick={onDownloadResults}
+          disabled={!hasMusicXml}
+          onClick={onDownloadMusicXml}
           sx={{ fontSize: "0.84375rem", px: 1.75, py: 1.125 }}
         >
-          Download results
+          Download MusicXML
         </Button>
       </Box>
     </Box>
