@@ -20,7 +20,7 @@ loop.
 import cv2
 import numpy as np
 
-from omniomr_orchestrator.layout import StaffBox
+from omniomr_orchestrator.layout import BoundingBox
 
 JPEG_QUALITY = 95
 """What a staff crop is re-encoded at. High, because this image is a *Model's*
@@ -44,7 +44,7 @@ def decode_page(data: bytes) -> np.ndarray:
     return image
 
 
-def crop_staff(page: np.ndarray, box: StaffBox, padding_ratio: float) -> np.ndarray:
+def crop_staff(page: np.ndarray, box: BoundingBox, padding_ratio: float) -> np.ndarray:
     """One staff, with a margin proportional to its own height.
 
     Proportional rather than a fixed number of pixels so that the same
@@ -55,8 +55,10 @@ def crop_staff(page: np.ndarray, box: StaffBox, padding_ratio: float) -> np.ndar
     height, width = page.shape[:2]
     margin = round(box.height * padding_ratio)
 
-    left = max(0, box.x - margin)
-    top = max(0, box.y - margin)
+    # Make the staff span across the whole width of a page,
+    # add margin to top and bottom.
+    left = max(0, box.left - margin)
+    top = max(0, box.top - margin)
     right = min(width, box.right + margin)
     bottom = min(height, box.bottom + margin)
 
@@ -65,7 +67,7 @@ def crop_staff(page: np.ndarray, box: StaffBox, padding_ratio: float) -> np.ndar
         # can be cut here, and an empty array would fail inside the encoder
         # with something far less legible.
         raise UnreadableImage(
-            f"A staff at ({box.x}, {box.y}) {box.width}x{box.height} does not overlap "
+            f"A staff at ({box.left}, {box.top}) {box.width}x{box.height} does not overlap "
             f"the {width}x{height} page it was found on"
         )
 
@@ -82,7 +84,7 @@ def encode_jpeg(image: np.ndarray) -> bytes:
     return bytes(buffer)
 
 
-def slice_page(page_image: bytes, boxes: list[StaffBox], padding_ratio: float) -> list[bytes]:
+def slice_page(page_image: bytes, boxes: list[BoundingBox], padding_ratio: float) -> list[bytes]:
     """Cut the whole page into staff crops, in the order the boxes are given.
 
     One call rather than one per staff, so that a caller spends a single hop off

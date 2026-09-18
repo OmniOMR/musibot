@@ -30,7 +30,13 @@ from musibot.orchestrator_head import (
     Signature,
 )
 
-from omniomr_orchestrator.layout import StaffBox, UnreadableLayout, staff_boxes
+from omniomr_orchestrator.layout import (
+    StaffBox,
+    PageLayout,
+    UnreadableLayout,
+    layout_to_instruments,
+    RETRIEVED_LAYOUT_CATEGORIES,
+)
 from omniomr_orchestrator.musicxml import StaffTranscription, page_musicxml
 from omniomr_orchestrator.slicing import slice_page
 
@@ -86,19 +92,24 @@ class MzkPagePipeline(Pipeline):
         self._layout_confidence = layout_confidence
 
     async def execute(self, ctx: PipelineContext) -> None:
-        boxes = await self._detect_staves(ctx)
-        await self._slice_page(ctx, boxes)
+        page_layout = await self._detect_layout(ctx)
+        staff_boxes = page_layout.get_all_staffs()
+        await self._slice_page(ctx, staff_boxes)
 
-        staves = await self._transcribe_staves(ctx, len(boxes))
+        staves = await self._transcribe_staves(ctx, len(staff_boxes))
 
         ctx.logger.info("Writing %s ...", TRANSCRIPTION_FILE)
-        await ctx.write_text(TRANSCRIPTION_FILE, page_musicxml(staves))
+        await ctx.write_text(TRANSCRIPTION_FILE, page_musicxml(ctx, staves, page_layout))
         ctx.logger.info("Done.")
 
     # --- 1. the staves -------------------------------------------------------
 
-    async def _detect_staves(self, ctx: PipelineContext) -> list[StaffBox]:
-        ctx.logger.info("Detecting staves with %s ...", _spell(self._layout_model))
+    async def _detect_layout(self, ctx: PipelineContext) -> PageLayout:
+        ctx.logger.info(
+            "Detecting %s with %s ...",
+            ",".join(sorted(RETRIEVED_LAYOUT_CATEGORIES)),
+            _spell(self._layout_model),
+        )
 
         parameters: dict[str, object] = {}
         if self._layout_confidence is not None:
@@ -116,9 +127,10 @@ class MzkPagePipeline(Pipeline):
                 f"The layout model wrote a {LAYOUT_FILE} that is not JSON: {error}"
             )
 
-        boxes = staff_boxes(layout)
+        page_layout = layout_to_instruments(layout)
+        staff_count = page_layout.staff_count
 
-        if not boxes:
+        if staff_count == 0:
             # Not an internal error: an empty page, a cover, or a table of
             # contents is a page the layout model was trained for. There is
             # simply nothing here to transcribe, and saying so plainly beats
@@ -127,8 +139,10 @@ class MzkPagePipeline(Pipeline):
                 "No staves were found on this page, so there is nothing to transcribe."
             )
 
-        ctx.logger.info("Found %d staves.", len(boxes))
-        return boxes
+        ctx.logger.info("Found %d staves.", staff_count)
+
+        ctx.logger.info("Ordered staves into instruments: %s", str(page_layout))
+        return page_layout
 
     # --- 2. the crops --------------------------------------------------------
 
@@ -139,7 +153,7 @@ class MzkPagePipeline(Pipeline):
         # OpenCV is blocking CPU work and this process runs several executions
         # at once, so the whole page is sliced in one hop off the event loop
         # rather than one per staff.
-        crops = await asyncio.to_thread(slice_page, page, boxes, self._staff_padding_ratio)
+        crops = await asyncio.to_thread(slice_page, page, boxes, self._staff_padding_ratio)  # type: ignore
 
         for number, crop in enumerate(crops, start=1):
             await ctx.write_bytes(staff_image(number), crop)
