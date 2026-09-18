@@ -163,7 +163,7 @@ class PageLayout:
         ]
 
     def __str__(self) -> str:
-        return f"{type(self).__name__}(insturment_count={len(self.instruments)}, instruments=[{', '.join(str(i) for i in self.instruments)}])"
+        return f"{type(self).__name__}(instrument_count={len(self.instruments)}, instruments=[{', '.join(str(i) for i in self.instruments)}])"
 
 
 T = TypeVar("T", bound=BoundingBox)
