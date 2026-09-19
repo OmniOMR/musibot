@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from itertools import zip_longest
 from typing import Any, TypeVar
 from collections.abc import Iterator
+from functools import cmp_to_key
 
 from .errors import UnreadableLayout
 
@@ -91,6 +92,11 @@ class Instrument:
 
     occurrences: dict[int, list[StaffBox]]
 
+    def __post_init__(self) -> None:
+        # Explicitly sort occurrences after initialization
+        for staffs in self.occurrences.values():
+            staffs.sort(key=lambda s: s.top)
+
     @property
     def top(self) -> int:
         first_system = min(self.occurrences)
@@ -105,17 +111,48 @@ class Instrument:
         return [staff for occurrence in self.occurrences.values() for staff in occurrence]
 
     def __str__(self) -> str:
-        ordered = [self.occurrences[system] for system in sorted(self.occurrences)]
+        ordered = sorted(self.occurrences.items(), key=lambda o: o[0])
         if not self.is_grand_staff:
-            staff_repr = f"[{', '.join(str(s[0].number) for s in ordered)}]"
+            staff_repr = f"[{', '.join(f'{system_id}: {staffs[0].number}' for system_id, staffs in ordered)}]"
         else:
-            staff_repr = f"[{', '.join(f'({s[0].number}, {s[1].number})' for s in ordered)}]"
+            staff_repr = f"[{', '.join(f'{system_id}: ({staffs[0].number}, {staffs[1].number})' for system_id, staffs in ordered)}]"
         return f"{type(self).__name__}({staff_repr})"
 
 
 @dataclass(frozen=True)
 class PageLayout:
     instruments: list[Instrument]
+
+    def __post_init__(self) -> None:
+        print(self)
+        self.instruments.sort(key=cmp_to_key(self._instrument_is_higher))
+        print(self)
+
+    @classmethod
+    def _instrument_is_higher(cls, first: Instrument, second: Instrument) -> int:
+        """
+        Negative if `first` belongs higher in the score hierarchy than
+        `second`, positive if lower, zero if neither sits above the other.
+
+        Comparing instruments' positions in the first available system
+        is not enough, as there can be i.e. a voice missing in the first
+        system above a i.e. grand staff. The voice's first staff is located
+        in the second system, which is lower than the first staff of the
+        grand staff, located in the first system.
+
+        The comparison should happen in a system where both of these
+        instruments are represented by at least one staff.
+        """
+
+        shared_system_ids = set(first.occurrences.keys()).intersection(second.occurrences.keys())
+
+        # This is rare, instruments do not meet in any of the detected systems
+        if not shared_system_ids:
+            return first.top - second.top
+
+        # Compare in shared system
+        system_id = min(shared_system_ids)
+        return first.occurrences[system_id][0].top - second.occurrences[system_id][0].top
 
     @property
     def staff_count(self) -> int:
