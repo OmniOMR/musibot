@@ -124,9 +124,7 @@ class PageLayout:
     instruments: list[Instrument]
 
     def __post_init__(self) -> None:
-        print(self)
         self.instruments.sort(key=cmp_to_key(self._instrument_is_higher))
-        print(self)
 
     @classmethod
     def _instrument_is_higher(cls, first: Instrument, second: Instrument) -> int:

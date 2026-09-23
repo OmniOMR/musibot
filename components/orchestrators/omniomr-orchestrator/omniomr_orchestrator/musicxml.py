@@ -17,7 +17,10 @@ from typing import TypeAlias
 from omniomr_orchestrator.layout import Instrument, PageLayout, StaffBox
 from musibot.orchestrator_head import PipelineContext
 
+from .normalize import StaffNormalizer
 from .errors import UnreadableTranscription
+from .normalize import _upper_staff_default_clef, _lower_staff_default_clef
+
 
 MUSICXML_VERSION = "4.0"
 
@@ -141,6 +144,7 @@ def _append_instrument_measures(
     expected_measures_by_system: dict[int, int],
 ) -> None:
     """Every measure one instrument contributes, system by system down the page."""
+    sn = StaffNormalizer()
     number = 0  # tracks the number of already written measures
 
     for system_number in sorted(expected_measures_by_system.keys()):
@@ -155,6 +159,9 @@ def _append_instrument_measures(
             staff, staff_number = _undetected_instrument_staff(
                 instrument, expected, first_of_page=number == 0
             )
+
+        ctx.logger.info(f"Normalizing {staff_number} with {sn}")
+        staff = sn.normalize_part_and_update_state(ctx, staff)
 
         for position, measure in enumerate(
             _measures(staff, staff_number=staff_number, expected=expected)
@@ -212,7 +219,11 @@ def _grand_staff_instrument(
     *,
     first_of_page: bool,
 ) -> ET.Element:
-    """Two staffs identified as piano, zipped back into a single grand staff."""
+    """
+    Two staffs identified as piano, zipped back into a single grand staff.
+
+    Grand staff is given as `<part>`.
+    """
     upper_box, lower_box = box_staffs[0], box_staffs[1]
     upper_staff = lookup[upper_box.number]
     lower_staff = lookup[lower_box.number]
@@ -265,12 +276,7 @@ def _grand_staff_instrument(
             first_of_page=first_of_page,
         )
 
-    # --- 4. Wrap the final grand staff inside a "<wrap>" element; the
-    #        "find(...)" method in "_measures(...)" won't work otherwise.
-    #        !! Note that this grand staff MusicXML is missing "<part-list>",
-    #        the xml version element etc. However, these elements are not
-    #        needed further down the pipeline.
-    return _wrapped(gs)
+    return gs
 
 
 def _grand_staff_part(staff: ET.Element | None, staff_number: int) -> ET.Element:
@@ -302,19 +308,25 @@ def _single_staff_instrument(
     *,
     first_of_page: bool,
 ) -> ET.Element:
-    """One unbraced staff of one system."""
+    """
+    One single staff of one system, represented as `<part>`.
+    """
     ctx.logger.info(f"Writing {upper_box.number} as a single staff")
 
     # The staff was detected, but cannot be transcribed
     if upper_staff is None:
-        return _wrapped(
-            _empty_staff(
-                False,
-                expected,
-                message=f"Cannot transcribe staff {upper_box.number}",
-                first_of_page=first_of_page,
-            )
+        return _empty_staff(
+            False,
+            expected,
+            message=f"Cannot transcribe staff {upper_box.number}",
+            first_of_page=first_of_page,
         )
+    else:
+        upper_staff = upper_staff.find(".//part")
+        if upper_staff is None:
+            raise ValueError(
+                f"Transcribed single staff {upper_box.number} does not contain any <part> element."
+            )
 
     return upper_staff
 
@@ -335,14 +347,7 @@ def _undetected_instrument_staff(
         hidden=True,
         first_of_page=first_of_page,
     )
-    return _wrapped(e_staff), -1
-
-
-def _wrapped(part: ET.Element) -> ET.Element:
-    """A bare `<part>` under a `<wrap>` root, so `_measures` can find it."""
-    wrap = ET.Element("wrap")
-    wrap.append(part)
-    return wrap
+    return e_staff, -1
 
 
 def _measures(source: ET.Element, staff_number: int, expected: int) -> list[ET.Element]:
@@ -351,7 +356,7 @@ def _measures(source: ET.Element, staff_number: int, expected: int) -> list[ET.E
     # one part, so this is that part's measures — and a model that produced more
     # than one has them concatenated rather than silently dropped.
 
-    measures = source.findall(".//part/measure")
+    measures = source.findall(".//measure")
 
     if not measures:
         raise UnreadableTranscription(
@@ -433,13 +438,11 @@ def _staff_base_attributes(is_grand_staff: bool) -> ET.Element:
         ET.SubElement(key2, "fifths").text = "0"
 
     # Add clefs
-    clef1 = ET.SubElement(attrs, "clef", {"number": "1", "print-object": "no"})
-    ET.SubElement(clef1, "sign").text = "G"
-    ET.SubElement(clef1, "line").text = "2"
+    clef1 = _upper_staff_default_clef(print_object=False)
+    attrs.append(clef1)
     if is_grand_staff:
-        clef2 = ET.SubElement(attrs, "clef", {"number": "2", "print-object": "no"})
-        ET.SubElement(clef2, "sign").text = "F"
-        ET.SubElement(clef2, "line").text = "4"
+        clef2 = _lower_staff_default_clef(print_object=False)
+        attrs.append(clef2)
 
     # Staff count
     if is_grand_staff:
@@ -468,7 +471,8 @@ def _empty_staff(
         measure = ET.SubElement(part, "measure")
 
         if first:
-            if first_of_page:
+            # First measure on a page is never a new system
+            if not first_of_page:
                 ET.SubElement(measure, "print", {"new-system": "yes"})
             measure.append(_staff_base_attributes(is_grand_staff))
 
