@@ -25,6 +25,17 @@ The name, the version and what it reads all come out of the snapshot's `model_op
 **Zeus reads staff crops, not pages.** Its *ImplicitPipeline* is exactly its signature, so a *User* runs it by uploading a single staff — which the Web UI does correctly, uploading to `Staves/1/image.jpg` for a pipeline that asks for one. Handing it a whole page scan is not refused, because a page image satisfies the signature just as well; Zeus transcribes it as though it were one staff. Turning a page into staff crops is a staff detector's job, and running the two in sequence is an *Orchestrator*'s — neither of which is deployed yet.
 
 
+## Running it
+
+A *Model* is never started by hand — a *Worker Head* launches it and hands it the two file descriptors it talks over. Against the [local development stack](../../../deploy/README.md), reaching MinIO directly, every other setting already defaults correctly. This script assumes the [zeus repo](https://github.com/OmniOMR/zeus) is cloned and set up on your laptop at `~/ufal/zeus` with the corresponding snapshot downloaded.
+
+```bash
+cd components/worker-head
+.venv/bin/musibot-worker-head --model-command \
+    "$HOME/ufal/zeus/.venv/bin/zeus musibot --model $HOME/ufal/zeus/models/ayce-long-2026-08-03.model"
+```
+
+
 ## Deploying it
 
 The steps that surround this — the VM, RabbitMQ, MinIO, the `musibot-worker@.service` template — are in [Deploying onto a VM](../../../docs/deploying-to-a-vm.md). This is the Zeus-specific part of section *A worker*.
