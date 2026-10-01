@@ -249,6 +249,37 @@ def system_boxes(layout: dict[str, Any]) -> list[SystemBox]:
     return _category_boxes(layout, SYSTEM_CATEGORY, SystemBox)
 
 
+def keep_first_staves(layout: dict[str, Any], count: int) -> dict[str, Any]:
+    """A copy of `layout` with only its first `count` staves, in reading order.
+
+    Every other category is left as it was. For pairing a layout with fewer
+    staff transcriptions than it has staves: the staves left over are dropped
+    from the document rather than worked around, so that whatever reads it
+    next sees a page that has exactly the staves there is music for.
+    """
+    category_ids = _category_ids(layout, STAFF_CATEGORY)
+    annotations = _listing(layout, "annotations")
+    staves = [
+        annotation
+        for annotation in annotations
+        if isinstance(annotation, dict) and annotation.get("category_id") in category_ids
+    ]
+    # The same order `staff_boxes` numbers them in, so the staves kept are
+    # staves 1 to `count`.
+    staves.sort(key=_reading_order)
+    dropped = {id(annotation) for annotation in staves[count:]}
+
+    return {
+        **layout,
+        "annotations": [annotation for annotation in annotations if id(annotation) not in dropped],
+    }
+
+
+def _reading_order(annotation: dict[str, Any]) -> tuple[int, int]:
+    box: BoundingBox = _bounding_box(annotation["bbox"], BoundingBox)
+    return box.top, box.left
+
+
 def _instrument_groups_by_system(
     staffs: list[StaffBox],
     grand_staffs: list[GrandStaffBox],
@@ -426,11 +457,7 @@ def _covering_box(boxes: list[T], box_cls: type) -> Any:
 
 def _category_boxes(layout: dict[str, Any], category_name: str, box_cls: type) -> list[Any]:
     """Every annotation of `category_name`, as `box_cls`, in reading order."""
-    category_ids = {
-        category["id"]
-        for category in _listing(layout, "categories")
-        if isinstance(category, dict) and category.get("name") == category_name
-    }
+    category_ids = _category_ids(layout, category_name)
 
     if not category_ids:
         # Either the page genuinely has none of these — the model lists only
@@ -446,6 +473,14 @@ def _category_boxes(layout: dict[str, Any], category_name: str, box_cls: type) -
     ]
 
     return sorted(boxes, key=lambda box: (box.top, box.left))
+
+
+def _category_ids(layout: dict[str, Any], category_name: str) -> set[Any]:
+    return {
+        category["id"]
+        for category in _listing(layout, "categories")
+        if isinstance(category, dict) and category.get("name") == category_name
+    }
 
 
 def _listing(layout: dict[str, Any], field: str) -> list[Any]:

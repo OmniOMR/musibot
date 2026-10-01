@@ -25,7 +25,6 @@ version it is published under, though the two coincide for `mzk-page`.
 """
 
 import asyncio
-import json
 from typing import Any
 
 from musibot.orchestrator_head import (
@@ -36,7 +35,6 @@ from musibot.orchestrator_head import (
     Signature,
 )
 
-from pmcg_orchestrator.errors import UnreadableLayout
 from pmcg_orchestrator.gluing import StaffTranscription
 from pmcg_orchestrator.gluing import v1 as gluing_v1
 from pmcg_orchestrator.gluing import v2 as gluing_v2
@@ -46,19 +44,18 @@ from pmcg_orchestrator.layout import (
     layout_to_instruments,
     staff_boxes,
 )
-from pmcg_orchestrator.slicing import slice_page
-
-IMAGE_FILE = "image.jpg"
-LAYOUT_FILE = "layout.json"
-TRANSCRIPTION_FILE = "transcription.musicxml"
-
-
-def staff_image(number: int) -> str:
-    return f"Staves/{number}/{IMAGE_FILE}"
-
-
-def staff_transcription(number: int) -> str:
-    return f"Staves/{number}/{TRANSCRIPTION_FILE}"
+from pmcg_orchestrator.steps import (
+    IMAGE_FILE,
+    LAYOUT_FILE,
+    STAFF_PADDING_RATIO,
+    TRANSCRIPTION_FILE,
+    read_layout,
+    require_staves,
+    slice_into_staves,
+    spell,
+    staff_image,
+    staff_transcription,
+)
 
 
 class PageFromStaffPipeline(Pipeline):
@@ -81,11 +78,9 @@ class PageFromStaffPipeline(Pipeline):
     what somebody looks at when the result is wrong, and a *MusicorpusPage* is
     thrown away in a few minutes anyway."""
 
-    STAFF_PADDING_RATIO = 0.9
-    """How much of a staff's own height to add as a margin on every side when
-    cutting it out of the page. Proportional rather than a pixel count so that
-    it means the same thing at any scan resolution. Part of what this
-    implementation does to a page, so not a parameter."""
+    STAFF_PADDING_RATIO = STAFF_PADDING_RATIO
+    """The margin around each staff crop — the same one `pmcg-slice` cuts with.
+    Part of what this implementation does to a page, so not a parameter."""
 
     def __init__(
         self,
@@ -105,46 +100,14 @@ class PageFromStaffPipeline(Pipeline):
 
     async def _detect_layout(self, ctx: PipelineContext, looking_for: str) -> dict[str, Any]:
         """Run the layout *Model* and read the document it wrote."""
-        ctx.logger.info("Detecting %s with %s ...", looking_for, _spell(self._layout_model))
-
+        ctx.logger.info("Detecting %s with %s ...", looking_for, spell(self._layout_model))
         await ctx.execute_model(self._layout_model, input=[IMAGE_FILE])
-
-        try:
-            layout: dict[str, Any] = json.loads(await ctx.read_text(LAYOUT_FILE))
-        except json.JSONDecodeError as error:
-            raise UnreadableLayout(
-                f"The layout model wrote a {LAYOUT_FILE} that is not JSON: {error}"
-            )
-
-        return layout
-
-    def _require_staves(self, ctx: PipelineContext, count: int) -> None:
-        if count == 0:
-            # Not an internal error: an empty page, a cover, or a table of
-            # contents is a page the layout model was trained for. There is
-            # simply nothing here to transcribe, and saying so plainly beats
-            # writing an empty score.
-            raise ValueError(
-                "No staves were found on this page, so there is nothing to transcribe."
-            )
-
-        ctx.logger.info("Found %d staves.", count)
+        return await read_layout(ctx)
 
     # --- 2. the crops --------------------------------------------------------
 
     async def _slice_page(self, ctx: PipelineContext, boxes: list[StaffBox]) -> None:
-        ctx.logger.info("Slicing the page into %d staff images ...", len(boxes))
-
-        page = await ctx.read_bytes(IMAGE_FILE)
-        # OpenCV is blocking CPU work and this process runs several executions
-        # at once, so the whole page is sliced in one hop off the event loop
-        # rather than one per staff.
-        crops = await asyncio.to_thread(slice_page, page, boxes, self.STAFF_PADDING_RATIO)
-
-        # Named by the box's own number rather than by its position in this
-        # list, because that number is what the gluing looks the staff up by.
-        for box, crop in zip(boxes, crops, strict=True):
-            await ctx.write_bytes(staff_image(box.number), crop)
+        await slice_into_staves(ctx, boxes, self.STAFF_PADDING_RATIO)
 
     # --- 3. the transcriptions -----------------------------------------------
 
@@ -161,7 +124,7 @@ class PageFromStaffPipeline(Pipeline):
         failed is a different thing and does fail.
         """
         count = len(boxes)
-        ctx.logger.info("Transcribing %d staves with %s ...", count, _spell(self._staff_model))
+        ctx.logger.info("Transcribing %d staves with %s ...", count, spell(self._staff_model))
 
         numbers = sorted(box.number for box in boxes)
         outcomes = await asyncio.gather(
@@ -218,7 +181,7 @@ class PageFromStaffPipelineV1(PageFromStaffPipeline):
     async def execute(self, ctx: PipelineContext) -> None:
         layout = await self._detect_layout(ctx, "staves")
         boxes = staff_boxes(layout)
-        self._require_staves(ctx, len(boxes))
+        require_staves(ctx, len(boxes))
 
         await self._slice_page(ctx, boxes)
         staves = await self._transcribe_staves(ctx, boxes)
@@ -236,7 +199,7 @@ class PageFromStaffPipelineV2(PageFromStaffPipeline):
     async def execute(self, ctx: PipelineContext) -> None:
         layout = await self._detect_layout(ctx, ",".join(sorted(RETRIEVED_LAYOUT_CATEGORIES)))
         page_layout = layout_to_instruments(layout)
-        self._require_staves(ctx, page_layout.staff_count)
+        require_staves(ctx, page_layout.staff_count)
         ctx.logger.info("Ordered staves into instruments: %s", str(page_layout))
 
         boxes = page_layout.get_all_staffs()
@@ -244,8 +207,3 @@ class PageFromStaffPipelineV2(PageFromStaffPipeline):
         staves = await self._transcribe_staves(ctx, boxes)
 
         await self._write_page(ctx, gluing_v2.glue(ctx, staves, page_layout))
-
-
-def _spell(model: NameAndVersion) -> str:
-    """A *Model* as it appears in a log line the *User* reads."""
-    return f"{model.name} {model.version}"

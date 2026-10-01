@@ -25,6 +25,11 @@ def test_an_older_version_is_published_beside_the_newer_one() -> None:
     assert "mzk-page@2" in spelled()
 
 
+def test_it_publishes_the_steps_of_mzk_page_one_by_one() -> None:
+    # For running them by hand, with a human correcting what lies in between.
+    assert {"pmcg-slice@1", "pmcg-glue@1", "pmcg-glue@2"} <= set(spelled())
+
+
 def test_no_two_registrations_publish_the_same_pipeline() -> None:
     assert len(spelled()) == len(set(spelled()))
 

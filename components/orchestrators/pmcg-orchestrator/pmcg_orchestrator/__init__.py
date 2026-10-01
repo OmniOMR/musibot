@@ -23,7 +23,9 @@ from musibot.orchestrator_head import (
 )
 
 from pmcg_orchestrator.page_from_staff import PageFromStaffPipelineV1, PageFromStaffPipelineV2
-from pmcg_orchestrator.staff import MzkStaffPipeline
+from pmcg_orchestrator.glue import GluePipelineV1, GluePipelineV2
+from pmcg_orchestrator.slice import SlicePipelineV1
+from pmcg_orchestrator.staves_from_staff import StavesFromStaffPipeline
 
 __all__ = ["PmcgSettings", "main", "registered_pipelines", "selected_pipelines"]
 
@@ -45,7 +47,11 @@ def registered_pipelines() -> list[Pipeline]:
     return [
         PageFromStaffPipelineV1("mzk-page", "1", layout_model=DVORAK_OLA, staff_model=AYCE_LONG),
         PageFromStaffPipelineV2("mzk-page", "2", layout_model=DVORAK_OLA, staff_model=AYCE_LONG),
-        MzkStaffPipeline("mzk-staff", "1", staff_model=AYCE_LONG),
+        StavesFromStaffPipeline("mzk-staff", "1", staff_model=AYCE_LONG),
+        # The steps of `mzk-page`, each on its own, for running them by hand.
+        SlicePipelineV1("pmcg-slice", "1"),
+        GluePipelineV1("pmcg-glue", "1"),
+        GluePipelineV2("pmcg-glue", "2"),
     ]
 
 

@@ -1,11 +1,18 @@
 # pmcg-orchestrator
 
-The *Orchestrator* holding the *Pipelines* of the Prague Music Computing Group (PMCG) and its partners, the OmniOMR project's among them. Two of them, and they are the two things a *User* arrives with:
+The *Orchestrator* holding the *Pipelines* of the Prague Music Computing Group (PMCG) and its partners, the OmniOMR project's among them. Two of them are the two things a *User* arrives with:
 
 - **`mzk-page`** — a page scan in, a page-level MusicXML file out.
-- **`mzk-staff`** — one staff crop in, its transcription out.
+- **`mzk-staff`** — staff crops in, their transcriptions out.
 
 Both are named in [the Web UI](../../web-ui/src/pipelines.ts), which offers them as its two defaults, so their names and versions are part of what this deployment promises rather than an internal detail.
+
+The other two are the steps of `mzk-page` that are not *Models*, each on its own, for a *User* running those steps by hand — typically with a person correcting what lies between them, such as the layout:
+
+- **`pmcg-slice`** — a page and its `layout.json` in, a crop per staff out.
+- **`pmcg-glue`** — a `layout.json` and staff transcriptions in, a page-level MusicXML file out.
+
+Run by hand, `pmcg-slice`, `mzk-staff` and `pmcg-glue` produce exactly the page `mzk-page` would have written, of the same version as the `pmcg-glue` used.
 
 This is the *Pipeline* Musibot exists to run. Everything else that ships in this repository — `hello-model`, `hello-orchestrator` — is plumbing to exercise the path this takes.
 
@@ -59,9 +66,33 @@ A failed staff takes up a system of its own in the score carrying the words `Sta
 
 ## What `mzk-staff` does
 
-It runs the transcription *Model* on the *File* it was given, and nothing else — the *User* has already done the cutting. Step for step that is what the *Model's* own *ImplicitPipeline* does, and it exists anyway for the name: an *ImplicitPipeline* is called after the *Model* behind it, so it is `ayce-long 2026-08-03-192253-final` today and something else the day a better snapshot is deployed. `mzk-staff` `1` does not move when the snapshot does, so the *Web UI* can offer it and a *User* can pin it.
+It runs the transcription *Model* on every staff crop it was given, and nothing else — the *User* has already done the cutting. Two things make it worth having beside the *Model's* own *ImplicitPipeline*:
 
-Its *Signature* is the *Model's* own — `Staves/{s}/image.jpg` in, `Staves/{s}/transcription.musicxml` out — which is also what tells the *Web UI* to upload a staff crop to `Staves/1/image.jpg` rather than to `image.jpg`.
+**The name.** An *ImplicitPipeline* is called after the *Model* behind it, so it is `ayce-long 2026-08-03-192253-final` today and something else the day a better snapshot is deployed. `mzk-staff` `1` does not move when the snapshot does, so the *Web UI* can offer it and a *User* can pin it.
+
+**Every staff of a page in one request.** Its *Signature* is the *Model's* own widened to a set — `Staves/{*s}/image.jpg` in, `Staves/{*s}/transcription.musicxml` out — so a *User* transcribing a page's crops sends one request rather than one per staff. The *Model* still runs once per staff, all of them at once, so one staff failing fails that staff alone: it is said in the log, the rest are transcribed, and the request fails only when every staff did. One staff is still a valid set, which is what the *Web UI* sends, uploading a single crop to `Staves/1/image.jpg`.
+
+Implemented by `StavesFromStaffPipeline`, which has no version of its own: it does nothing but run the *Model*, so the version it is published under is the version of the choice of *Model*.
+
+
+## What `pmcg-slice` `1` does
+
+Step 2 of `mzk-page` on its own: it reads the `staff` boxes out of `layout.json` and cuts `image.jpg` into `Staves/1/image.jpg` to `Staves/N/image.jpg`, numbered in reading order — top to bottom, and left to right between staves at the same height — with the same margin `mzk-page` uses. It runs no *Model*. Implemented by `SlicePipelineV1`.
+
+
+## What `pmcg-glue` `1` and `2` do
+
+Step 4 of `mzk-page` on its own, in the two versions `mzk-page` has had: version 1 glues the page as one instrument, version 2 as a part per instrument — see above. Its input is `layout.json`, the staff crops `Staves/{*}/image.jpg`, and their transcriptions `Staves/{*}/transcription.musicxml`. It runs no *Model*. Implemented by `GluePipelineV1` and `GluePipelineV2`.
+
+`layout.json` has boxes and no names, while the staves have names and no boxes, so they are paired by order:
+
+- **Staff folder names must be integers**, and need not be contiguous. The *Musicorpus Specification* numbers every staff down the page, empty ones included, while the layout marks empty staves with a category of its own, so `Staves/1`, `Staves/2`, `Staves/4` is a perfectly good page. A folder that is not a number, or two folders that are the same number (`1` and `01`), are refused.
+- **The staff images name the staves.** Only their names are used; nothing is read out of them. A staff with an image and no transcription is one that failed, and becomes a placeholder in the score exactly as it would in `mzk-page`. A transcription with no image is ignored, and said in the log. A page with no transcriptions at all fails.
+- **The staves, sorted by number, are paired one to one with the `staff` boxes in reading order.** If the counts differ, as many are paired as can be, from the top — as python's `zip` pairs — and the rest on either side are left out and said in the log. Version 2 drops the unpaired boxes from the layout before working out the instruments, so they do not turn up as an instrument's silence.
+
+`pmcg-slice` numbers its crops in exactly that reading order, so its output pairs up with no gaps. A placeholder in version 1 names the staff by its folder; in version 2, by its position in the layout.
+
+The *Web UI* does not offer to run `pmcg-glue` on a page: its input names more than one pattern with a slot, and the *Web UI* deliberately does not guess how they go together ("needs several files matched to each other"). It is for the [Python client](../../../docs/using-python-client.md) and the HTTP API.
 
 
 ## Pipeline versions are a contract
