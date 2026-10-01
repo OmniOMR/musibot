@@ -4,7 +4,7 @@ import pytest
 from musibot.orchestrator_head import ModelExecutionFailed
 from musibot.orchestrator_head.testing import ModelCall, PipelineRunner
 
-from omniomr_orchestrator.staff import MzkStaffPipeline
+from pmcg_orchestrator.staff import MzkStaffPipeline
 from tests.fakes import STAFF_MODEL, a_page, a_staff_transcription
 
 STAFF_IMAGE = "Staves/1/image.jpg"

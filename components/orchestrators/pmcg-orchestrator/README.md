@@ -1,6 +1,6 @@
-# omniomr-orchestrator
+# pmcg-orchestrator
 
-The *Orchestrator* holding the OmniOMR project's *Pipelines*. Two of them, and they are the two things a *User* arrives with:
+The *Orchestrator* holding the *Pipelines* of the Prague Music Computing Group (PMCG) and its partners, the OmniOMR project's among them. Two of them, and they are the two things a *User* arrives with:
 
 - **`mzk-page`** — a page scan in, a page-level MusicXML file out.
 - **`mzk-staff`** — one staff crop in, its transcription out.
@@ -14,7 +14,7 @@ This is the *Pipeline* Musibot exists to run. Everything else that ships in this
 
 | | |
 | --- | --- |
-| Orchestrator name | `omniomr` |
+| Orchestrator name | `pmcg` |
 | Pipeline | `mzk-page` `1` (both are settings — see below) |
 | Input | `image.jpg` |
 | Output | `layout.json`, `Staves/{*}/image.jpg`, `Staves/{*}/transcription.musicxml`, `transcription.musicxml` |
@@ -60,10 +60,10 @@ Every *Pipeline's* name and version is a setting, so the development *Pipeline* 
 
 ```bash
 # what production runs
-musibot-omniomr-orchestrator
+musibot-pmcg-orchestrator
 
 # the next version, against a newer snapshot, beside it
-musibot-omniomr-orchestrator \
+musibot-pmcg-orchestrator \
     --page-pipeline-name mzk-page-dev --page-pipeline-version 2 \
     --staff-pipeline-name mzk-staff-dev --staff-pipeline-version 2 \
     --staff-model 'ayce-long@2026-08-14-...'
@@ -100,7 +100,7 @@ The margin is a *fraction of the staff's height* rather than a pixel count so th
 ## Development
 
 ```bash
-cd components/orchestrators/omniomr-orchestrator
+cd components/orchestrators/pmcg-orchestrator
 python3 -m venv .venv
 .venv/bin/pip install -e ../../core -e ../../orchestrator-head -e '.[dev]'
 ```
@@ -108,7 +108,7 @@ python3 -m venv .venv
 Running it needs the [local development stack](../../../deploy/README.md), the `api` service, and a *Worker* for each of the two *Models* — which is the point at which a laptop is running the whole system:
 
 ```bash
-.venv/bin/musibot-omniomr-orchestrator
+.venv/bin/musibot-pmcg-orchestrator
 ```
 
 

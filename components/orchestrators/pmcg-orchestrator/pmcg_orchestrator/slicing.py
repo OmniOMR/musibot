@@ -22,7 +22,7 @@ from collections.abc import Sequence
 import cv2
 import numpy as np
 
-from omniomr_orchestrator.layout import BoundingBox
+from pmcg_orchestrator.layout import BoundingBox
 
 JPEG_QUALITY = 95
 """What a staff crop is re-encoded at. High, because this image is a *Model's*

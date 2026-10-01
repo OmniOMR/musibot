@@ -1,4 +1,4 @@
-"""The *Orchestrator* holding the OmniOMR project's *Pipelines*.
+"""The *Orchestrator* holding the Prague Music Computing Group's *Pipelines*.
 
 Two of them, and they are the two things a *User* arrives with:
 
@@ -9,7 +9,7 @@ Which *Models* they run, and under what names and versions they are announced,
 are all settings — so the *Pipeline* being developed is this same program
 started with different ones:
 
-    musibot-omniomr-orchestrator \\
+    musibot-pmcg-orchestrator \\
         --page-pipeline-name mzk-page-dev --page-pipeline-version 2 \\
         --staff-pipeline-name mzk-staff-dev --staff-pipeline-version 2 \\
         --staff-model 'ayce-long@2026-08-14-something-newer'
@@ -22,12 +22,12 @@ takes the other's work.
 from musibot.orchestrator_head import NameAndVersion, Orchestrator, OrchestratorHeadSettings
 from pydantic import field_validator
 
-from omniomr_orchestrator.page import MzkPagePipeline
-from omniomr_orchestrator.staff import MzkStaffPipeline
+from pmcg_orchestrator.page import MzkPagePipeline
+from pmcg_orchestrator.staff import MzkStaffPipeline
 
-__all__ = ["MzkPagePipeline", "MzkStaffPipeline", "OmniOmrSettings", "main"]
+__all__ = ["MzkPagePipeline", "MzkStaffPipeline", "PmcgSettings", "main"]
 
-ORCHESTRATOR_NAME = "omniomr"
+ORCHESTRATOR_NAME = "pmcg"
 
 MODEL_REFERENCE_SEPARATOR = "@"
 """How a *Model* is written in one setting — `name@version`, the same spelling
@@ -42,7 +42,7 @@ def model_reference(reference: str) -> NameAndVersion:
     return NameAndVersion(name=name, version=version)
 
 
-class OmniOmrSettings(OrchestratorHeadSettings):
+class PmcgSettings(OrchestratorHeadSettings):
     """What this *Orchestrator* is configured with, beyond the shared blocks.
 
     The defaults are the *Models* the development stack currently runs, so that
@@ -95,8 +95,8 @@ class OmniOmrSettings(OrchestratorHeadSettings):
 
 
 def main() -> None:
-    """Run the OmniOMR orchestrator until it is stopped."""
-    settings = OmniOmrSettings.load()
+    """Run the PMCG orchestrator until it is stopped."""
+    settings = PmcgSettings.load()
 
     layout_model = model_reference(settings.layout_model)
     staff_model = model_reference(settings.staff_model)

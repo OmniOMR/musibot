@@ -4,10 +4,10 @@ An *Orchestrator* extends this with its own settings — which *Model* version a
 *Pipeline* pins, where some resource lives — and gets the command line
 arguments, environment variables and config-file keys for them for free::
 
-    class OmniOmrSettings(OrchestratorHeadSettings):
+    class PmcgSettings(OrchestratorHeadSettings):
         zeus_version: str = "2026-07-22"
 
-    settings = OmniOmrSettings.load()
+    settings = PmcgSettings.load()
 
 That is where a *Pipeline's* registration parameters come from, and the reason
 settings are loaded before the *Pipelines* are constructed rather than inside

@@ -1,11 +1,16 @@
-# Changelog for `omniomr-orchestrator`
+# Changelog for `pmcg-orchestrator`
 
-Released as `omniomr-orchestrator/vX.Y.Z` git tags — see [Versioning and releases](../../../docs/versioning-and-releases.md).
+Released as `pmcg-orchestrator/vX.Y.Z` git tags — see [Versioning and releases](../../../docs/versioning-and-releases.md).
 
 **This version is not what a *User* pins.** A *User* pins a *Pipeline* — `mzk-page` `1` — and that number moves when the same page would come out different. This one versions the *program*: its configuration, its dependencies, and which *Pipelines* it provides. The two are deliberately independent, and the entries below say which of them moved.
 
 
 ## Unreleased
+
+
+### Changed
+
+- **Renamed from `omniomr-orchestrator` to `pmcg-orchestrator`**, because it now hosts *Pipelines* for the Prague Music Computing Group and its partners rather than for the OmniOMR project alone. Everything that carries the name moved with it: the folder, the python package (`pmcg_orchestrator`), the distribution and its console script (`musibot-pmcg-orchestrator`), the name the *Orchestrator* announces itself under (`pmcg`), and the release tags (`pmcg-orchestrator/vX.Y.Z`). A deployment installs the new distribution into a fresh virtual environment and runs it as `musibot-orchestrator@pmcg`. The 0.1.0 entry below was released under the old name and tag.
 
 
 ## 0.1.0 — 2026-08-14

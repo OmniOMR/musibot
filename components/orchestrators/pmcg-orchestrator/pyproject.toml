@@ -3,9 +3,9 @@ requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
-name = "musibot-omniomr-orchestrator"
+name = "musibot-pmcg-orchestrator"
 dynamic = ["version"]
-description = "The OmniOMR project's Musibot pipelines"
+description = "The Musibot pipelines of the Prague Music Computing Group and its partners"
 readme = "README.md"
 license = "Apache-2.0"
 # The floor `core` sets, and unlike a Model a Pipeline has no way around it: it
@@ -35,7 +35,7 @@ dev = [
 ]
 
 [project.scripts]
-musibot-omniomr-orchestrator = "omniomr_orchestrator:main"
+musibot-pmcg-orchestrator = "pmcg_orchestrator:main"
 
 # Siblings in this monorepo, installed from their paths so that an editable
 # checkout of either is picked up here. This is uv-specific and pip ignores it.
@@ -55,14 +55,14 @@ musibot-orchestrator-head = { path = "../../orchestrator-head", editable = true 
 [tool.hatch.version]
 source = "vcs"
 raw-options.root = "../../.."
-raw-options.git_describe_command = ["git", "describe", "--dirty", "--tags", "--long", "--match", "omniomr-orchestrator/v*"]
-raw-options.tag_regex = '^omniomr-orchestrator/v(?P<version>\d+\.\d+\.\d+.*)$'
+raw-options.git_describe_command = ["git", "describe", "--dirty", "--tags", "--long", "--match", "pmcg-orchestrator/v*"]
+raw-options.tag_regex = '^pmcg-orchestrator/v(?P<version>\d+\.\d+\.\d+.*)$'
 
 [tool.hatch.metadata]
 allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
-packages = ["omniomr_orchestrator"]
+packages = ["pmcg_orchestrator"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -76,7 +76,7 @@ ignore = ["I001"]
 [tool.mypy]
 strict = true
 plugins = ["pydantic.mypy"]
-files = ["omniomr_orchestrator", "tests"]
+files = ["pmcg_orchestrator", "tests"]
 # The tests share fixtures through `tests.fakes`, so mypy has to be told where
 # the package root is or it sees that module under two names.
 namespace_packages = true

@@ -525,7 +525,7 @@ A model appearing in that listing is the *Worker* announcing itself; a model dis
 
 ## 8. An orchestrator
 
-A *Worker* runs a *Model*; an *Orchestrator* runs the *Pipelines* that string *Models* together. Musibot works without one — every *Model* is offered as an [ImplicitPipeline](domain-model.md) — but without one there is no page-level recognition, so an instance serving the *Web UI* wants [omniomr-orchestrator](../components/orchestrators/omniomr-orchestrator/README.md), which is what the rest of this section installs.
+A *Worker* runs a *Model*; an *Orchestrator* runs the *Pipelines* that string *Models* together. Musibot works without one — every *Model* is offered as an [ImplicitPipeline](domain-model.md) — but without one there is no page-level recognition, so an instance serving the *Web UI* wants [pmcg-orchestrator](../components/orchestrators/pmcg-orchestrator/README.md), which is what the rest of this section installs.
 
 One templated unit serves all of them, the same shape as the worker unit:
 
@@ -537,21 +537,21 @@ sudo systemctl daemon-reload
 An *Orchestrator* is a single process on the same python as the rest of Musibot, with a venv of its own because its *Pipelines* bring their own dependencies. It needs no state directory and no special hardware: a *Pipeline* fetches *Files* from MinIO as it needs them and writes straight back, so nothing it does touches the disk.
 
 ```bash
-sudo -u musibot python3.12 -m venv /opt/musibot/orchestrators/omniomr/venv
-sudo -u musibot /opt/musibot/orchestrators/omniomr/venv/bin/pip install \
+sudo -u musibot python3.12 -m venv /opt/musibot/orchestrators/pmcg/venv
+sudo -u musibot /opt/musibot/orchestrators/pmcg/venv/bin/pip install \
     'musibot-core @ git+https://github.com/OmniOMR/musibot.git@core/v0.3.0#subdirectory=components/core' \
     'musibot-orchestrator-head @ git+https://github.com/OmniOMR/musibot.git@orchestrator-head/v0.1.0#subdirectory=components/orchestrator-head' \
-    'musibot-omniomr-orchestrator @ git+https://github.com/OmniOMR/musibot.git@omniomr-orchestrator/v0.1.0#subdirectory=components/orchestrators/omniomr-orchestrator'
+    'musibot-pmcg-orchestrator @ git+https://github.com/OmniOMR/musibot.git@pmcg-orchestrator/v0.2.0#subdirectory=components/orchestrators/pmcg-orchestrator'
 
 sudo install -o root -g musibot -m 0640 \
-    /opt/musibot/repo/deploy/systemd/orchestrator.env.example /etc/musibot/orchestrator-omniomr.env
-sudo nano /etc/musibot/orchestrator-omniomr.env
+    /opt/musibot/repo/deploy/systemd/orchestrator.env.example /etc/musibot/orchestrator-pmcg.env
+sudo nano /etc/musibot/orchestrator-pmcg.env
 ```
 
 One line in that file says which *Orchestrator* this instance is — an *Orchestrator* is a program of its own, so the unit runs whatever this names:
 
 ```ini
-MUSIBOT_ORCHESTRATOR_COMMAND="/opt/musibot/orchestrators/omniomr/venv/bin/musibot-omniomr-orchestrator"
+MUSIBOT_ORCHESTRATOR_COMMAND="/opt/musibot/orchestrators/pmcg/venv/bin/musibot-pmcg-orchestrator"
 ```
 
 Its own settings then say which *Models* its *Pipelines* run, and **a deployment pins both explicitly** — the defaults are whatever the development stack happened to be running, which is exactly the kind of thing that goes stale without anybody noticing:
@@ -566,11 +566,11 @@ Those two must name *Models* this instance actually runs — the same name and v
 The rest is the same RabbitMQ and MinIO configuration everything else has, plus whatever settings that particular *Orchestrator* adds. Those extra settings are not decoration: they are how its *Pipelines* are parametrized, and pinning a *Model* version through one is how the same implementation is deployed twice, once stable and once in development (see [Writing pipelines](writing-pipelines.md)). Its own `--help` lists them.
 
 ```bash
-sudo systemctl enable --now musibot-orchestrator@omniomr
-journalctl -u musibot-orchestrator@omniomr -f
+sudo systemctl enable --now musibot-orchestrator@pmcg
+journalctl -u musibot-orchestrator@pmcg -f
 
 curl -s http://127.0.0.1:8080/pipelines
-# mzk-page 1 and mzk-staff 1, 1 instance each, orchestrator omniomr
+# mzk-page 1 and mzk-staff 1, 1 instance each, orchestrator pmcg
 ```
 
 Those two names are the ones the *Web UI* offers on its landing page, so an instance where they are missing shows a visitor a picker with nothing recommended in it.

@@ -30,15 +30,15 @@ from musibot.orchestrator_head import (
     Signature,
 )
 
-from omniomr_orchestrator.errors import UnreadableLayout
-from omniomr_orchestrator.layout import (
+from pmcg_orchestrator.errors import UnreadableLayout
+from pmcg_orchestrator.layout import (
     StaffBox,
     PageLayout,
     layout_to_instruments,
     RETRIEVED_LAYOUT_CATEGORIES,
 )
-from omniomr_orchestrator.musicxml import StaffTranscription, page_musicxml
-from omniomr_orchestrator.slicing import slice_page
+from pmcg_orchestrator.musicxml import StaffTranscription, page_musicxml
+from pmcg_orchestrator.slicing import slice_page
 
 IMAGE_FILE = "image.jpg"
 LAYOUT_FILE = "layout.json"

@@ -8,10 +8,10 @@ import json
 
 import pytest
 
-from omniomr_orchestrator import OmniOmrSettings, model_reference
-from omniomr_orchestrator.errors import UnreadableLayout
-from omniomr_orchestrator.layout import BoundingBox, StaffBox, staff_boxes
-from omniomr_orchestrator.slicing import UnreadableImage, crop_staff, decode_page, slice_page
+from pmcg_orchestrator import PmcgSettings, model_reference
+from pmcg_orchestrator.errors import UnreadableLayout
+from pmcg_orchestrator.layout import BoundingBox, StaffBox, staff_boxes
+from pmcg_orchestrator.slicing import UnreadableImage, crop_staff, decode_page, slice_page
 from tests.fakes import a_layout, a_page
 
 # --- reading the layout ------------------------------------------------------
@@ -123,11 +123,11 @@ def test_a_malformed_model_reference_stops_the_process_at_startup() -> None:
     # Rather than becoming a Pipeline that announces itself and then times out
     # every execution it is given.
     with pytest.raises(ValueError, match="name@version"):
-        OmniOmrSettings.for_testing(staff_model="no-version-here")
+        PmcgSettings.for_testing(staff_model="no-version-here")
 
 
 def test_the_defaults_name_the_models_the_development_stack_runs() -> None:
-    settings = OmniOmrSettings.for_testing()
+    settings = PmcgSettings.for_testing()
 
     assert model_reference(settings.layout_model).name == "dvorak-ola"
     assert model_reference(settings.staff_model).name == "ayce-long"
@@ -137,7 +137,7 @@ def test_the_default_pipeline_names_are_the_ones_the_web_ui_offers() -> None:
     # `components/web-ui/src/pipelines.ts` names these two outright: they are a
     # product decision rather than something a listing could express, so an
     # instance whose defaults drift stops offering them on the landing page.
-    settings = OmniOmrSettings.for_testing()
+    settings = PmcgSettings.for_testing()
 
     assert (settings.page_pipeline_name, settings.page_pipeline_version) == ("mzk-page", "1")
     assert (settings.staff_pipeline_name, settings.staff_pipeline_version) == ("mzk-staff", "1")

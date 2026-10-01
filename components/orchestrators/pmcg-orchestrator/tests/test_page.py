@@ -7,7 +7,7 @@ import pytest
 from musibot.orchestrator_head import ModelExecutionFailed
 from musibot.orchestrator_head.testing import ModelCall, PipelineRunner
 
-from omniomr_orchestrator.page import MzkPagePipeline
+from pmcg_orchestrator.page import MzkPagePipeline
 from tests.fakes import (
     LAYOUT_MODEL,
     STAFF_MODEL,

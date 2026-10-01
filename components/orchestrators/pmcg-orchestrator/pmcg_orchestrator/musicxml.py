@@ -14,7 +14,7 @@ from xml.etree import ElementTree as ET
 from lmx.musicxml.grandstaff.zip_grandstaff import zip_grandstaff
 from typing import TypeAlias
 
-from omniomr_orchestrator.layout import Instrument, PageLayout, StaffBox
+from pmcg_orchestrator.layout import Instrument, PageLayout, StaffBox
 from musibot.orchestrator_head import PipelineContext
 
 from .normalize import StaffNormalizer

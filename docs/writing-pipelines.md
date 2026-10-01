@@ -135,16 +135,16 @@ class MzkPipeline(Pipeline):
 …and an *Orchestrator* that gets those parameters from its own settings:
 
 ```py
-class OmniOmrSettings(OrchestratorHeadSettings):
+class PmcgSettings(OrchestratorHeadSettings):
     staff_model_version: str = "2026-07-22"
     staff_model_dev_version: str = "2026-08-01"
 
 
 def main() -> None:
-    settings = OmniOmrSettings.load()
+    settings = PmcgSettings.load()
     layout_model = NameAndVersion(name="dvorak-ola", version="2.0-2025-03-09")
 
-    orchestrator = Orchestrator("omniomr", settings)
+    orchestrator = Orchestrator("pmcg", settings)
 
     orchestrator.register_pipeline(
         MzkPipeline(
