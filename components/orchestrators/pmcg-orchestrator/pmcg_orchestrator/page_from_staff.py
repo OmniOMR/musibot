@@ -4,10 +4,10 @@ Published as `mzk-page`, around dvorak-ola and a Zeus snapshot, but nothing in
 it is particular to those *Models* or to the MZK. Four steps, and the *User* is
 told about each of them as it happens:
 
-1. a layout *Model* finds the staves, systems and grand staves,
+1. a layout *Model* finds the staves,
 2. this cuts the page into one crop per staff,
 3. a staff transcription *Model* reads each crop, all of them at once,
-4. this glues the results into one document, a part per instrument.
+4. this glues the results into one document.
 
 Steps 1 and 3 are *Models* and could be anything — which two is a constructor
 argument, so that the same implementation can be published again around other
@@ -16,13 +16,17 @@ registered, in `pmcg_orchestrator.registered_pipelines`. Steps 2 and 4 are this
 *Pipeline's* own work and are the parts that will move into a Musicorpus
 library when there is one.
 
-The class's version is the version of the gluing it does — see
-`pmcg_orchestrator.gluing` — and is independent of the version it is published
-under, though the two coincide for `mzk-page`.
+The two versions differ in how much of the layout they read and in how they
+glue: version 1 reads only the staves and writes the page as one instrument,
+version 2 reads systems and grand staves too and writes a part per instrument.
+Everything else is the shared base class. A class's version is the version of
+the gluing it does — see `pmcg_orchestrator.gluing` — and is independent of the
+version it is published under, though the two coincide for `mzk-page`.
 """
 
 import asyncio
 import json
+from typing import Any
 
 from musibot.orchestrator_head import (
     ModelExecutionFailed,
@@ -33,14 +37,15 @@ from musibot.orchestrator_head import (
 )
 
 from pmcg_orchestrator.errors import UnreadableLayout
-from pmcg_orchestrator.layout import (
-    StaffBox,
-    PageLayout,
-    layout_to_instruments,
-    RETRIEVED_LAYOUT_CATEGORIES,
-)
 from pmcg_orchestrator.gluing import StaffTranscription
-from pmcg_orchestrator.gluing import v2 as gluing
+from pmcg_orchestrator.gluing import v1 as gluing_v1
+from pmcg_orchestrator.gluing import v2 as gluing_v2
+from pmcg_orchestrator.layout import (
+    RETRIEVED_LAYOUT_CATEGORIES,
+    StaffBox,
+    layout_to_instruments,
+    staff_boxes,
+)
 from pmcg_orchestrator.slicing import slice_page
 
 IMAGE_FILE = "image.jpg"
@@ -56,8 +61,8 @@ def staff_transcription(number: int) -> str:
     return f"Staves/{number}/{TRANSCRIPTION_FILE}"
 
 
-class PageFromStaffPipelineV2(Pipeline):
-    """Page-level image-to-MusicXML transcription, a part per instrument."""
+class PageFromStaffPipeline(Pipeline):
+    """The steps every version shares. A version's `execute` strings them together."""
 
     signature = Signature(
         input=[IMAGE_FILE],
@@ -96,39 +101,25 @@ class PageFromStaffPipelineV2(Pipeline):
         self._layout_model = layout_model
         self._staff_model = staff_model
 
-    async def execute(self, ctx: PipelineContext) -> None:
-        page_layout = await self._detect_layout(ctx)
-        staff_boxes = page_layout.get_all_staffs()
-        await self._slice_page(ctx, staff_boxes)
+    # --- 1. the layout -------------------------------------------------------
 
-        staves = await self._transcribe_staves(ctx, len(staff_boxes))
-
-        ctx.logger.info("Writing %s ...", TRANSCRIPTION_FILE)
-        await ctx.write_text(TRANSCRIPTION_FILE, gluing.glue(ctx, staves, page_layout))
-        ctx.logger.info("Done.")
-
-    # --- 1. the staves -------------------------------------------------------
-
-    async def _detect_layout(self, ctx: PipelineContext) -> PageLayout:
-        ctx.logger.info(
-            "Detecting %s with %s ...",
-            ",".join(sorted(RETRIEVED_LAYOUT_CATEGORIES)),
-            _spell(self._layout_model),
-        )
+    async def _detect_layout(self, ctx: PipelineContext, looking_for: str) -> dict[str, Any]:
+        """Run the layout *Model* and read the document it wrote."""
+        ctx.logger.info("Detecting %s with %s ...", looking_for, _spell(self._layout_model))
 
         await ctx.execute_model(self._layout_model, input=[IMAGE_FILE])
 
         try:
-            layout = json.loads(await ctx.read_text(LAYOUT_FILE))
+            layout: dict[str, Any] = json.loads(await ctx.read_text(LAYOUT_FILE))
         except json.JSONDecodeError as error:
             raise UnreadableLayout(
                 f"The layout model wrote a {LAYOUT_FILE} that is not JSON: {error}"
             )
 
-        page_layout = layout_to_instruments(layout)
-        staff_count = page_layout.staff_count
+        return layout
 
-        if staff_count == 0:
+    def _require_staves(self, ctx: PipelineContext, count: int) -> None:
+        if count == 0:
             # Not an internal error: an empty page, a cover, or a table of
             # contents is a page the layout model was trained for. There is
             # simply nothing here to transcribe, and saying so plainly beats
@@ -137,10 +128,7 @@ class PageFromStaffPipelineV2(Pipeline):
                 "No staves were found on this page, so there is nothing to transcribe."
             )
 
-        ctx.logger.info("Found %d staves.", staff_count)
-
-        ctx.logger.info("Ordered staves into instruments: %s", str(page_layout))
-        return page_layout
+        ctx.logger.info("Found %d staves.", count)
 
     # --- 2. the crops --------------------------------------------------------
 
@@ -161,7 +149,7 @@ class PageFromStaffPipelineV2(Pipeline):
     # --- 3. the transcriptions -----------------------------------------------
 
     async def _transcribe_staves(
-        self, ctx: PipelineContext, count: int
+        self, ctx: PipelineContext, boxes: list[StaffBox]
     ) -> list[StaffTranscription]:
         """Run the transcription *Model* over every staff, at once.
 
@@ -169,12 +157,13 @@ class PageFromStaffPipelineV2(Pipeline):
         stains, cropped systems and pages the detector was too generous about,
         and returning eleven staves of a twelve-staff page is far more useful to
         a *User* than returning an error — so failures are gathered, said in the
-        log, and become empty parts. A page where *every* staff failed is a
-        different thing and does fail.
+        log, and become placeholders in the score. A page where *every* staff
+        failed is a different thing and does fail.
         """
+        count = len(boxes)
         ctx.logger.info("Transcribing %d staves with %s ...", count, _spell(self._staff_model))
 
-        numbers = range(1, count + 1)
+        numbers = sorted(box.number for box in boxes)
         outcomes = await asyncio.gather(
             *(self._transcribe_staff(ctx, number) for number in numbers),
             return_exceptions=True,
@@ -209,6 +198,52 @@ class PageFromStaffPipelineV2(Pipeline):
         """
         await ctx.execute_model(self._staff_model, input=[staff_image(number)])
         return await ctx.read_text(staff_transcription(number))
+
+    # --- 4. the page ---------------------------------------------------------
+
+    async def _write_page(self, ctx: PipelineContext, musicxml: str) -> None:
+        ctx.logger.info("Writing %s ...", TRANSCRIPTION_FILE)
+        await ctx.write_text(TRANSCRIPTION_FILE, musicxml)
+        ctx.logger.info("Done.")
+
+
+class PageFromStaffPipelineV1(PageFromStaffPipeline):
+    """Page-level transcription, the page read as one instrument.
+
+    Only the `staff` boxes are read, and every staff's measures go into one
+    `<part>` with a system break where each staff begins — see
+    `pmcg_orchestrator.gluing.v1`.
+    """
+
+    async def execute(self, ctx: PipelineContext) -> None:
+        layout = await self._detect_layout(ctx, "staves")
+        boxes = staff_boxes(layout)
+        self._require_staves(ctx, len(boxes))
+
+        await self._slice_page(ctx, boxes)
+        staves = await self._transcribe_staves(ctx, boxes)
+
+        await self._write_page(ctx, gluing_v1.glue(staves))
+
+
+class PageFromStaffPipelineV2(PageFromStaffPipeline):
+    """Page-level transcription, a part per instrument.
+
+    The `system` and `grandstaff` boxes are read too, to group the staves into
+    instruments — see `pmcg_orchestrator.gluing.v2`.
+    """
+
+    async def execute(self, ctx: PipelineContext) -> None:
+        layout = await self._detect_layout(ctx, ",".join(sorted(RETRIEVED_LAYOUT_CATEGORIES)))
+        page_layout = layout_to_instruments(layout)
+        self._require_staves(ctx, page_layout.staff_count)
+        ctx.logger.info("Ordered staves into instruments: %s", str(page_layout))
+
+        boxes = page_layout.get_all_staffs()
+        await self._slice_page(ctx, boxes)
+        staves = await self._transcribe_staves(ctx, boxes)
+
+        await self._write_page(ctx, gluing_v2.glue(ctx, staves, page_layout))
 
 
 def _spell(model: NameAndVersion) -> str:

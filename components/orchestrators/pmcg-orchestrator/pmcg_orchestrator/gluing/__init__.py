@@ -1,7 +1,7 @@
 """Gluing staff transcriptions into one page-level MusicXML file.
 
-Each version of the gluing is a module of its own — `v2` is what `mzk-page` `2`
-does — because the version a *User* pins is the behaviour they get, and a newer
+Each version of the gluing is a module of its own — `v1` is what `mzk-page` `1`
+does and `v2` what `mzk-page` `2` does — because the version a *User* pins is the behaviour they get, and a newer
 gluing is published beside an older one rather than in place of it.
 
 Like the slicing, this is *Musicorpus* logic rather than *Musibot* logic and

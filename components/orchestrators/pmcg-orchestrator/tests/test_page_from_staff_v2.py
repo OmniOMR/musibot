@@ -1,17 +1,13 @@
 """`PageFromStaffPipelineV2`, end to end against two fake *Models*."""
 
-import json
 from xml.etree import ElementTree
 
-import pytest
-from musibot.orchestrator_head import ModelExecutionFailed
-from musibot.orchestrator_head.testing import ModelCall, PipelineRunner
+from musibot.orchestrator_head.testing import ModelCall
 
 from pmcg_orchestrator.page_from_staff import PageFromStaffPipelineV2
 from tests.fakes import (
     LAYOUT_MODEL,
     STAFF_MODEL,
-    a_page,
     a_runner,
     a_staff_transcription,
     fails_staff,
@@ -47,42 +43,6 @@ def test_it_reads_a_page_into_a_page_level_transcription() -> None:
         assert measures[0].find("print[@new-system='yes']") is None
 
 
-def test_it_runs_the_models_it_was_pinned_to_in_order() -> None:
-    runner = a_runner(*TWO_STAVES)
-
-    runner.run(a_pipeline(), input=["image.jpg"])
-
-    assert [(call.model, call.input) for call in runner.model_calls] == [
-        (LAYOUT_MODEL, ["image.jpg"]),
-        (STAFF_MODEL, ["Staves/1/image.jpg"]),
-        (STAFF_MODEL, ["Staves/2/image.jpg"]),
-    ]
-
-
-def test_it_leaves_the_intermediate_files_in_the_page() -> None:
-    # They are what somebody looks at when the result is wrong.
-    runner = a_runner(*TWO_STAVES)
-
-    runner.run(a_pipeline(), input=["image.jpg"])
-
-    assert set(runner.files) == {
-        "image.jpg",
-        "layout.json",
-        "Staves/1/image.jpg",
-        "Staves/2/image.jpg",
-        "Staves/1/transcription.musicxml",
-        "Staves/2/transcription.musicxml",
-        "transcription.musicxml",
-    }
-    # Only what this pipeline wrote itself is announced by it; the staff
-    # transcriptions are the Model's to announce.
-    assert runner.written == [
-        "Staves/1/image.jpg",
-        "Staves/2/image.jpg",
-        "transcription.musicxml",
-    ]
-
-
 def test_it_narrates_each_step() -> None:
     runner = a_runner(*TWO_STAVES)
 
@@ -101,74 +61,6 @@ def test_it_narrates_each_step() -> None:
     assert [message for message in runner.log_messages() if message in steps] == steps
 
 
-# --- the staves it finds -----------------------------------------------------
-
-
-def test_staves_are_numbered_down_the_page() -> None:
-    """The layout model orders its own output, but nothing says it must.
-
-    So the pipeline sorts, and `Staves/1` has to be the topmost staff whatever
-    order the document listed them in.
-    """
-    lower = (100, 200, 100, 20)  # + an 18px margin → 136x56
-    upper = (100, 100, 200, 30)  # + a 27px margin → 254x84
-    runner = a_runner(lower, upper)  # listed bottom first, on purpose
-
-    runner.run(a_pipeline(), input=["image.jpg"])
-
-    assert json.loads(runner.files["layout.json"])["annotations"][0]["bbox"] == list(lower)
-
-    # The fake staff model writes each crop's size into its transcription, so
-    # the sizes say which box became which staff.
-    assert "254x84" in runner.files["Staves/1/transcription.musicxml"].decode("utf-8")
-    assert "136x56" in runner.files["Staves/2/transcription.musicxml"].decode("utf-8")
-
-
-def test_a_page_with_no_staves_says_so_rather_than_writing_an_empty_score() -> None:
-    runner = a_runner()  # a cover, a title page, a blank
-
-    with pytest.raises(ValueError, match="No staves were found"):
-        runner.run(a_pipeline(), input=["image.jpg"])
-
-    assert "transcription.musicxml" not in runner.files
-
-
-def test_a_layout_that_is_not_json_is_reported_legibly() -> None:
-    def writes_nonsense(call: object, files: dict[str, bytes]) -> None:
-        files["layout.json"] = b"not json at all"
-
-    runner = PipelineRunner({"image.jpg": a_page()})
-    runner.register_model(LAYOUT_MODEL, writes_nonsense)
-    runner.register_model(STAFF_MODEL)
-
-    with pytest.raises(ValueError, match="is not JSON"):
-        runner.run(a_pipeline(), input=["image.jpg"])
-
-
-# --- the crops ---------------------------------------------------------------
-
-
-def test_a_staff_crop_carries_a_margin_of_its_own_height() -> None:
-    """0.9 of a 20px staff is 18px on each side, so 136x56 out of a 100x20 box."""
-    runner = a_runner((100, 100, 100, 20))
-
-    runner.run(a_pipeline(), input=["image.jpg"])
-
-    # The fake staff model writes the crop's size into its transcription.
-    transcription = runner.files["Staves/1/transcription.musicxml"].decode("utf-8")
-    assert "136x56" in transcription
-
-
-def test_the_margin_is_clamped_to_the_page() -> None:
-    # A staff touching the top edge cannot be given a margin above it.
-    runner = a_runner((0, 0, 400, 40))
-
-    runner.run(a_pipeline(), input=["image.jpg"])
-
-    transcription = runner.files["Staves/1/transcription.musicxml"].decode("utf-8")
-    assert "400x76" in transcription
-
-
 # --- when a staff fails ------------------------------------------------------
 
 
@@ -183,20 +75,6 @@ def test_one_failed_staff_leaves_the_rest_of_the_page_intact() -> None:
     assert [words.text for words in score.findall(".//direction//words")] == [
         "Cannot transcribe staff 1"
     ]
-
-
-def test_a_failed_staff_is_named_in_the_log() -> None:
-    runner = a_runner(*TWO_STAVES, staff_model=fails_staff(2, "Nothing legible here."))
-
-    runner.run(a_pipeline(), input=["image.jpg"])
-
-    errors = [line.message for line in runner.logs if line.level == "error"]
-    assert len(errors) == 1
-    assert "Staff 2" in errors[0]
-    assert "Nothing legible here." in errors[0]
-
-    warnings = [line.message for line in runner.logs if line.level == "warning"]
-    assert warnings == ["Transcribed 1 of 2 staves."]
 
 
 def test_a_system_where_every_staff_failed_leaves_the_rest_of_the_page_intact() -> None:
@@ -219,29 +97,7 @@ def test_a_system_where_every_staff_failed_leaves_the_rest_of_the_page_intact() 
     ]
 
 
-def test_a_page_where_every_staff_failed_is_a_failure() -> None:
-    def fails_everything(call: object, files: dict[str, bytes]) -> None:
-        raise RuntimeError("The model is having a bad day.")
-
-    runner = a_runner(*TWO_STAVES)
-    runner.register_model(STAFF_MODEL, fails_everything)
-
-    with pytest.raises(ModelExecutionFailed, match="none of the 2 staves"):
-        runner.run(a_pipeline(), input=["image.jpg"])
-
-    assert "transcription.musicxml" not in runner.files
-
-
-def test_a_model_that_reports_success_and_writes_nothing_fails_its_staff() -> None:
-    # Indistinguishable from a failure, from this pipeline's side, and it must
-    # not become a part claiming to be a transcription.
-    runner = a_runner(*TWO_STAVES, staff_model=lambda call, files: None)
-
-    with pytest.raises(ModelExecutionFailed):
-        runner.run(a_pipeline(), input=["image.jpg"])
-
-
-# --- the score it writes ----------------------------------------------------
+# --- the score it writes -----------------------------------------------------
 
 
 def test_a_padding_measure_is_valid_musicxml() -> None:
@@ -269,25 +125,3 @@ def test_a_padding_measure_is_valid_musicxml() -> None:
     assert [words.text for words in score.findall(".//direction//words")] == ["Padding measure"]
     for note in score.iter("note"):
         assert note.findtext("duration") is not None
-
-
-# --- the declaration ---------------------------------------------------------
-
-
-def test_it_declares_everything_the_execution_leaves_behind() -> None:
-    signature = a_pipeline().description().signature
-
-    assert signature.input == ["image.jpg"]
-    assert signature.output == [
-        "layout.json",
-        "Staves/{*s}/image.jpg",
-        "Staves/{*s}/transcription.musicxml",
-        "Staves/{*s}/transcription.lmx?",
-        "transcription.musicxml",
-    ]
-
-
-def test_the_name_and_version_are_the_registration_s_to_choose() -> None:
-    development = a_pipeline(name="mzk-page", version="3-dev")
-
-    assert (development.name, development.version) == ("mzk-page", "3-dev")

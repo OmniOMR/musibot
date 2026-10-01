@@ -46,6 +46,17 @@ Both of the steps this *Pipeline* owns are worth stating plainly, because each i
 **One staff failing does not fail the page.** A scan of a real book has stains, cropped systems, and pages the detector was too generous about, so returning eleven staves of twelve is far more useful than returning an error. A failed staff is said in the log, and keeps its place in its instrument's part, carrying the words `Cannot transcribe staff 7` — said in the document, because an empty measure is otherwise indistinguishable from a staff the *Model* read as silence. A page where *every* staff failed does fail.
 
 
+## What `mzk-page` `1` does differently
+
+Version 1 is still published, beside version 2, for anyone pinning it. It is `PageFromStaffPipelineV1` around the same two *Models*, and it differs in two places: it reads only the `staff` boxes out of `layout.json`, and it glues the page as one instrument.
+
+**The concatenation reads the page as one instrument.** Every staff's measures go into one `<part>`, one staff after another, with a system break where each begins — which is what a page of solo music is, and it survives staves disagreeing about how many measures they have. What it cannot express is genuine polyphony: a piano system's two staves become two consecutive systems rather than one grand staff, and a four-part system becomes four systems. Version 2 reads the `system` and `grandstaff` boxes to do better.
+
+(The first attempt gave each staff its own `<part>`, which is worse in the common case: it reads a solo piece as an N-instrument score whose parts sound at once, so nine staves of one melody become nine simultaneous melodies.)
+
+A failed staff takes up a system of its own in the score carrying the words `Staff 7 could not be transcribed`.
+
+
 ## What `mzk-staff` does
 
 It runs the transcription *Model* on the *File* it was given, and nothing else — the *User* has already done the cutting. Step for step that is what the *Model's* own *ImplicitPipeline* does, and it exists anyway for the name: an *ImplicitPipeline* is called after the *Model* behind it, so it is `ayce-long 2026-08-03-192253-final` today and something else the day a better snapshot is deployed. `mzk-staff` `1` does not move when the snapshot does, so the *Web UI* can offer it and a *User* can pin it.

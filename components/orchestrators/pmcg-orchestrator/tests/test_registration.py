@@ -4,27 +4,40 @@ import pytest
 from musibot.orchestrator_head import NameAndVersion
 
 from pmcg_orchestrator import PmcgSettings, registered_pipelines, selected_pipelines
-from pmcg_orchestrator.page_from_staff import PageFromStaffPipelineV2
+from pmcg_orchestrator.page_from_staff import PageFromStaffPipeline
 
 
 def spelled() -> list[str]:
     return [f"{pipeline.name}@{pipeline.version}" for pipeline in registered_pipelines()]
 
 
-def test_it_publishes_every_version_of_mzk_page_and_mzk_staff() -> None:
-    assert "mzk-page@2" in spelled()
+def test_it_publishes_the_pipelines_the_web_ui_offers() -> None:
+    # `components/web-ui/src/pipelines.ts` names these two outright, so a
+    # registration that drifts away from them leaves the landing page with
+    # nothing to recommend.
+    assert "mzk-page@1" in spelled()
     assert "mzk-staff@1" in spelled()
+
+
+def test_an_older_version_is_published_beside_the_newer_one() -> None:
+    # Someone may still be pinning it.
+    assert "mzk-page@1" in spelled()
+    assert "mzk-page@2" in spelled()
 
 
 def test_no_two_registrations_publish_the_same_pipeline() -> None:
     assert len(spelled()) == len(set(spelled()))
 
 
-def test_mzk_page_runs_the_models_it_is_published_with() -> None:
-    [page] = [p for p in registered_pipelines() if isinstance(p, PageFromStaffPipelineV2)]
+def test_every_version_of_mzk_page_runs_the_same_models() -> None:
+    pages = [p for p in registered_pipelines() if isinstance(p, PageFromStaffPipeline)]
 
-    assert page._layout_model == NameAndVersion(name="dvorak-ola", version="2.0-2025-03-09")
-    assert page._staff_model == NameAndVersion(name="ayce-long", version="2026-08-03-192253-final")
+    assert [page.version for page in pages] == ["1", "2"]
+    for page in pages:
+        assert page._layout_model == NameAndVersion(name="dvorak-ola", version="2.0-2025-03-09")
+        assert page._staff_model == NameAndVersion(
+            name="ayce-long", version="2026-08-03-192253-final"
+        )
 
 
 def test_every_pipeline_is_announced_by_default() -> None:
