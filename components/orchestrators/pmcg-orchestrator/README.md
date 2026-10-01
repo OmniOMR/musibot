@@ -15,36 +15,35 @@ This is the *Pipeline* Musibot exists to run. Everything else that ships in this
 | | |
 | --- | --- |
 | Orchestrator name | `pmcg` |
-| Pipeline | `mzk-page` `1` |
+| Pipeline | `mzk-page` `2` |
+| Implementation | `PageFromStaffPipelineV2`, around dvorak-ola and ayce-long |
 | Input | `image.jpg` |
 | Output | `layout.json`, `Staves/{*}/image.jpg`, `Staves/{*}/transcription.musicxml`, `transcription.musicxml` |
 | Models it runs | a layout model, then a staff transcription model once per staff |
 
 Four steps, and a *User* watching the page is told about each as it happens:
 
-1. **Find the staves.** A layout *Model* — [dvorak-ola](../../models/dvorak-ola/README.md) — writes `layout.json`, a COCO document of page-structure boxes. This reads the `staff` boxes out of it, in reading order.
+1. **Find the staves.** A layout *Model* — [dvorak-ola](../../models/dvorak-ola/README.md) — writes `layout.json`, a COCO document of page-structure boxes. This reads its `staff`, `system` and `grandstaff` boxes and groups the staves into instruments, following each instrument from system to system down the page.
 2. **Cut the page up.** One JPEG crop per staff, written to `Staves/<n>/image.jpg`, with a margin proportional to the staff's own height.
 3. **Transcribe each staff.** A transcription *Model* — [zeus](../../models/zeus/README.md) — runs once per staff, all of them dispatched at once, each producing `Staves/<n>/transcription.musicxml`.
-4. **Glue them together.** One `score-partwise` document holding every staff's measures in a single `<part>`, one after another, with an explicit system break where each staff begins.
+4. **Glue them together.** One `score-partwise` document with a `<part>` per instrument, each holding that instrument's measures system after system, with an explicit system break where each system begins.
 
 Steps 1 and 3 are *Models*, pinned in the source where the *Pipeline* is registered. Steps 2 and 4 are this *Pipeline's* own code, and are the parts that will move into a Musicorpus library when one exists — turning a page and its layout into subdivision crops is true of the format rather than of this deployment. Until then this is the only *Pipeline* that slices, so it is developed here.
 
 The intermediate *Files* stay in the page deliberately. They are what somebody looks at when the result is wrong, and a *MusicorpusPage* is discarded a few minutes later anyway.
 
 
-## What version 1 does naively
+## What version 2 does, and what it still does naively
 
-Both of the steps this *Pipeline* owns are the simplest thing that can work. They are worth stating plainly, because each is a reason the version number will move:
+Both of the steps this *Pipeline* owns are worth stating plainly, because each is a reason the version number will move:
 
-**The concatenation reads the page as one instrument.** Every staff's measures go into one `<part>`, one staff after another, with a system break where each begins — which is what a page of solo music is, and it survives staves disagreeing about how many measures they have. What it cannot express is genuine polyphony: a piano system's two staves become two consecutive systems rather than one grand staff, and a four-part system becomes four systems. Doing better needs the `system` and `grandstaff` boxes the layout model already reports and this does not yet read. That is the obvious next version.
-
-(The first attempt gave each staff its own `<part>`, which is worse in the common case: it reads a solo piece as an N-instrument score whose parts sound at once, so nine staves of one melody become nine simultaneous melodies.)
+**The gluing reads the page as instruments.** The `system` boxes say which staves sound at once, and the `grandstaff` boxes which two of them are one instrument. Each instrument becomes a `<part>`, and a grand staff's two staves are zipped into one two-staff part. Staves sharing a system are padded to the same number of measures with marked `Padding measure`s, an instrument missing from a system is written there as hidden measure rests, and the clef, key and time signature a staff does not print are carried over from that instrument's preceding staff. A page whose layout has no `system` boxes is read as one system, so its staves become that many instruments playing at once.
 
 **The slicing is a rectangle.** No deskewing, no straightening, no normalising of staff height. A transcription model that wants any of those should say so, and then it belongs in step 2 as a step of its own rather than smuggled into the crop.
 
 **Reading order is down the page and then across.** A page laid out in two columns would have its staves interleaved. Finding the columns first is real work and is not done.
 
-**One staff failing does not fail the page.** A scan of a real book has stains, cropped systems, and pages the detector was too generous about, so returning eleven staves of twelve is far more useful than returning an error. A failed staff is said in the log, and takes up a system of its own in the score carrying the words `Staff 7 could not be transcribed` — said in the document, because an empty measure is otherwise indistinguishable from a staff the *Model* read as silence. A page where *every* staff failed does fail.
+**One staff failing does not fail the page.** A scan of a real book has stains, cropped systems, and pages the detector was too generous about, so returning eleven staves of twelve is far more useful than returning an error. A failed staff is said in the log, and keeps its place in its instrument's part, carrying the words `Cannot transcribe staff 7` — said in the document, because an empty measure is otherwise indistinguishable from a staff the *Model* read as silence. A page where *every* staff failed does fail.
 
 
 ## What `mzk-staff` does

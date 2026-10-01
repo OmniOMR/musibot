@@ -1,22 +1,24 @@
-"""The `mzk-page` pipeline: a page scan in, a page-level MusicXML file out.
+"""A page scan in, a page-level MusicXML file out, by way of staff-level transcription.
 
-Four steps, and the *User* is told about each of them as it happens:
+Published as `mzk-page`, around dvorak-ola and a Zeus snapshot, but nothing in
+it is particular to those *Models* or to the MZK. Four steps, and the *User* is
+told about each of them as it happens:
 
-1. a layout *Model* finds the staves,
+1. a layout *Model* finds the staves, systems and grand staves,
 2. this cuts the page into one crop per staff,
-3. a transcription *Model* reads each crop, all of them at once,
-4. this glues the results into one document, a system per staff.
+3. a staff transcription *Model* reads each crop, all of them at once,
+4. this glues the results into one document, a part per instrument.
 
 Steps 1 and 3 are *Models* and could be anything — which two is a constructor
 argument, so that the same implementation can be published again around other
 *Models*. Which ones a published *Pipeline* runs is written down where it is
-registered, in `pmcg_orchestrator.registered_pipelines`. Steps 2 and 4 are this *Pipeline's* own work and are the parts that will move
-into a Musicorpus library when there is one.
+registered, in `pmcg_orchestrator.registered_pipelines`. Steps 2 and 4 are this
+*Pipeline's* own work and are the parts that will move into a Musicorpus
+library when there is one.
 
-The version number in the *Pipeline's* name is not decoration. Both of this
-version's own steps are deliberately naive — see the README — and improving
-either produces a different transcription of the same page, which is exactly
-what a *User* pinning a version is protecting themselves from.
+The class's version is the version of the gluing it does — see
+`pmcg_orchestrator.gluing` — and is independent of the version it is published
+under, though the two coincide for `mzk-page`.
 """
 
 import asyncio
@@ -37,7 +39,8 @@ from pmcg_orchestrator.layout import (
     layout_to_instruments,
     RETRIEVED_LAYOUT_CATEGORIES,
 )
-from pmcg_orchestrator.musicxml import StaffTranscription, page_musicxml
+from pmcg_orchestrator.gluing import StaffTranscription
+from pmcg_orchestrator.gluing import v2 as gluing
 from pmcg_orchestrator.slicing import slice_page
 
 IMAGE_FILE = "image.jpg"
@@ -53,8 +56,8 @@ def staff_transcription(number: int) -> str:
     return f"Staves/{number}/{TRANSCRIPTION_FILE}"
 
 
-class MzkPagePipeline(Pipeline):
-    """Page-level image-to-MusicXML transcription."""
+class PageFromStaffPipelineV2(Pipeline):
+    """Page-level image-to-MusicXML transcription, a part per instrument."""
 
     signature = Signature(
         input=[IMAGE_FILE],
@@ -101,7 +104,7 @@ class MzkPagePipeline(Pipeline):
         staves = await self._transcribe_staves(ctx, len(staff_boxes))
 
         ctx.logger.info("Writing %s ...", TRANSCRIPTION_FILE)
-        await ctx.write_text(TRANSCRIPTION_FILE, page_musicxml(ctx, staves, page_layout))
+        await ctx.write_text(TRANSCRIPTION_FILE, gluing.glue(ctx, staves, page_layout))
         ctx.logger.info("Done.")
 
     # --- 1. the staves -------------------------------------------------------

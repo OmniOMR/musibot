@@ -1,14 +1,15 @@
-"""Gluing staff transcriptions into one page-level MusicXML file.
+"""Gluing, version 2: every instrument on the page becomes a part.
 
-The page's instruments, as the layout *Model* reports them, each become one
-`<part>`. An instrument's measures are appended in reading order, system after
-system, with an explicit system break where each new system begins.
-
-Like the slicing, this is *Musicorpus* logic rather than *Musibot* logic and
-will move to a library of its own when there is one.
+The page's instruments, as the layout *Model's* `system` and `grandstaff` boxes
+reveal them, each become one `<part>`. An instrument's measures are appended in
+reading order, system after system, with an explicit system break where each
+new system begins. A grand staff's two staves are zipped into one two-staff
+part; staves sharing a system are padded to the same number of measures; an
+instrument missing from a system is written there as hidden measure rests; and
+the clef, key and time signature a staff does not print are carried over from
+the instrument's preceding staff.
 """
 
-from dataclasses import dataclass
 import traceback
 from xml.etree import ElementTree as ET
 from lmx.musicxml.grandstaff.zip_grandstaff import zip_grandstaff
@@ -17,9 +18,13 @@ from typing import TypeAlias
 from pmcg_orchestrator.layout import Instrument, PageLayout, StaffBox
 from musibot.orchestrator_head import PipelineContext
 
-from .normalize import StaffNormalizer
-from .errors import UnreadableTranscription
-from .normalize import _upper_staff_default_clef, _lower_staff_default_clef
+from pmcg_orchestrator.errors import UnreadableTranscription
+from pmcg_orchestrator.gluing import StaffTranscription
+from pmcg_orchestrator.gluing.normalize import (
+    StaffNormalizer,
+    _upper_staff_default_clef,
+    _lower_staff_default_clef,
+)
 
 
 MUSICXML_VERSION = "4.0"
@@ -31,34 +36,13 @@ EMPTY_STAFF_PART_ID = "BROKEN_GS"
 ZIPPED_GRAND_STAFF_PART_ID = "PLACEHOLDER"
 
 
-@dataclass(frozen=True)
-class StaffTranscription:
-    """What became of one staff.
-
-    A staff that failed carries the reason instead of a transcription, and
-    still takes up a system in the page — one measure saying so, rather than
-    nothing, because a page that silently skips a staff reads as music that was
-    never there.
-    """
-
-    number: int
-    musicxml: str | None = None
-    error: str | None = None
-
-    @property
-    def transcribed(self) -> bool:
-        return self.musicxml is not None
-
-
 # A staff number to its parsed transcription, or to None where the staff has
 # none. The distinction matters at every use site, so the key is always
 # present and only the value goes missing.
 TranscriptionLookup: TypeAlias = dict[int, ET.Element | None]
 
 
-def page_musicxml(
-    ctx: PipelineContext, staves: list[StaffTranscription], page_layout: PageLayout
-) -> str:
+def glue(ctx: PipelineContext, staves: list[StaffTranscription], page_layout: PageLayout) -> str:
     """One `score-partwise` document holding every staff, one after another."""
     if not staves:
         raise UnreadableTranscription("A page needs at least one staff to be written")

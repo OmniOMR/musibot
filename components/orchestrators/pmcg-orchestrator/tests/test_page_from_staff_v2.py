@@ -1,4 +1,4 @@
-"""The `mzk-page` pipeline, end to end against two fake *Models*."""
+"""`PageFromStaffPipelineV2`, end to end against two fake *Models*."""
 
 import json
 from xml.etree import ElementTree
@@ -7,7 +7,7 @@ import pytest
 from musibot.orchestrator_head import ModelExecutionFailed
 from musibot.orchestrator_head.testing import ModelCall, PipelineRunner
 
-from pmcg_orchestrator.page import MzkPagePipeline
+from pmcg_orchestrator.page_from_staff import PageFromStaffPipelineV2
 from tests.fakes import (
     LAYOUT_MODEL,
     STAFF_MODEL,
@@ -23,8 +23,10 @@ TWO_STAVES = ((20, 40, 360, 40), (20, 160, 360, 40))
 TWO_SYSTEMS = ((10, 30, 380, 60), (10, 150, 380, 60))
 
 
-def a_pipeline(name: str = "mzk-page", version: str = "1") -> MzkPagePipeline:
-    return MzkPagePipeline(name, version, layout_model=LAYOUT_MODEL, staff_model=STAFF_MODEL)
+def a_pipeline(name: str = "mzk-page", version: str = "2") -> PageFromStaffPipelineV2:
+    return PageFromStaffPipelineV2(
+        name, version, layout_model=LAYOUT_MODEL, staff_model=STAFF_MODEL
+    )
 
 
 # --- the whole thing ---------------------------------------------------------

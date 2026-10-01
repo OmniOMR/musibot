@@ -4,18 +4,15 @@ import pytest
 from musibot.orchestrator_head import NameAndVersion
 
 from pmcg_orchestrator import PmcgSettings, registered_pipelines, selected_pipelines
-from pmcg_orchestrator.page import MzkPagePipeline
+from pmcg_orchestrator.page_from_staff import PageFromStaffPipelineV2
 
 
 def spelled() -> list[str]:
     return [f"{pipeline.name}@{pipeline.version}" for pipeline in registered_pipelines()]
 
 
-def test_it_publishes_the_pipelines_the_web_ui_offers() -> None:
-    # `components/web-ui/src/pipelines.ts` names these two outright, so a
-    # registration that drifts away from them leaves the landing page with
-    # nothing to recommend.
-    assert "mzk-page@1" in spelled()
+def test_it_publishes_every_version_of_mzk_page_and_mzk_staff() -> None:
+    assert "mzk-page@2" in spelled()
     assert "mzk-staff@1" in spelled()
 
 
@@ -24,7 +21,7 @@ def test_no_two_registrations_publish_the_same_pipeline() -> None:
 
 
 def test_mzk_page_runs_the_models_it_is_published_with() -> None:
-    [page] = [p for p in registered_pipelines() if isinstance(p, MzkPagePipeline)]
+    [page] = [p for p in registered_pipelines() if isinstance(p, PageFromStaffPipelineV2)]
 
     assert page._layout_model == NameAndVersion(name="dvorak-ola", version="2.0-2025-03-09")
     assert page._staff_model == NameAndVersion(name="ayce-long", version="2026-08-03-192253-final")
@@ -48,7 +45,7 @@ def test_naming_a_pipeline_twice_announces_it_once() -> None:
     assert len(selected_pipelines(registered_pipelines(), ["mzk-staff@1", "mzk-staff@1"])) == 1
 
 
-@pytest.mark.parametrize("reference", ["mzk-page@99", "mzk-page", "nothing@1"])
+@pytest.mark.parametrize("reference", ["mzk-page@99", "mzk-page", "mzk-page@2-dev", "nothing@1"])
 def test_naming_an_unregistered_pipeline_stops_the_process(reference: str) -> None:
     # Rather than starting an Orchestrator that announces less than was asked.
     with pytest.raises(ValueError, match="No pipeline is registered as"):

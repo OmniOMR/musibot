@@ -17,6 +17,8 @@ Released as `pmcg-orchestrator/vX.Y.Z` git tags — see [Versioning and releases
 
 ### Added
 
+- **`mzk-page` `2`** — the page's staves are grouped into instruments using the layout's `system` and `grandstaff` boxes, and each instrument becomes a `<part>`: grand staves are zipped into two-staff parts, staves sharing a system are padded to the same number of measures, an instrument missing from a system is written as hidden measure rests, and the clef, key and time signature a staff does not print are carried over from the instrument's preceding staff. Implemented as `PageFromStaffPipelineV2`, with the gluing in `pmcg_orchestrator.gluing.v2`.
+
 - **`--only-pipelines name@version`**, for development: announce only the named *Pipelines* rather than all of them. A *Pipeline* under development is registered with a `-dev` version and started alone, so that unfinished code takes no work from the *Pipelines* already published.
 
 

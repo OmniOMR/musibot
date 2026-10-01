@@ -22,7 +22,7 @@ from musibot.orchestrator_head import (
     Pipeline,
 )
 
-from pmcg_orchestrator.page import MzkPagePipeline
+from pmcg_orchestrator.page_from_staff import PageFromStaffPipelineV2
 from pmcg_orchestrator.staff import MzkStaffPipeline
 
 __all__ = ["PmcgSettings", "main", "registered_pipelines", "selected_pipelines"]
@@ -43,7 +43,7 @@ spelling a *Model* has in routing keys and queue names."""
 def registered_pipelines() -> list[Pipeline]:
     """Every *Pipeline* this *Orchestrator* publishes."""
     return [
-        MzkPagePipeline("mzk-page", "1", layout_model=DVORAK_OLA, staff_model=AYCE_LONG),
+        PageFromStaffPipelineV2("mzk-page", "2", layout_model=DVORAK_OLA, staff_model=AYCE_LONG),
         MzkStaffPipeline("mzk-staff", "1", staff_model=AYCE_LONG),
     ]
 
