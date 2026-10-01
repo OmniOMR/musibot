@@ -40,7 +40,7 @@ def main() -> None:
     orchestrator.run()
 ```
 
-A *Pipeline* is a **class**, and an *Orchestrator* registers **instances** of it. That is what lets one implementation be registered twice under two names — `mzk` pinning the *Model* version in production and `mzk-dev` pinning the one being developed — with no code copied between them. The settings are loaded before the *Pipelines* are constructed, which is what lets a command line argument reach a constructor.
+A *Pipeline* is a **class**, and an *Orchestrator* registers **instances** of it. That is what lets one implementation be published more than once — around different *Models*, under different names — with no code copied between them. What a registration runs and what it is called are written in the *Orchestrator's* source rather than taken from settings, because a *Pipeline's* name and version are a promise to the *User* about how it behaves; see [Writing pipelines](../../docs/writing-pipelines.md#parameters-of-which-there-are-two-kinds). The settings are still loaded before the *Pipelines* are registered, so that an *Orchestrator's* own settings can decide which of them to announce.
 
 
 ## Two kinds of parameter
@@ -49,7 +49,7 @@ The word means two different things here, and they arrive by different routes:
 
 | | Comes from | Reaches the *Pipeline* as | Changes |
 | --- | --- | --- | --- |
-| **Registration parameters** | the *Orchestrator's* own configuration | constructor arguments | never, for the life of the process |
+| **Registration parameters** | the *Orchestrator's* own source, where it registers the *Pipeline* | constructor arguments | only with a new release of the *Orchestrator* |
 | **Execution parameters** | the *User*, on one request | `ctx.parameters` | every execution |
 
 

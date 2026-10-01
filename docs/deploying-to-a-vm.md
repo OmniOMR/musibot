@@ -563,10 +563,11 @@ sudo systemctl enable --now musibot-orchestrator@pmcg
 journalctl -u musibot-orchestrator@pmcg -f
 
 curl -s http://127.0.0.1:8080/pipelines
-# mzk-page 1 and mzk-staff 1, 1 instance each, orchestrator pmcg
+# mzk-page 1 and 2, mzk-staff 1, pmcg-slice 1, pmcg-glue 1 and 2,
+# 1 instance each, orchestrator pmcg
 ```
 
-Those two names are the ones the *Web UI* offers on its landing page, so an instance where they are missing shows a visitor a picker with nothing recommended in it.
+`mzk-page` `1` and `mzk-staff` `1` are the ones the *Web UI* offers on its landing page, so an instance where they are missing shows a visitor a picker with nothing recommended in it.
 
 A *Pipeline* appearing in that listing without `"implicit": true` is an *Orchestrator* announcing itself. Nothing was configured on the `api` service's side, exactly as with a *Worker*.
 

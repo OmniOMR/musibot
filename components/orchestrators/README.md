@@ -10,7 +10,7 @@ A set of *Pipelines* — subclasses of `Pipeline` that read and write *Musicorpu
 
 ## In this folder
 
-- [pmcg-orchestrator](pmcg-orchestrator/) — the *Pipelines* of the Prague Music Computing Group and its partners, the OmniOMR project's among them, and the reason Musibot exists. Its `mzk` pipeline reads a page scan into a page-level MusicXML file: staff detection, slicing, a transcription per staff, and one score.
+- [pmcg-orchestrator](pmcg-orchestrator/) — the *Pipelines* of the Prague Music Computing Group and its partners, the OmniOMR project's among them, and the reason Musibot exists. Its `mzk-page` pipeline reads a page scan into a page-level MusicXML file — staff detection, slicing, a transcription per staff, and one score — and `pmcg-slice`, `mzk-staff` and `pmcg-glue` expose those steps one by one.
 - [hello-orchestrator](hello-orchestrator/) — recognises nothing, and exercises everything: it runs a *Model*, reads what that *Model* wrote, and writes a *File* of its own. The worked example to read first, and the counterpart of `hello-model`.
 
 
