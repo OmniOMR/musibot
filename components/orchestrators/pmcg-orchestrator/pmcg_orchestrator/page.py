@@ -7,10 +7,10 @@ Four steps, and the *User* is told about each of them as it happens:
 3. a transcription *Model* reads each crop, all of them at once,
 4. this glues the results into one document, a system per staff.
 
-Steps 1 and 3 are *Models* and could be anything — which two is a registration
-parameter, because that is what makes this implementation deployable twice, once
-against the snapshots production uses and once against the ones being developed.
-Steps 2 and 4 are this *Pipeline's* own work and are the parts that will move
+Steps 1 and 3 are *Models* and could be anything — which two is a constructor
+argument, so that the same implementation can be published again around other
+*Models*. Which ones a published *Pipeline* runs is written down where it is
+registered, in `pmcg_orchestrator.registered_pipelines`. Steps 2 and 4 are this *Pipeline's* own work and are the parts that will move
 into a Musicorpus library when there is one.
 
 The version number in the *Pipeline's* name is not decoration. Both of this
@@ -73,6 +73,12 @@ class MzkPagePipeline(Pipeline):
     what somebody looks at when the result is wrong, and a *MusicorpusPage* is
     thrown away in a few minutes anyway."""
 
+    STAFF_PADDING_RATIO = 0.9
+    """How much of a staff's own height to add as a margin on every side when
+    cutting it out of the page. Proportional rather than a pixel count so that
+    it means the same thing at any scan resolution. Part of what this
+    implementation does to a page, so not a parameter."""
+
     def __init__(
         self,
         name: str,
@@ -80,16 +86,12 @@ class MzkPagePipeline(Pipeline):
         *,
         layout_model: NameAndVersion,
         staff_model: NameAndVersion,
-        staff_padding_ratio: float = 0.9,
-        layout_confidence: float | None = None,
     ):
         self.name = name
         self.version = version
 
         self._layout_model = layout_model
         self._staff_model = staff_model
-        self._staff_padding_ratio = staff_padding_ratio
-        self._layout_confidence = layout_confidence
 
     async def execute(self, ctx: PipelineContext) -> None:
         page_layout = await self._detect_layout(ctx)
@@ -111,14 +113,7 @@ class MzkPagePipeline(Pipeline):
             _spell(self._layout_model),
         )
 
-        parameters: dict[str, object] = {}
-        if self._layout_confidence is not None:
-            # The layout model's own knob, rather than a threshold applied to
-            # its output here: dropping a detection before it is made is the
-            # same answer for less work, and the model documents the default.
-            parameters["confidence"] = self._layout_confidence
-
-        await ctx.execute_model(self._layout_model, input=[IMAGE_FILE], parameters=parameters)
+        await ctx.execute_model(self._layout_model, input=[IMAGE_FILE])
 
         try:
             layout = json.loads(await ctx.read_text(LAYOUT_FILE))
@@ -153,7 +148,7 @@ class MzkPagePipeline(Pipeline):
         # OpenCV is blocking CPU work and this process runs several executions
         # at once, so the whole page is sliced in one hop off the event loop
         # rather than one per staff.
-        crops = await asyncio.to_thread(slice_page, page, boxes, self._staff_padding_ratio)
+        crops = await asyncio.to_thread(slice_page, page, boxes, self.STAFF_PADDING_RATIO)
 
         # Named by the box's own number rather than by its position in this
         # list, because that number is what the gluing looks the staff up by.

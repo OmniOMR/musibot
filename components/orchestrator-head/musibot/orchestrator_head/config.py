@@ -1,17 +1,19 @@
 """Configuration of an *Orchestrator Head*.
 
-An *Orchestrator* extends this with its own settings — which *Model* version a
-*Pipeline* pins, where some resource lives — and gets the command line
-arguments, environment variables and config-file keys for them for free::
+An *Orchestrator* may extend this with settings of its own — where some
+resource lives, which of its *Pipelines* to announce — and gets the command
+line arguments, environment variables and config-file keys for them for free::
 
     class PmcgSettings(OrchestratorHeadSettings):
-        zeus_version: str = "2026-07-22"
+        only_pipelines: list[str] = []
 
     settings = PmcgSettings.load()
 
-That is where a *Pipeline's* registration parameters come from, and the reason
-settings are loaded before the *Pipelines* are constructed rather than inside
-`Orchestrator.run()`. See `docs/writing-pipelines.md`.
+What a *Pipeline* does is not among them: the *Models* it pins and the name and
+version it is announced under are a contract with the *User*, and belong in the
+*Orchestrator's* source. Settings are loaded before the *Pipelines* are
+registered rather than inside `Orchestrator.run()`, so that the ones that do
+exist can decide what is registered. See `docs/writing-pipelines.md`.
 """
 
 from typing import Any, Self

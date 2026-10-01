@@ -8,7 +8,6 @@ import json
 
 import pytest
 
-from pmcg_orchestrator import PmcgSettings, model_reference
 from pmcg_orchestrator.errors import UnreadableLayout
 from pmcg_orchestrator.layout import BoundingBox, StaffBox, staff_boxes
 from pmcg_orchestrator.slicing import UnreadableImage, crop_staff, decode_page, slice_page
@@ -102,42 +101,3 @@ def test_slicing_a_page_returns_one_jpeg_per_box() -> None:
 
     assert len(crops) == 2
     assert all(crop.startswith(b"\xff\xd8") for crop in crops)  # JPEG's magic
-
-
-# --- configuration -----------------------------------------------------------
-
-
-def test_a_model_is_configured_as_name_at_version() -> None:
-    model = model_reference("ayce-long@2026-08-03-192253-final")
-
-    assert (model.name, model.version) == ("ayce-long", "2026-08-03-192253-final")
-
-
-@pytest.mark.parametrize("reference", ["ayce-long", "@1.0.0", "ayce-long@", ""])
-def test_a_malformed_model_reference_is_refused(reference: str) -> None:
-    with pytest.raises(ValueError, match="name@version"):
-        model_reference(reference)
-
-
-def test_a_malformed_model_reference_stops_the_process_at_startup() -> None:
-    # Rather than becoming a Pipeline that announces itself and then times out
-    # every execution it is given.
-    with pytest.raises(ValueError, match="name@version"):
-        PmcgSettings.for_testing(staff_model="no-version-here")
-
-
-def test_the_defaults_name_the_models_the_development_stack_runs() -> None:
-    settings = PmcgSettings.for_testing()
-
-    assert model_reference(settings.layout_model).name == "dvorak-ola"
-    assert model_reference(settings.staff_model).name == "ayce-long"
-
-
-def test_the_default_pipeline_names_are_the_ones_the_web_ui_offers() -> None:
-    # `components/web-ui/src/pipelines.ts` names these two outright: they are a
-    # product decision rather than something a listing could express, so an
-    # instance whose defaults drift stops offering them on the landing page.
-    settings = PmcgSettings.for_testing()
-
-    assert (settings.page_pipeline_name, settings.page_pipeline_version) == ("mzk-page", "1")
-    assert (settings.staff_pipeline_name, settings.staff_pipeline_version) == ("mzk-staff", "1")

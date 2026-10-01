@@ -3,17 +3,18 @@
 A *Pipeline* is a class: it declares what it is called and which *Files* it
 reads and writes, and it implements one `async` method that does the work. It is
 a class rather than a plain function because the interesting *Pipelines* are
-parametrized — the same implementation registered twice under two names, one
-pinning a stable *Model* version and the other the one being developed — and
-constructor arguments are where those parameters belong. See
-`docs/writing-pipelines.md`.
+parametrized — the same implementation registered more than once, around
+different *Models* and under different names — and constructor arguments are
+where those parameters belong. See `docs/writing-pipelines.md`.
 
 Two different things are called parameters here, and they are not the same:
 
-- **Registration parameters** are constructor arguments, supplied by the
-  *Orchestrator* from its own configuration when it registers the *Pipeline*.
-  They are fixed for the life of the process and are part of what makes two
-  registrations of one class two different *Pipelines*.
+- **Registration parameters** are constructor arguments, written down in the
+  *Orchestrator's* source where it registers the *Pipeline*. They are fixed
+  for the life of the process and are part of what makes two registrations of
+  one class two different *Pipelines*. They are deliberately not taken from
+  configuration: a *Pipeline's* name and version promise the *User* how it
+  behaves, and a setting could change that behind an unchanged version.
 - **Execution parameters** are `ctx.parameters`, sent by the *User* with one
   execution request and different every time.
 
@@ -222,9 +223,9 @@ class PipelineContext:
         that fails raises `ModelExecutionFailed`.
 
         The *Model* is pinned by name **and** version, exactly. That is what
-        makes a *Pipeline* reproducible, and a *Pipeline* that wants to follow a
-        moving *Model* takes the version as a registration parameter rather than
-        asking for a loose match here.
+        makes a *Pipeline* reproducible. A newer *Model* snapshot is published as
+        a new version of the *Pipeline*, registered beside the old one, rather
+        than reached by a loose match here.
 
         Several of these run concurrently in the ordinary way — an
         `asyncio.TaskGroup` over the staves of a page is the shape this exists

@@ -15,7 +15,7 @@ This is the *Pipeline* Musibot exists to run. Everything else that ships in this
 | | |
 | --- | --- |
 | Orchestrator name | `pmcg` |
-| Pipeline | `mzk-page` `1` (both are settings — see below) |
+| Pipeline | `mzk-page` `1` |
 | Input | `image.jpg` |
 | Output | `layout.json`, `Staves/{*}/image.jpg`, `Staves/{*}/transcription.musicxml`, `transcription.musicxml` |
 | Models it runs | a layout model, then a staff transcription model once per staff |
@@ -27,7 +27,7 @@ Four steps, and a *User* watching the page is told about each as it happens:
 3. **Transcribe each staff.** A transcription *Model* — [zeus](../../models/zeus/README.md) — runs once per staff, all of them dispatched at once, each producing `Staves/<n>/transcription.musicxml`.
 4. **Glue them together.** One `score-partwise` document holding every staff's measures in a single `<part>`, one after another, with an explicit system break where each staff begins.
 
-Steps 1 and 3 are *Models* and are named by configuration. Steps 2 and 4 are this *Pipeline's* own code, and are the parts that will move into a Musicorpus library when one exists — turning a page and its layout into subdivision crops is true of the format rather than of this deployment. Until then this is the only *Pipeline* that slices, so it is developed here.
+Steps 1 and 3 are *Models*, pinned in the source where the *Pipeline* is registered. Steps 2 and 4 are this *Pipeline's* own code, and are the parts that will move into a Musicorpus library when one exists — turning a page and its layout into subdivision crops is true of the format rather than of this deployment. Until then this is the only *Pipeline* that slices, so it is developed here.
 
 The intermediate *Files* stay in the page deliberately. They are what somebody looks at when the result is wrong, and a *MusicorpusPage* is discarded a few minutes later anyway.
 
@@ -54,47 +54,34 @@ It runs the transcription *Model* on the *File* it was given, and nothing else �
 Its *Signature* is the *Model's* own — `Staves/{s}/image.jpg` in, `Staves/{s}/transcription.musicxml` out — which is also what tells the *Web UI* to upload a staff crop to `Staves/1/image.jpg` rather than to `image.jpg`.
 
 
-## Development pipelines
+## Pipeline versions are a contract
 
-Every *Pipeline's* name and version is a setting, so the development *Pipeline* is **this same program started differently** rather than a second implementation:
+A *Pipeline's* name and version are a promise to the *User* about how it behaves, not a stamp on one particular implementation. So everything that decides that behaviour is in the source, and nothing of it is configuration: which implementation, which *Models* it runs, the constants it slices with, and the name and version it is announced under. `registered_pipelines()` in [`pmcg_orchestrator/__init__.py`](pmcg_orchestrator/__init__.py) is the whole contract, one line per published *Pipeline*.
+
+Changing any of it is a change to this program and a re-deployment. **Bump a pipeline's version whenever the same input would come out noticeably different** — a new *Model* snapshot, a change to the slicing, a change to the gluing. A bug fix that makes a *Pipeline* do what it always claimed to need not, and the old and new versions of a *Pipeline* are both registered in the same process for as long as anyone may be pinning the old one. They share whatever code they can.
+
+
+## Developing a pipeline
+
+A new *Pipeline*, or a new version of an existing one, is registered in `registered_pipelines()` like any other, under a version with a **`-dev` suffix** — `mzk-page` `3-dev`. The suffix is what a *User* reading the listing of a shared instance sees, and it tells them this is work in progress rather than a release. When it is finished, the registration is renamed to its real version.
+
+To run it without disturbing anything, start the *Orchestrator* announcing that *Pipeline* alone:
 
 ```bash
-# what production runs
-musibot-pmcg-orchestrator
-
-# the next version, against a newer snapshot, beside it
-musibot-pmcg-orchestrator \
-    --page-pipeline-name mzk-page-dev --page-pipeline-version 2 \
-    --staff-pipeline-name mzk-staff-dev --staff-pipeline-version 2 \
-    --staff-model 'ayce-long@2026-08-14-...'
+.venv/bin/musibot-pmcg-orchestrator --only-pipelines mzk-page@3-dev
 ```
 
-Both may run against one Musibot at the same time. They announce different *Pipelines*, so a *User* chooses by name and neither takes the other's work. Under systemd that is two instances of `musibot-orchestrator@` with two environment files — see [Deploying onto a VM](../../../docs/deploying-to-a-vm.md#8-an-orchestrator).
-
-**Bump a pipeline's version whenever the same input would come out different.** A new *Model* snapshot, a change to the slicing, a change to the concatenation. That is what a *User* pinning a version is protecting themselves against, and it is the only reason the number exists.
+Every other *Pipeline* is left to the instances already serving it. That matters against a shared Musibot: an *Orchestrator* announcing a published *Pipeline* joins that *Pipeline's* work queue as one more competing consumer, so a laptop running unfinished code under `mzk-page@2` would quietly take production work. Naming a *Pipeline* that is not registered stops the process at startup.
 
 
 ## Configuration
 
-Beyond the shared RabbitMQ, MinIO and logging blocks (see [service configuration](../../../docs/service-configuration.md)):
+Beyond the shared RabbitMQ, MinIO and logging blocks (see [service configuration](../../../docs/service-configuration.md)), only which *Pipelines* to announce:
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
-| `page_pipeline_name` | `mzk-page` | What the page-level *Pipeline* is announced as. |
-| `page_pipeline_version` | `1` | And at what version. |
-| `staff_pipeline_name` | `mzk-staff` | The staff-level one. |
-| `staff_pipeline_version` | `1` | And at what version. |
-| `layout_model` | `dvorak-ola@2.0-2025-03-09` | The *Model* that finds the staves. |
-| `staff_model` | `ayce-long@2026-08-03-192253-final` | The *Model* that transcribes one staff. |
-| `staff_padding_ratio` | `0.9` | Margin added around each staff when cutting it out, as a fraction of that staff's height. |
-| `layout_confidence` | *(unset)* | Passed to the layout *Model* as its `confidence`. Unset leaves that model's own default alone. |
+| `only_pipelines` | *(all)* | Announce only these *Pipelines*, each written `name@version`. Repeat the flag for several; in the environment it is a JSON list, `MUSIBOT_ONLY_PIPELINES='["mzk-page@3-dev"]'`. For development — see above. |
 | `max_concurrent_executions` | `4` | From the head — how many pages this process reads at once. |
-
-A *Model* is written `name@version`, the spelling routing keys use, and a malformed one stops the process at startup rather than becoming a *Pipeline* that announces itself and then times out every execution.
-
-**The two model defaults are the development stack's current snapshots**, so that this starts with no arguments against it, as every other Musibot service does. A deployment pins both explicitly: a superseded snapshot is exactly what a default quietly goes on pointing at.
-
-The margin is a *fraction of the staff's height* rather than a pixel count so that it means the same thing on a 300dpi scan and a 600dpi one — the margin scales with the thing whose size the resolution changes.
 
 
 ## Development
@@ -126,4 +113,4 @@ Running it needs the [local development stack](../../../deploy/README.md), the `
 
 ## Versioning
 
-Each *Pipeline's* name and version is what a *User* pins, and both are configuration here rather than constants — which is unusual, and is what makes a development deployment possible without a second codebase. The package version in `pyproject.toml` is packaging only and nothing in Musibot reads it. See [Versioning and releases](../../../docs/versioning-and-releases.md).
+Each *Pipeline's* name and version is what a *User* pins, and both are constants in the source — see [above](#pipeline-versions-are-a-contract). The package version in `pyproject.toml` is packaging only and nothing in Musibot reads it. See [Versioning and releases](../../../docs/versioning-and-releases.md).

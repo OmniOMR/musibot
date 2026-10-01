@@ -554,16 +554,9 @@ One line in that file says which *Orchestrator* this instance is — an *Orchest
 MUSIBOT_ORCHESTRATOR_COMMAND="/opt/musibot/orchestrators/pmcg/venv/bin/musibot-pmcg-orchestrator"
 ```
 
-Its own settings then say which *Models* its *Pipelines* run, and **a deployment pins both explicitly** — the defaults are whatever the development stack happened to be running, which is exactly the kind of thing that goes stale without anybody noticing:
+There is nothing to say about its *Pipelines*. Which *Models* each one runs, and the name and version it is announced under, are written down in the *Orchestrator's* source rather than configured — a *Pipeline's* name and version are a promise to the *User* about how it behaves, so changing what is behind them is a new release of the *Orchestrator*, not an edit to this file. The *Models* they pin must be served by *Workers* on this instance (section 7); a *Pipeline* pinned to a *Model* nobody serves announces itself happily and then times out every execution it is given. pmcg-orchestrator's [README](../components/orchestrators/pmcg-orchestrator/README.md) lists what each of its *Pipelines* runs.
 
-```ini
-MUSIBOT_LAYOUT_MODEL="dvorak-ola@2.0-2025-03-09"
-MUSIBOT_STAFF_MODEL="ayce-long@2026-08-03-192253-final"
-```
-
-Those two must name *Models* this instance actually runs — the same name and version a *Worker* announces (section 7), not the snapshot's filename. A *Pipeline* pinned to a *Model* nobody serves announces itself happily and then times out every execution it is given.
-
-The rest is the same RabbitMQ and MinIO configuration everything else has, plus whatever settings that particular *Orchestrator* adds. Those extra settings are not decoration: they are how its *Pipelines* are parametrized, and pinning a *Model* version through one is how the same implementation is deployed twice, once stable and once in development (see [Writing pipelines](writing-pipelines.md)). Its own `--help` lists them.
+The rest is the same RabbitMQ and MinIO configuration everything else has, plus whatever settings that particular *Orchestrator* adds. Its own `--help` lists them.
 
 ```bash
 sudo systemctl enable --now musibot-orchestrator@pmcg

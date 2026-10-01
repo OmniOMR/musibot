@@ -23,13 +23,8 @@ TWO_STAVES = ((20, 40, 360, 40), (20, 160, 360, 40))
 TWO_SYSTEMS = ((10, 30, 380, 60), (10, 150, 380, 60))
 
 
-def a_pipeline(name: str = "mzk-page", version: str = "1", **overrides: object) -> MzkPagePipeline:
-    parameters: dict[str, object] = {
-        "layout_model": LAYOUT_MODEL,
-        "staff_model": STAFF_MODEL,
-        **overrides,
-    }
-    return MzkPagePipeline(name, version, **parameters)  # type: ignore[arg-type]
+def a_pipeline(name: str = "mzk-page", version: str = "1") -> MzkPagePipeline:
+    return MzkPagePipeline(name, version, layout_model=LAYOUT_MODEL, staff_model=STAFF_MODEL)
 
 
 # --- the whole thing ---------------------------------------------------------
@@ -113,18 +108,18 @@ def test_staves_are_numbered_down_the_page() -> None:
     So the pipeline sorts, and `Staves/1` has to be the topmost staff whatever
     order the document listed them in.
     """
-    lower = (20, 200, 360, 40)  # + a 10px margin → 380x60
-    upper = (20, 40, 300, 60)  # + a 15px margin → 330x90
+    lower = (100, 200, 100, 20)  # + an 18px margin → 136x56
+    upper = (100, 100, 200, 30)  # + a 27px margin → 254x84
     runner = a_runner(lower, upper)  # listed bottom first, on purpose
 
-    runner.run(a_pipeline(staff_padding_ratio=0.25), input=["image.jpg"])
+    runner.run(a_pipeline(), input=["image.jpg"])
 
     assert json.loads(runner.files["layout.json"])["annotations"][0]["bbox"] == list(lower)
 
     # The fake staff model writes each crop's size into its transcription, so
     # the sizes say which box became which staff.
-    assert "330x90" in runner.files["Staves/1/transcription.musicxml"].decode("utf-8")
-    assert "380x60" in runner.files["Staves/2/transcription.musicxml"].decode("utf-8")
+    assert "254x84" in runner.files["Staves/1/transcription.musicxml"].decode("utf-8")
+    assert "136x56" in runner.files["Staves/2/transcription.musicxml"].decode("utf-8")
 
 
 def test_a_page_with_no_staves_says_so_rather_than_writing_an_empty_score() -> None:
@@ -152,33 +147,24 @@ def test_a_layout_that_is_not_json_is_reported_legibly() -> None:
 
 
 def test_a_staff_crop_carries_a_margin_of_its_own_height() -> None:
-    """0.25 of a 40px staff is 10px on each side, so 380x60 out of a 360x40 box."""
-    runner = a_runner((20, 40, 360, 40))
+    """0.9 of a 20px staff is 18px on each side, so 136x56 out of a 100x20 box."""
+    runner = a_runner((100, 100, 100, 20))
 
-    runner.run(a_pipeline(staff_padding_ratio=0.25), input=["image.jpg"])
+    runner.run(a_pipeline(), input=["image.jpg"])
 
     # The fake staff model writes the crop's size into its transcription.
     transcription = runner.files["Staves/1/transcription.musicxml"].decode("utf-8")
-    assert "380x60" in transcription
+    assert "136x56" in transcription
 
 
 def test_the_margin_is_clamped_to_the_page() -> None:
     # A staff touching the top edge cannot be given a margin above it.
     runner = a_runner((0, 0, 400, 40))
 
-    runner.run(a_pipeline(staff_padding_ratio=0.25), input=["image.jpg"])
+    runner.run(a_pipeline(), input=["image.jpg"])
 
     transcription = runner.files["Staves/1/transcription.musicxml"].decode("utf-8")
-    assert "400x50" in transcription
-
-
-def test_no_margin_is_the_bare_box() -> None:
-    runner = a_runner((20, 40, 360, 40))
-
-    runner.run(a_pipeline(staff_padding_ratio=0.0), input=["image.jpg"])
-
-    transcription = runner.files["Staves/1/transcription.musicxml"].decode("utf-8")
-    assert "360x40" in transcription
+    assert "400x76" in transcription
 
 
 # --- when a staff fails ------------------------------------------------------
@@ -300,6 +286,6 @@ def test_it_declares_everything_the_execution_leaves_behind() -> None:
 
 
 def test_the_name_and_version_are_the_registration_s_to_choose() -> None:
-    development = a_pipeline(name="mzk-dev", version="2")
+    development = a_pipeline(name="mzk-page", version="3-dev")
 
-    assert (development.name, development.version) == ("mzk-dev", "2")
+    assert (development.name, development.version) == ("mzk-page", "3-dev")

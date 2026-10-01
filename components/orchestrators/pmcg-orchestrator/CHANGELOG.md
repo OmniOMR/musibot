@@ -12,6 +12,13 @@ Released as `pmcg-orchestrator/vX.Y.Z` git tags — see [Versioning and releases
 
 - **Renamed from `omniomr-orchestrator` to `pmcg-orchestrator`**, because it now hosts *Pipelines* for the Prague Music Computing Group and its partners rather than for the OmniOMR project alone. Everything that carries the name moved with it: the folder, the python package (`pmcg_orchestrator`), the distribution and its console script (`musibot-pmcg-orchestrator`), the name the *Orchestrator* announces itself under (`pmcg`), and the release tags (`pmcg-orchestrator/vX.Y.Z`). A deployment installs the new distribution into a fresh virtual environment and runs it as `musibot-orchestrator@pmcg`. The 0.1.0 entry below was released under the old name and tag.
 
+- **Nothing about how a *Pipeline* behaves is configuration any more.** Its name and version are a contract with the *User*, so the implementation, the *Models* it runs, its slicing margin and the name and version it is announced under are all written down in the source, and changing any of them is a re-deployment. The settings `page_pipeline_name`, `page_pipeline_version`, `staff_pipeline_name`, `staff_pipeline_version`, `layout_model`, `staff_model`, `staff_padding_ratio` and `layout_confidence` are gone; a deployment that still sets them is unaffected, since unknown settings are ignored, but they no longer do anything. `layout_confidence` was unset everywhere, so the layout *Model* keeps using its own default.
+
+
+### Added
+
+- **`--only-pipelines name@version`**, for development: announce only the named *Pipelines* rather than all of them. A *Pipeline* under development is registered with a `-dev` version and started alone, so that unfinished code takes no work from the *Pipelines* already published.
+
 
 ## 0.1.0 — 2026-08-14
 

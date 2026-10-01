@@ -9,7 +9,7 @@ In this example we will build up a *Pipeline* that uses a staff detection model 
 
 ## A Pipeline is a class
 
-Not a function, and the reason is worth having up front: the *Pipelines* that matter are **parametrized**. The same implementation is deployed twice — once pinning the *Model* snapshot that production uses, once pinning the one being developed — and it must not be copied to do that. Constructor arguments are where those parameters go.
+Not a function, and the reason is worth having up front: the *Pipelines* that matter are **parametrized**. The same implementation is published more than once — around a different *Model*, under a different name — and it must not be copied to do that. Constructor arguments are where those parameters go.
 
 ```py
 from musibot.orchestrator_head import Pipeline, PipelineContext, Signature
@@ -106,7 +106,7 @@ The word means two different things, and they arrive by different routes:
 
 | | Comes from | Reaches the *Pipeline* as | Changes |
 | --- | --- | --- | --- |
-| **Registration parameters** | the *Orchestrator's* own configuration | constructor arguments | never, for the life of the process |
+| **Registration parameters** | the *Orchestrator's* own source, where it registers the *Pipeline* | constructor arguments | only with a new release of the *Orchestrator* |
 | **Execution parameters** | the *User*, on one request | `ctx.parameters` | every execution |
 
 Registration parameters are the interesting ones, and they are what a class buys you. Give your *Pipeline* a constructor:
@@ -115,7 +115,7 @@ Registration parameters are the interesting ones, and they are what a class buys
 from musibot.orchestrator_head import NameAndVersion, Pipeline, PipelineContext, Signature
 
 
-class MzkPipeline(Pipeline):
+class PageFromStaffPipeline(Pipeline):
     signature = Signature(input=["image.jpg"], output=["transcription.musicxml"])
 
     def __init__(
@@ -132,43 +132,50 @@ class MzkPipeline(Pipeline):
         self._staff_model = staff_model
 ```
 
-…and an *Orchestrator* that gets those parameters from its own settings:
+…and an *Orchestrator* that publishes it, written down in its source:
 
 ```py
-class PmcgSettings(OrchestratorHeadSettings):
-    staff_model_version: str = "2026-07-22"
-    staff_model_dev_version: str = "2026-08-01"
+LAYOUT = NameAndVersion(name="dvorak-ola", version="2.0-2025-03-09")
 
 
 def main() -> None:
-    settings = PmcgSettings.load()
-    layout_model = NameAndVersion(name="dvorak-ola", version="2.0-2025-03-09")
+    settings = OrchestratorHeadSettings.load()
 
-    orchestrator = Orchestrator("pmcg", settings)
-
+    orchestrator = Orchestrator("my-orchestrator", settings)
     orchestrator.register_pipeline(
-        MzkPipeline(
-            "mzk",
+        PageFromStaffPipeline(
+            "mzk-page",
             "4",
-            layout_model=layout_model,
-            staff_model=NameAndVersion(name="zeus", version=settings.staff_model_version),
+            layout_model=LAYOUT,
+            staff_model=NameAndVersion(name="ayce-long", version="2026-08-03-192253-final"),
         )
     )
     orchestrator.register_pipeline(
-        MzkPipeline(
-            "mzk-dev",
-            "5",
-            layout_model=layout_model,
-            staff_model=NameAndVersion(name="zeus", version=settings.staff_model_dev_version),
+        PageFromStaffPipeline(
+            "commercial-page",
+            "1",
+            layout_model=LAYOUT,
+            staff_model=NameAndVersion(name="some-licensed-model", version="7"),
         )
     )
 
     orchestrator.run()
 ```
 
-Two *Pipelines*, one implementation, no code copied — and `--staff-model-dev-version` is a command line argument, an environment variable and a config-file key, because `OrchestratorHeadSettings` is an ordinary Musibot settings class. Subclass it and every field you add gets all three, plus a line in `--help`.
+Two *Pipelines*, one implementation, no code copied.
 
-Note the order: **settings are loaded first, and the *Pipelines* are built from them.** That is what lets a command line argument reach a constructor, and it is why `run()` takes no arguments.
+**Do not take registration parameters from configuration.** It is tempting — `OrchestratorHeadSettings` is an ordinary Musibot settings class, and every field added to a subclass becomes a command line argument, an environment variable and a config-file key — but a *Pipeline's* name and version are a contract with the *User* about how it behaves. A *User* who pins `mzk-page` `4` is relying on getting the same transcription tomorrow, and if a deployment can point `mzk-page` `4` at another *Model* with an environment variable, the version promises nothing. So the *Models* a *Pipeline* runs, the constants it computes with, and the name and version it is announced under all belong in the source, and changing them is a new release of the *Orchestrator*.
+
+Whether that release moves the *Pipeline's* version is a judgement about the *User*: bump it when the same input would come out noticeably different, and not for a bug fix that makes the *Pipeline* do what it always claimed to. A new version is registered *beside* the old one, in the same process, for as long as anyone may still be pinning the old one — the same way one HTTP API serves `/v1` and `/v2` — and the two share whatever code they can.
+
+Settings are still for what an *Orchestrator* needs to *run*: where RabbitMQ is, how many executions at once, and which of its *Pipelines* to announce.
+
+
+## Developing a new version
+
+A *Pipeline* in development is registered like any other, under a version with a **`-dev` suffix** — `mzk-page` `5-dev` — so that a *User* reading the listing of a shared instance can tell work in progress from a release. When it is finished, the registration is renamed to its real version.
+
+Start the *Orchestrator* announcing that one *Pipeline* alone. An *Orchestrator* that announces a published *Pipeline* joins that *Pipeline's* work queue as one more competing consumer, so a laptop running unfinished code under a published name would quietly take work meant for production. [pmcg-orchestrator](../components/orchestrators/pmcg-orchestrator/README.md#developing-a-pipeline) does this with an `--only-pipelines` setting, which is worth copying.
 
 
 ## Invoking a Model
@@ -179,7 +186,7 @@ Within `execute`, a *Model* is run like this:
 await ctx.execute_model(self._layout_model, input=["image.jpg"])
 ```
 
-The *Model* is pinned by name **and version, exactly**. There is no loose version selection and none is planned: exact pinning is what makes a *Pipeline* reproducible, and a *Pipeline* that wants to follow a moving *Model* takes the version as a registration parameter — which is precisely what `mzk-dev` above does.
+The *Model* is pinned by name **and version, exactly**. There is no loose version selection and none is planned: exact pinning is what makes a *Pipeline* reproducible. A *Pipeline* does not follow a moving *Model*: a newer snapshot is published as a new version of the *Pipeline*, registered beside the old one.
 
 There is nothing to return. Whatever the *Model* produces lands in the page's storage, so a *Pipeline* learns what it did by reading the *Files* it left behind:
 
@@ -272,8 +279,10 @@ def test_it_transcribes_every_staff() -> None:
     runner.register_model(LAYOUT_MODEL, lambda call, files: files.update({"layout.json": LAYOUT}))
     runner.register_model(STAFF_MODEL, transcribes_a_staff)
 
-    runner.run(MzkPipeline("mzk", "4", layout_model=LAYOUT_MODEL, staff_model=STAFF_MODEL),
-               input=["image.jpg"])
+    pipeline = PageFromStaffPipeline(
+        "mzk-page", "4", layout_model=LAYOUT_MODEL, staff_model=STAFF_MODEL
+    )
+    runner.run(pipeline, input=["image.jpg"])
 
     assert "transcription.musicxml" in runner.files
     assert len(runner.model_calls) == 3
@@ -303,7 +312,7 @@ Two things happen on a clock, and neither is yours to implement. Every execution
 
 ## Wrapping up
 
-We built a *Pipeline* that strings two *Models* together to perform full-page music recognition, deployed it in an *Orchestrator*, gave it registration parameters so that one implementation serves both production and development, and tested it without any of Musibot running.
+We built a *Pipeline* that strings two *Models* together to perform full-page music recognition, deployed it in an *Orchestrator*, gave it registration parameters so that one implementation can be published more than once, and tested it without any of Musibot running.
 
 What to read next:
 
