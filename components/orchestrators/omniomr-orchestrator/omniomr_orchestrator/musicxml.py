@@ -260,6 +260,7 @@ def _grand_staff_instrument(
     assert len(_upper_part) == len(_lower_part)
 
     # --- 3. Zip the two staffs into one grand staff
+    gs: ET.Element
     try:
         gs = zip_grandstaff(
             _upper_part,

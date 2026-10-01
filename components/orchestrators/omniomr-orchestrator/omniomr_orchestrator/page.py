@@ -30,10 +30,10 @@ from musibot.orchestrator_head import (
     Signature,
 )
 
+from omniomr_orchestrator.errors import UnreadableLayout
 from omniomr_orchestrator.layout import (
     StaffBox,
     PageLayout,
-    UnreadableLayout,
     layout_to_instruments,
     RETRIEVED_LAYOUT_CATEGORIES,
 )

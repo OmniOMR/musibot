@@ -8,7 +8,6 @@ system, then across systems, following the same instrument top to bottom.
 """
 
 from dataclasses import dataclass
-from itertools import zip_longest
 from typing import Any, TypeVar
 from collections.abc import Iterator
 from functools import cmp_to_key
@@ -272,12 +271,13 @@ def _instrument_groups_by_system(
     # `staffs_by_system` can be longer than `systems` — each staff that
     # overlaps no system became its own trailing singleton group.
     # `grand_staffs_by_system` never grows past `len(systems)` since orphan
-    # grand-staffs are simply dropped, not required=True. zip_longest keeps
+    # grand-staffs are simply dropped, not required=True. Padding it keeps
     # those trailing orphan-staff systems instead of `zip` truncating them.
+    grand_staffs_by_system += [[] for _ in range(len(staffs_by_system) - len(systems))]
     groups = [
         _instruments_in_system(system_staffs, system_grand_staffs)
-        for system_staffs, system_grand_staffs in zip_longest(
-            staffs_by_system, grand_staffs_by_system, fillvalue=[]
+        for system_staffs, system_grand_staffs in zip(
+            staffs_by_system, grand_staffs_by_system, strict=True
         )
     ]
 

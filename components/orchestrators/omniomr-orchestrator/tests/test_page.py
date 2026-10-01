@@ -32,12 +32,13 @@ def test_it_reads_a_page_into_a_page_level_transcription() -> None:
     runner.run(a_pipeline(), input=["image.jpg"])
 
     score = ElementTree.fromstring(runner.files["transcription.musicxml"])
-    # One part holding both staves, one after the other, with a system break
-    # where the second begins.
-    assert [part.get("id") for part in score.findall("part")] == ["P1"]
-    measures = score.findall("part/measure")
-    assert [measure.get("number") for measure in measures] == ["1", "2"]
-    assert measures[1].find("print[@new-system='yes']") is not None
+    # With no system boxes in the layout, the page is one system spanning both
+    # staves, so each staff is an instrument of its own, sounding at once.
+    assert [part.get("id") for part in score.findall("part")] == ["P1", "P2"]
+    for part in score.findall("part"):
+        measures = part.findall("measure")
+        assert [measure.get("number") for measure in measures] == ["1"]
+        assert measures[0].find("print[@new-system='yes']") is None
 
 
 def test_it_runs_the_models_it_was_pinned_to_in_order() -> None:
@@ -81,14 +82,17 @@ def test_it_narrates_each_step() -> None:
 
     runner.run(a_pipeline(), input=["image.jpg"])
 
-    assert runner.log_messages() == [
-        "Detecting staves with dvorak-ola 2.0-2025-03-09 ...",
+    # Each step, in order. The gluing says a good deal more in between, which
+    # is diagnostic detail rather than the steps a User follows.
+    steps = [
+        "Detecting grandstaff,staff,system with dvorak-ola 2.0-2025-03-09 ...",
         "Found 2 staves.",
         "Slicing the page into 2 staff images ...",
         "Transcribing 2 staves with ayce-long 2026-08-03-192253-final ...",
         "Writing transcription.musicxml ...",
         "Done.",
     ]
+    assert [message for message in runner.log_messages() if message in steps] == steps
 
 
 # --- the staves it finds -----------------------------------------------------
@@ -177,10 +181,10 @@ def test_one_failed_staff_leaves_the_rest_of_the_page_intact() -> None:
     runner.run(a_pipeline(), input=["image.jpg"])
 
     score = ElementTree.fromstring(runner.files["transcription.musicxml"])
-    # The failed staff still takes up a system, and says why in the score.
+    # The failed staff still takes up its part, and says why in the score.
     assert len(score.findall("part/measure")) == 2
     assert [words.text for words in score.findall(".//direction//words")] == [
-        "Staff 1 could not be transcribed"
+        "Cannot transcribe staff 1"
     ]
 
 

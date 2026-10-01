@@ -82,3 +82,9 @@ files = ["omniomr_orchestrator", "tests"]
 namespace_packages = true
 explicit_package_bases = true
 mypy_path = "."
+
+# lmx ships no type information, and is a pinned git dependency rather than
+# anything that could carry stubs of its own.
+[[tool.mypy.overrides]]
+module = ["lmx.*"]
+ignore_missing_imports = true

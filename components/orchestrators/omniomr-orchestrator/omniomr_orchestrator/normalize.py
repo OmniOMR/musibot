@@ -2,6 +2,7 @@ from dataclasses import dataclass, fields
 from xml.etree import ElementTree as ET
 from musibot.orchestrator_head import PipelineContext
 import traceback
+from collections.abc import Iterator
 from contextlib import contextmanager
 
 from lmx.musicxml.omitted_staff_header.normalize_invisible_header_clef import (
@@ -66,7 +67,7 @@ def _normalize_key_numbers(part: ET.Element) -> ET.Element:
 
 
 @contextmanager
-def _normalization_step(ctx: PipelineContext, step_name: str):
+def _normalization_step(ctx: PipelineContext, step_name: str) -> Iterator[None]:
     """
     Runs one normalization step, catching `ValueError`/`AssertionError` and
     logging them instead of failing the whole part. The step name is
