@@ -106,7 +106,8 @@ def _expected_measures_by_system(
 
     Staves sharing a system must end up with the same number of measures, so
     the longest transcription in a system sets the count and the rest are
-    padded up to it.
+    padded up to it. A system where no staff was transcribed has nothing to
+    count, and is taken to have one measure, which is all its placeholders need.
     """
     expected_measures_by_system: dict[int, int] = {}
 
@@ -114,8 +115,8 @@ def _expected_measures_by_system(
         staff_ids = [x.number for xs in page_layout.get_staffs_in_system(system_number) for x in xs]
         staff_mxml = [lookup[num] for num in staff_ids if lookup[num] is not None]
         expected_measure_count = max(
-            len(source.findall(".//part/measure")) if source is not None else 0
-            for source in staff_mxml
+            (len(source.findall(".//part/measure")) for source in staff_mxml if source is not None),
+            default=0,
         )
         expected_measures_by_system[system_number] = max(1, expected_measure_count)
 
@@ -325,8 +326,8 @@ def _single_staff_instrument(
     else:
         upper_staff = upper_staff.find(".//part")
         if upper_staff is None:
-            raise ValueError(
-                f"Transcribed single staff {upper_box.number} does not contain any <part> element."
+            raise UnreadableTranscription(
+                f"The transcription of staff {upper_box.number} contains no measures"
             )
 
     return upper_staff
@@ -397,6 +398,7 @@ def _placeholder_measure(words_text: str, *, first_of_page: bool) -> ET.Element:
     ET.SubElement(note, "rest", {"measure": "yes"})
     # One division, whatever a division currently is: `measure="yes"` is what
     # carries the meaning, and any positive duration is valid under any scale.
+    ET.SubElement(note, "duration").text = "1"
     voice = ET.SubElement(note, "voice")
     voice.text = "1"
 

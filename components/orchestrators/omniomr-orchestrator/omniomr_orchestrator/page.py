@@ -153,10 +153,12 @@ class MzkPagePipeline(Pipeline):
         # OpenCV is blocking CPU work and this process runs several executions
         # at once, so the whole page is sliced in one hop off the event loop
         # rather than one per staff.
-        crops = await asyncio.to_thread(slice_page, page, boxes, self._staff_padding_ratio)  # type: ignore
+        crops = await asyncio.to_thread(slice_page, page, boxes, self._staff_padding_ratio)
 
-        for number, crop in enumerate(crops, start=1):
-            await ctx.write_bytes(staff_image(number), crop)
+        # Named by the box's own number rather than by its position in this
+        # list, because that number is what the gluing looks the staff up by.
+        for box, crop in zip(boxes, crops, strict=True):
+            await ctx.write_bytes(staff_image(box.number), crop)
 
     # --- 3. the transcriptions -----------------------------------------------
 

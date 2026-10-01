@@ -17,6 +17,8 @@ Every function here is blocking CPU work, so callers run them off the event
 loop.
 """
 
+from collections.abc import Sequence
+
 import cv2
 import numpy as np
 
@@ -55,8 +57,6 @@ def crop_staff(page: np.ndarray, box: BoundingBox, padding_ratio: float) -> np.n
     height, width = page.shape[:2]
     margin = round(box.height * padding_ratio)
 
-    # Make the staff span across the whole width of a page,
-    # add margin to top and bottom.
     left = max(0, box.left - margin)
     top = max(0, box.top - margin)
     right = min(width, box.right + margin)
@@ -84,7 +84,9 @@ def encode_jpeg(image: np.ndarray) -> bytes:
     return bytes(buffer)
 
 
-def slice_page(page_image: bytes, boxes: list[BoundingBox], padding_ratio: float) -> list[bytes]:
+def slice_page(
+    page_image: bytes, boxes: Sequence[BoundingBox], padding_ratio: float
+) -> list[bytes]:
     """Cut the whole page into staff crops, in the order the boxes are given.
 
     One call rather than one per staff, so that a caller spends a single hop off

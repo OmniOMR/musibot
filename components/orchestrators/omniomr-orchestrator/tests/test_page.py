@@ -5,13 +5,22 @@ from xml.etree import ElementTree
 
 import pytest
 from musibot.orchestrator_head import ModelExecutionFailed
-from musibot.orchestrator_head.testing import PipelineRunner
+from musibot.orchestrator_head.testing import ModelCall, PipelineRunner
 
 from omniomr_orchestrator.page import MzkPagePipeline
-from tests.fakes import LAYOUT_MODEL, STAFF_MODEL, a_page, a_runner, fails_staff
+from tests.fakes import (
+    LAYOUT_MODEL,
+    STAFF_MODEL,
+    a_page,
+    a_runner,
+    a_staff_transcription,
+    fails_staff,
+)
 
 # Two staves, one above the other, in the 400x300 page the fakes make.
 TWO_STAVES = ((20, 40, 360, 40), (20, 160, 360, 40))
+# And a system box around each of them, making them one instrument's two lines.
+TWO_SYSTEMS = ((10, 30, 380, 60), (10, 150, 380, 60))
 
 
 def a_pipeline(name: str = "mzk-page", version: str = "1", **overrides: object) -> MzkPagePipeline:
@@ -202,6 +211,26 @@ def test_a_failed_staff_is_named_in_the_log() -> None:
     assert warnings == ["Transcribed 1 of 2 staves."]
 
 
+def test_a_system_where_every_staff_failed_leaves_the_rest_of_the_page_intact() -> None:
+    """One instrument over two systems, and the second system's only staff fails.
+
+    Nothing in that system was transcribed to say how many measures it has,
+    which must not take the rest of the page down with it.
+    """
+    runner = a_runner(*TWO_STAVES, systems=TWO_SYSTEMS, staff_model=fails_staff(2))
+
+    runner.run(a_pipeline(), input=["image.jpg"])
+
+    score = ElementTree.fromstring(runner.files["transcription.musicxml"])
+    assert [part.get("id") for part in score.findall("part")] == ["P1"]
+    measures = score.findall("part/measure")
+    assert [measure.get("number") for measure in measures] == ["1", "2"]
+    assert measures[1].find("print[@new-system='yes']") is not None
+    assert [words.text for words in score.findall(".//direction//words")] == [
+        "Cannot transcribe staff 2"
+    ]
+
+
 def test_a_page_where_every_staff_failed_is_a_failure() -> None:
     def fails_everything(call: object, files: dict[str, bytes]) -> None:
         raise RuntimeError("The model is having a bad day.")
@@ -222,6 +251,36 @@ def test_a_model_that_reports_success_and_writes_nothing_fails_its_staff() -> No
 
     with pytest.raises(ModelExecutionFailed):
         runner.run(a_pipeline(), input=["image.jpg"])
+
+
+# --- the score it writes ----------------------------------------------------
+
+
+def test_a_padding_measure_is_valid_musicxml() -> None:
+    """Two instruments in one system, the second transcribed one measure short.
+
+    It is padded up to the first, and the padding's rest needs a duration like
+    any other note: MusicXML requires one, and a reader that trusts it would
+    otherwise reject the file.
+    """
+
+    def staff_2_is_shorter(call: ModelCall, files: dict[str, bytes]) -> None:
+        [staff_image] = call.input
+        folder = staff_image.rsplit("/", 1)[0]
+        measures = 1 if folder == "Staves/2" else 2
+        files[f"{folder}/transcription.musicxml"] = a_staff_transcription(measures=measures).encode(
+            "utf-8"
+        )
+
+    runner = a_runner(*TWO_STAVES, staff_model=staff_2_is_shorter)
+
+    runner.run(a_pipeline(), input=["image.jpg"])
+
+    score = ElementTree.fromstring(runner.files["transcription.musicxml"])
+    assert [len(part.findall("measure")) for part in score.findall("part")] == [2, 2]
+    assert [words.text for words in score.findall(".//direction//words")] == ["Padding measure"]
+    for note in score.iter("note"):
+        assert note.findtext("duration") is not None
 
 
 # --- the declaration ---------------------------------------------------------

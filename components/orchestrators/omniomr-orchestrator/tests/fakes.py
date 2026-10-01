@@ -20,6 +20,8 @@ PAGE_WIDTH = 400
 PAGE_HEIGHT = 300
 
 STAFF_CATEGORY_ID = 0
+SYSTEM_CATEGORY_ID = 1
+GRAND_STAFF_CATEGORY_ID = 2
 
 
 def a_page(width: int = PAGE_WIDTH, height: int = PAGE_HEIGHT) -> bytes:
@@ -30,24 +32,45 @@ def a_page(width: int = PAGE_WIDTH, height: int = PAGE_HEIGHT) -> bytes:
     return bytes(buffer)
 
 
-def a_layout(*boxes: tuple[int, int, int, int], categories: bool = True) -> bytes:
-    """A COCO `layout.json` naming those staves, as dvorak-ola writes one."""
+def a_layout(
+    *staves: tuple[int, int, int, int],
+    systems: tuple[tuple[int, int, int, int], ...] = (),
+    grand_staves: tuple[tuple[int, int, int, int], ...] = (),
+    categories: bool = True,
+) -> bytes:
+    """A COCO `layout.json` naming those boxes, as dvorak-ola writes one.
+
+    Like the real model, it lists only the categories the page actually has.
+    """
+    boxes_by_category = [
+        (STAFF_CATEGORY_ID, "staff", staves),
+        (SYSTEM_CATEGORY_ID, "system", systems),
+        (GRAND_STAFF_CATEGORY_ID, "grandstaff", grand_staves),
+    ]
+    annotations = [
+        {
+            "id": index,
+            "image_id": 0,
+            "category_id": category_id,
+            "bbox": list(box),
+            "area": box[2] * box[3],
+            "iscrowd": 0,
+            "score": 0.9,
+        }
+        for index, (category_id, box) in enumerate(
+            (category_id, box) for category_id, _, boxes in boxes_by_category for box in boxes
+        )
+    ]
+    listed = [
+        {"id": category_id, "name": name}
+        for category_id, name, boxes in boxes_by_category
+        if boxes or (name == "staff" and categories)
+    ]
     document: dict[str, Any] = {
         "info": {"description": "a fake"},
         "images": [{"id": 0, "width": PAGE_WIDTH, "height": PAGE_HEIGHT, "file_name": "image.jpg"}],
-        "annotations": [
-            {
-                "id": index,
-                "image_id": 0,
-                "category_id": STAFF_CATEGORY_ID,
-                "bbox": list(box),
-                "area": box[2] * box[3],
-                "iscrowd": 0,
-                "score": 0.9,
-            }
-            for index, box in enumerate(boxes)
-        ],
-        "categories": ([{"id": STAFF_CATEGORY_ID, "name": "staff"}] if categories else []),
+        "annotations": annotations,
+        "categories": listed,
     }
     return json.dumps(document).encode("utf-8")
 
@@ -74,11 +97,15 @@ def a_staff_transcription(text: str = "one measure", measures: int = 1) -> str:
 """
 
 
-def writes_layout(*boxes: tuple[int, int, int, int]) -> Any:
-    """A layout model that reports exactly these staves."""
+def writes_layout(
+    *staves: tuple[int, int, int, int],
+    systems: tuple[tuple[int, int, int, int], ...] = (),
+    grand_staves: tuple[tuple[int, int, int, int], ...] = (),
+) -> Any:
+    """A layout model that reports exactly these boxes."""
 
     def behaviour(call: ModelCall, files: dict[str, bytes]) -> None:
-        files["layout.json"] = a_layout(*boxes)
+        files["layout.json"] = a_layout(*staves, systems=systems, grand_staves=grand_staves)
 
     return behaviour
 
@@ -111,9 +138,16 @@ def fails_staff(number: int, reason: str = "The model could not read this staff.
     return behaviour
 
 
-def a_runner(*boxes: tuple[int, int, int, int], staff_model: Any = None) -> PipelineRunner:
+def a_runner(
+    *staves: tuple[int, int, int, int],
+    systems: tuple[tuple[int, int, int, int], ...] = (),
+    grand_staves: tuple[tuple[int, int, int, int], ...] = (),
+    staff_model: Any = None,
+) -> PipelineRunner:
     """A runner with a page, a layout model and a staff model already in it."""
     runner = PipelineRunner({"image.jpg": a_page()})
-    runner.register_model(LAYOUT_MODEL, writes_layout(*boxes))
+    runner.register_model(
+        LAYOUT_MODEL, writes_layout(*staves, systems=systems, grand_staves=grand_staves)
+    )
     runner.register_model(STAFF_MODEL, staff_model or transcribes_every_staff)
     return runner
