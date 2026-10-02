@@ -24,7 +24,7 @@ dependencies = [
     "musibot-orchestrator-head>=0.1.0",
     "opencv-python-headless>=4.9",
     "numpy>=1.26",
-    "linearized-musicxml@git+https://github.com/OMR-Research/lmx@415cd342caa54674f916228e317e4e6fb32a5c9b#egg=linearized_musicxml"
+    "linearized-musicxml@git+https://github.com/OMR-Research/lmx@ca57099e57f8de0a2830e24ea242e7fa766f7570#egg=linearized_musicxml"
 ]
 
 [project.optional-dependencies]

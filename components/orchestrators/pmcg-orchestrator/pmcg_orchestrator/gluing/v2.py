@@ -251,6 +251,7 @@ def _grand_staff_instrument(
             _upper_part,
             _lower_part,
             output_part_id=ZIPPED_GRAND_STAFF_PART_ID,
+            strict=False,  # be benevolent with weird musicxml
         )
     except AssertionError as _:
         ctx.logger.info(traceback.format_exc())
