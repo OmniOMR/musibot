@@ -100,12 +100,15 @@ def test_a_system_where_every_staff_failed_leaves_the_rest_of_the_page_intact() 
 # --- the score it writes -----------------------------------------------------
 
 
-def test_a_padding_measure_is_valid_musicxml() -> None:
+def test_a_padding_measure_is_a_hidden_measure_rest() -> None:
     """Two instruments in one system, the second transcribed one measure short.
 
-    It is padded up to the first, and the padding's rest needs a duration like
-    any other note: MusicXML requires one, and a reader that trusts it would
-    otherwise reject the file.
+    It is padded up to the first with a hidden full-measure rest that carries
+    no `<duration>` — deliberately, though MusicXML asks for one. Setting it
+    would mean knowing the current divisions and time signature, and a guessed
+    duration of 1 makes MuseScore render a mess, while a rest without one is
+    rendered as the full-measure rest it is meant to be. See the HACK note in
+    `gluing.v2._placeholder_measure`.
     """
 
     def staff_2_is_shorter(call: ModelCall, files: dict[str, bytes]) -> None:
@@ -123,5 +126,11 @@ def test_a_padding_measure_is_valid_musicxml() -> None:
     score = ElementTree.fromstring(runner.files["transcription.musicxml"])
     assert [len(part.findall("measure")) for part in score.findall("part")] == [2, 2]
     assert [words.text for words in score.findall(".//direction//words")] == ["Padding measure"]
-    for note in score.iter("note"):
-        assert note.findtext("duration") is not None
+
+    padding = score.findall("part")[1].findall("measure")[1]
+    [note] = padding.findall("note")
+    assert note.get("print-object") == "no"
+    assert note.find("rest[@measure='yes']") is not None
+    assert note.find("duration") is None
+    # Nor does it restate `divisions`, which would rescale what follows.
+    assert padding.find("attributes/divisions") is None

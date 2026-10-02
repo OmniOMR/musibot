@@ -135,7 +135,9 @@ from pathlib import Path
 
 from musibot.client import MusibotClient
 
-with MusibotClient(musibot_api_url="http://localhost:8000/musibot/api", api_token="secret") as client:
+with MusibotClient(
+    musibot_api_url="http://localhost:8000/musibot/api", api_token="secret"
+) as client:
     page = client.create_page()
     client.upload_files(page.page_id, {"image.jpg": Path("scan.jpg").read_bytes()})
 

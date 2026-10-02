@@ -15,6 +15,7 @@ from lmx.musicxml.omitted_staff_header.normalize_invisible_time_signature import
     normalize_invisible_time_signature,
 )
 from lmx.musicxml.pitch.Clef import Clef, G_CLEF, F_CLEF
+from lmx.musicxml.attributes.get_head_attributes import get_head_attributes
 
 
 def _upper_staff_default_clef(*, print_object: bool) -> ET.Element:
@@ -87,6 +88,9 @@ class NormalizationState:
     time_signature: ET.Element | None = None
     key_signature: int = 0
 
+    system_index: int = 0
+    """Which system is being processed, zero-based index"""
+
     def __str__(self) -> str:
         parts = [f"{field.name}={self._format_field(field.name)}" for field in fields(self)]
         return f"{type(self).__name__}({', '.join(parts)})"
@@ -127,17 +131,22 @@ class StaffNormalizer:
                 return True
         return False
 
-    def normalize_part_and_update_state(self, ctx: PipelineContext, part: ET.Element) -> ET.Element:
+    def normalize_next_part_system_and_update_state(
+        self, ctx: PipelineContext, part_system: ET.Element
+    ) -> ET.Element:
         """
         Normalizes clef, time signature and key signature
         of a single part based on the previously processed parts.
         """
-        part = _normalize_key_numbers(part)
-        part = self._normalize_part(ctx, part)
-        self._update_state(part)
-        return part
+        assert part_system.tag == "part"
 
-    def _normalize_part(self, ctx: PipelineContext, part: ET.Element) -> ET.Element:
+        part_system = _normalize_key_numbers(part_system)
+        part_system = self._normalize_invisible_header(ctx, part_system)
+        self._remove_redundant_header_clefs(part_system)
+        self._update_state(part_system)
+        return part_system
+
+    def _normalize_invisible_header(self, ctx: PipelineContext, part: ET.Element) -> ET.Element:
         with _normalization_step(ctx, "clef"):
             part = normalize_invisible_header_clef(
                 part,
@@ -147,7 +156,7 @@ class StaffNormalizer:
         with _normalization_step(ctx, "time signature"):
             part = normalize_invisible_time_signature(
                 part,
-                desired_time=self._state.time_signature,
+                desired_time=None,  # invisible means not visible = not present
                 when_time_visible="dont-normalize",
             )
         # normalize key only if a visible clef at the start is missing
@@ -160,6 +169,25 @@ class StaffNormalizer:
                 )
 
         return part
+
+    def _remove_redundant_header_clefs(self, part: ET.Element) -> None:
+        """When a clef that's currently active is repeated at the start
+        of the new system, it is redundant and should be removed."""
+        # do nothing for the very first system
+        if self._state.system_index == 0:
+            return
+
+        attributes_element = get_head_attributes(part.find(".//measure"))
+        if attributes_element is None:
+            return
+
+        for clef_element in list(attributes_element.findall(".//clef")):
+            is_upper_staff = clef_element.attrib.get("number", "1") == "1"
+            clef = Clef.from_clef_element(clef_element)
+            if (is_upper_staff and clef == self._state.upper_clef) or (
+                not is_upper_staff and clef == self._state.lower_clef
+            ):
+                attributes_element.remove(clef_element)
 
     def _update_state(self, part: ET.Element) -> None:
         # find last clefs, time and key
@@ -176,6 +204,9 @@ class StaffNormalizer:
         self._state.time_signature = time
         if key is not None:
             self._state.key_signature = key
+
+        # update the next system index we expect
+        self._state.system_index += 1
 
     def _find_last_clefs(self, part: ET.Element) -> tuple[Clef | None, Clef | None]:
         # TODO:

@@ -146,7 +146,7 @@ def _append_instrument_measures(
             )
 
         ctx.logger.info(f"Normalizing {staff_number} with {sn}")
-        staff = sn.normalize_part_and_update_state(ctx, staff)
+        staff = sn.normalize_next_part_system_and_update_state(ctx, staff)
 
         for position, measure in enumerate(
             _measures(staff, staff_number=staff_number, expected=expected)
@@ -231,13 +231,13 @@ def _grand_staff_instrument(
     # More measures in the lower part, add to upper part
     if measure_difference < 0:
         for _ in range(abs(measure_difference)):
-            _upper_part.append(_missing_measure(first_of_page=False))
+            _upper_part.append(_missing_measure())
         ctx.logger.info(
             f"Extended staff {upper_box.number} by {abs(measure_difference)} measure{'s' if abs(measure_difference) > 1 else ''}"
         )
     elif measure_difference > 0:
         for _ in range(measure_difference):
-            _lower_part.append(_missing_measure(first_of_page=False))
+            _lower_part.append(_missing_measure())
         ctx.logger.info(
             f"Extended staff {lower_box.number} by {abs(measure_difference)} measure{'s' if abs(measure_difference) > 1 else ''}"
         )
@@ -282,7 +282,7 @@ def _grand_staff_part(staff: ET.Element | None, staff_number: int) -> ET.Element
 def _replace_broken_staff_in_gs(number: int) -> ET.Element:
     """Unreadable measure with a tag wrapped inside its own "<part>" element."""
     part = ET.Element("part", {"id": GRAND_STAFF_FILLER_PART_ID})
-    part.append(_unreadable_staff(number, first_of_page=True))
+    part.append(_unreadable_staff(number))
     return part
 
 
@@ -352,26 +352,17 @@ def _measures(source: ET.Element, staff_number: int, expected: int) -> list[ET.E
     if expected == -1:
         return measures
 
-    return measures + [
-        _missing_measure(first_of_page=False) for _ in range(expected - len(measures))
-    ]
+    return measures + [_missing_measure() for _ in range(expected - len(measures))]
 
 
-def _placeholder_measure(words_text: str, *, first_of_page: bool) -> ET.Element:
+def _placeholder_measure(words_text: str) -> ET.Element:
     """One measure of silence carrying a message printed above it.
 
-    `divisions` and the rest's duration are both 1, so the measure is valid
-    under whatever scale surrounds it.
+    The silence is a hidden full-measure rest with no `<duration>` and no
+    `divisions` of its own, so that it fits whatever scale and time signature
+    surround it — see the note below on why the duration is left out.
     """
     measure = ET.Element("measure", {"number": "0"})
-
-    if first_of_page:
-        # Only here. `divisions` is carried forward from measure to measure, so
-        # restating it mid-page would rewrite what every following duration
-        # means — while a part that opens without it has no scale at all.
-        attributes = ET.SubElement(measure, "attributes")
-        divisions = ET.SubElement(attributes, "divisions")
-        divisions.text = "1"
 
     direction = ET.SubElement(measure, "direction", {"placement": "above"})
     direction_type = ET.SubElement(direction, "direction-type")
@@ -380,16 +371,20 @@ def _placeholder_measure(words_text: str, *, first_of_page: bool) -> ET.Element:
 
     note = ET.SubElement(measure, "note", {"print-object": "no"})
     ET.SubElement(note, "rest", {"measure": "yes"})
-    # One division, whatever a division currently is: `measure="yes"` is what
-    # carries the meaning, and any positive duration is valid under any scale.
-    ET.SubElement(note, "duration").text = "1"
     voice = ET.SubElement(note, "voice")
     voice.text = "1"
+
+    # HACK: The <note> element is missing <duration> on purpose.
+    # In order to set it, we would have to know current divisions
+    # (and possible time signature) which is quite complex. And if we
+    # set it to 1, MuseScore renders some mess. So insted we omit it
+    # and MuseScore survives this malformed MusicXML and renders
+    # a correct full-measure rest instead. Hack, but it works.
 
     return measure
 
 
-def _unreadable_staff(staff_number: int, *, first_of_page: bool) -> ET.Element:
+def _unreadable_staff(staff_number: int) -> ET.Element:
     """One measure standing in for a staff that has no transcription.
 
     It says so in the score itself, as a direction a renderer prints above the
@@ -397,14 +392,12 @@ def _unreadable_staff(staff_number: int, *, first_of_page: bool) -> ET.Element:
     *Model* read as silence, and telling a *User* that a page is silent where it
     was in fact unreadable is worse than telling them nothing.
     """
-    return _placeholder_measure(
-        f"Staff {staff_number} could not be transcribed", first_of_page=first_of_page
-    )
+    return _placeholder_measure(f"Staff {staff_number} could not be transcribed")
 
 
-def _missing_measure(*, first_of_page: bool) -> ET.Element:
+def _missing_measure() -> ET.Element:
     """One measure of padding, bringing a short staff up to its system's length."""
-    return _placeholder_measure("Padding measure", first_of_page=first_of_page)
+    return _placeholder_measure("Padding measure")
 
 
 def _staff_base_attributes(is_grand_staff: bool) -> ET.Element:
