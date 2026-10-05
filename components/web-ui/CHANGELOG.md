@@ -8,6 +8,11 @@ The Web UI has no outward contract of its own: nothing depends on it, and it dep
 ## Unreleased
 
 
+### Changed
+
+- **A whole page is read as instruments.** The page pipeline offered by default is now `mzk-page` `2`, which gives each instrument a part of its own — a piano's two staves become one grand staff, a voice and its accompaniment become two parts sounding together — where version 1 wrote every staff one after another into a single part. Version 1 is still there under *All pipelines* for anyone who wants it.
+
+
 ## 0.2.0 — 2026-08-15
 
 Whatever format the scanner made it in, and four real pages to try it on. Musibot takes PNG, BMP, TIFF and a one-page PDF as well as JPEG; the samples on the landing page are public-domain scans rather than drawn stand-ins; and the page header offers the one file a visitor came for instead of everything a reading produced. All of it is in the browser, so this asks nothing new of the service — still an `api` of 0.3.0 or newer, as 0.1.1 required.

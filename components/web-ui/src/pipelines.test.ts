@@ -178,12 +178,19 @@ describe("the two defaults", () => {
   it("are found in a listing by name and version together", () => {
     const listing = [
       pipeline({ name: "mzk-page", version: "1" }),
+      pipeline({ name: "mzk-page", version: "2" }),
       pipeline({ name: "mzk-staff", version: "2" }),
     ];
 
-    expect(find(listing, PAGE_PIPELINE)?.name).toBe("mzk-page");
+    expect(find(listing, PAGE_PIPELINE)?.version).toBe("2");
     // Right name, wrong version: not the pipeline this app means.
     expect(find(listing, STAFF_PIPELINE)).toBeUndefined();
+  });
+
+  it("do not settle for the older version of the page pipeline", () => {
+    const listing = [pipeline({ name: "mzk-page", version: "1" })];
+
+    expect(find(listing, PAGE_PIPELINE)).toBeUndefined();
   });
 
   it("are absent from a listing that does not announce them", () => {

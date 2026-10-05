@@ -22,8 +22,14 @@ export interface PipelineRef {
   version: string;
 }
 
-/** A whole page: find every staff, then transcribe each one. */
-export const PAGE_PIPELINE: PipelineRef = { name: "mzk-page", version: "1" };
+/**
+ * A whole page: find every staff, then transcribe each one.
+ *
+ * Version 2 reads the page as instruments — a part per instrument, grand
+ * staves joined — where version 1 reads it as a single one. Both stay
+ * published, so pinning version 1 by hand through "All pipelines" still works.
+ */
+export const PAGE_PIPELINE: PipelineRef = { name: "mzk-page", version: "2" };
 
 /** One image that is already a single cropped staff. */
 export const STAFF_PIPELINE: PipelineRef = { name: "mzk-staff", version: "1" };
