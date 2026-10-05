@@ -33,8 +33,14 @@ export interface Plate {
 
 export interface Scene {
   plates: Plate[];
-  /** Colour for every box in the scene, or `null` when there are none. */
+  /**
+   * Colour for every box in the scene, or `null` when there are none. A
+   * `layout.json` colours its boxes by class instead — see `layoutClasses` —
+   * and this is then only the colour of the staff labels.
+   */
   overlayColour: string | null;
+  /** Whether the boxes are a `layout.json`, drawn and toggled by class. */
+  layout: boolean;
   /** What the toolbar says after "Showing". */
   description: string;
   /** Why there is nothing to draw, when there is nothing to draw. */
@@ -62,6 +68,14 @@ function overlayColourFor(path: string): string | null {
   // A transcription is not spatially aligned to the image — there is no
   // coordinate in a MusicXML file — so it never gets boxes.
   return null;
+}
+
+/**
+ * Whether a selection is a `layout.json`, which opens the panel that toggles
+ * its classes beside the canvas.
+ */
+export function opensLayoutClasses(selected: FileRow | null): boolean {
+  return selected !== null && fileNameOf(selected.paths[0]) === "layout.json";
 }
 
 export function fileNameOf(path: string): string {
@@ -119,11 +133,12 @@ export function sceneFor(
   heights: Map<string, number>,
 ): Scene {
   if (selected === null) {
-    return { plates: [], overlayColour: null, description: "nothing", empty: null };
+    return { plates: [], overlayColour: null, layout: false, description: "nothing", empty: null };
   }
 
   const subdivision = subdivisionOf(selected.paths[0]);
   const overlayColour = overlayColourFor(selected.paths[0]);
+  const layout = opensLayoutClasses(selected);
   const isImage = fileNameOf(selected.paths[0]) === "image.jpg";
 
   // Every scene stands on an image. If the selection is not one, the image
@@ -138,6 +153,7 @@ export function sceneFor(
     return {
       plates: [],
       overlayColour: null,
+      layout: false,
       description: selected.label,
       empty:
         subdivision === null
@@ -173,6 +189,7 @@ export function sceneFor(
   return {
     plates,
     overlayColour,
+    layout,
     description: selected.label,
     empty: null,
   };

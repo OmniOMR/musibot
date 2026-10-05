@@ -120,7 +120,16 @@ SVG, with React rendering its contents and d3 supplying only behaviour. `src/sce
 
 **Files are fetched into memory, not linked.** Presigned URLs live fifteen minutes and a page lives about an hour, so an `<image href>` pointing at one turns into a 403 while somebody is looking at it. Fetching into a blob removes the problem rather than scheduling a repair for it; the cache is keyed by path *and* `last_modified`, so a *File* a later execution rewrote is re-read while an untouched one is free to return to; and streaming will need an in-memory buffer anyway, since object storage only holds a *File* once it is complete. Only the selected layer is fetched, and object URLs are revoked when it changes.
 
-**Boxes come from `bbox` and nothing else.** Both spatial layers are COCO — `layout.json` for staff regions in the university red, `coco-object-detection.json` for symbols in the blue — so one reader serves both. Every annotation also carries `segmentation`, as polygon arrays in one file and run-length encoding in another; drawing it would mean an RLE decoder for shapes the boxes already locate, and polygons are the one thing that makes an SVG scene slow where thousands of rectangles do not.
+**Boxes come from `bbox` and nothing else.** Both spatial layers are COCO — `layout.json` for page structure, coloured by class, `coco-object-detection.json` for symbols in the university blue — so one reader serves both. Every annotation also carries `segmentation`, as polygon arrays in one file and run-length encoding in another; drawing it would mean an RLE decoder for shapes the boxes already locate, and polygons are the one thing that makes an SVG scene slow where thousands of rectangles do not.
+
+
+### The layout's classes
+
+Beside the canvas, and only while a `layout.json` is selected, a narrow list of the classes the file holds: each with how many boxes it has, an eye to switch it off and on, and a dot to show it alone — pressed again, the dot shows everything. The list is its own legend, drawing each class's swatch exactly as the canvas draws its boxes.
+
+The Musicorpus Specification's classes come in three families and an outlier, and the colours follow the families rather than the classes: a **system** and its measures are blue, a **grand staff** and its measures yellow, a **staff** and its measures red, and the measures are dashed in their family's colour. The **empty staff** is green, and so is any class the specification does not name — a model may write classes of its own, and they are drawn rather than dropped. Measures start switched off, since a page has a dozen staves and a few hundred measures; the choice is kept across selections for as long as the page is open. The rules live in `src/scene/layoutClasses.ts` and the four colours in the theme's `overlay`, chosen to stay legible over black ink on pale paper, which the university blue does not.
+
+Every box is a 2-pixel outline over a faint fill of its own colour, which brightens under the pointer — that, done in CSS so that it re-renders nothing, is how one box is told from those it overlaps — and hovering anywhere inside a box names it. Classes are drawn in a fixed order, bottom first: system, grand staff, staff, empty staff, any class the specification does not name, then the system, grand-staff and staff measures; within a class the largest box goes underneath. So the box named under the pointer is the innermost, which is the one somebody pointing means.
 
 
 ### The transcription

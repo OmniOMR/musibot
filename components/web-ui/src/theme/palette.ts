@@ -79,3 +79,20 @@ export const paper = {
  * to spend on small or light-weight text. So the rule the theme encodes is:
  * `cuni.red` fills shapes, `cuni.redDark` carries text.
  */
+
+/**
+ * The colours of the boxes drawn over a scan, one per family of layout class.
+ *
+ * These are the one place four saturated colours appear together, and they
+ * have to: a system, a grand staff and a staff overlap on the page, and must
+ * be told apart at a glance over black ink on white or cream paper. That rules
+ * out the university blue, which is close enough to ink to vanish into it, and
+ * any pale yellow, which vanishes into the paper. The red is the university's
+ * own; the rest are chosen to sit beside it at a similar weight.
+ */
+export const overlay = {
+  red: cuni.red,
+  yellow: "#e0a100",
+  blue: "#1f6fe0",
+  green: "#2b9348",
+} as const;

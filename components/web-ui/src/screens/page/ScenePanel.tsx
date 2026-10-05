@@ -6,6 +6,7 @@ import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useStat
 import type { FileView } from "../../api/types";
 import type { FileRow } from "../../page/files";
 import type { CocoLayer } from "../../scene/coco";
+import { boxesToDraw, classOf, styleOf } from "../../scene/layoutClasses";
 import { createRuler, RULER_GUTTER, type Ruler } from "../../scene/ruler";
 import { instanceLabel, pathsOf, sceneFor, type Plate } from "../../scene/scene";
 import { useSceneData, type SceneImage } from "../../scene/useSceneData";
@@ -34,11 +35,14 @@ export default function ScenePanel({
   token,
   selected,
   files,
+  hiddenClasses,
 }: {
   pageId: string;
   token: string | null;
   selected: FileRow | null;
   files: FileView[];
+  /** The `layout.json` classes switched off in the panel beside this one. */
+  hiddenClasses: ReadonlySet<string>;
 }) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const worldRef = useRef<SVGGElement | null>(null);
@@ -204,6 +208,12 @@ export default function ScenePanel({
             cursor: "grab",
             touchAction: "none",
             "&:active": { cursor: "grabbing" },
+            // A layout box lights up under the pointer, which is how one box is
+            // told from the boxes it overlaps. CSS rather than React state, so
+            // that hovering across a few hundred boxes re-renders nothing; and
+            // the fill rather than the stroke, which is already as heavy as a
+            // box can be drawn without hiding the staff lines under it.
+            "& rect[data-layout-box]:hover": { fillOpacity: 0.3 },
           }}
         >
           <g ref={worldRef}>
@@ -216,6 +226,8 @@ export default function ScenePanel({
                   plate.overlayPath === null ? undefined : data.overlays.get(plate.overlayPath)
                 }
                 colour={placed.overlayColour}
+                layout={placed.layout}
+                hiddenClasses={hiddenClasses}
                 onHoverBox={setHovered}
               />
             ))}
@@ -374,12 +386,16 @@ const PlateView = memo(function PlateView({
   image,
   overlay,
   colour,
+  layout,
+  hiddenClasses,
   onHoverBox,
 }: {
   plate: Plate;
   image: SceneImage | undefined;
   overlay: CocoLayer | undefined;
   colour: string | null;
+  layout: boolean;
+  hiddenClasses: ReadonlySet<string>;
   onHoverBox: (label: string | null) => void;
 }) {
   if (image === undefined) {
@@ -398,7 +414,35 @@ const PlateView = memo(function PlateView({
         stroke={paper["300"]}
         vectorEffect="non-scaling-stroke"
       />
-      {colour !== null &&
+      {layout &&
+        overlay !== undefined &&
+        boxesToDraw(overlay, hiddenClasses).map((box) => {
+          const style = styleOf(classOf(box));
+          return (
+            <rect
+              key={box.id}
+              x={box.x}
+              y={box.y}
+              width={box.width}
+              height={box.height}
+              // Filled faintly, so that a box reads as a region rather than as
+              // four lines, and so that hovering anywhere inside it names it.
+              fill={style.colour}
+              fillOpacity={0.08}
+              data-layout-box=""
+              stroke={style.colour}
+              strokeWidth={2}
+              // Measures dashed, in screen space like the stroke itself, so the
+              // dashes keep their length at any zoom.
+              strokeDasharray={style.dashed ? "6 4" : undefined}
+              vectorEffect="non-scaling-stroke"
+              onMouseEnter={() => onHoverBox(classOf(box))}
+              onMouseLeave={() => onHoverBox(null)}
+            />
+          );
+        })}
+      {!layout &&
+        colour !== null &&
         overlay?.boxes.map((box) => (
           <rect
             key={box.id}

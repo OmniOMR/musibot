@@ -13,6 +13,8 @@ import { useNow } from "../page/expiry";
 import { groupFiles } from "../page/files";
 import { mostInteresting } from "../page/interest";
 import { finishedEmpty } from "../page/outcome";
+import { hiddenByDefault } from "../scene/layoutClasses";
+import { opensLayoutClasses } from "../scene/scene";
 import { usePageLog } from "../page/log";
 import { usePageState } from "../page/usePageState";
 import * as paths from "../paths";
@@ -22,6 +24,7 @@ import { paper, serif } from "../theme";
 import LogPanel from "./page/LogPanel";
 import OverviewPanel from "./page/OverviewPanel";
 import PageHeader from "./page/PageHeader";
+import LayoutClassesPanel from "./page/LayoutClassesPanel";
 import RunPipelineDialog from "./page/RunPipelineDialog";
 import ScenePanel from "./page/ScenePanel";
 import TranscriptionPanel from "./page/TranscriptionPanel";
@@ -61,6 +64,13 @@ export default function MusicorpusPageScreen() {
   /** Collapsed by default — the log is for a reader who has gone looking. */
   const [logOpen, setLogOpen] = useState(false);
   const [running, setRunning] = useState(false);
+  /**
+   * The `layout.json` classes switched off. Held here rather than in either
+   * panel, because the list beside the canvas sets it and the canvas draws by
+   * it; and kept across selections, so that switching to a staff and back does
+   * not undo somebody's choice.
+   */
+  const [hiddenClasses, setHiddenClasses] = useState<ReadonlySet<string>>(hiddenByDefault);
 
   /**
    * Which of the page's *Files* a running execution is about to replace.
@@ -233,7 +243,25 @@ export default function MusicorpusPageScreen() {
           onToggleLog={() => setLogOpen((open) => !open)}
         />
 
-        <ScenePanel pageId={pageId} token={token} selected={selectedRow} files={state.files} />
+        <ScenePanel
+          pageId={pageId}
+          token={token}
+          selected={selectedRow}
+          files={state.files}
+          hiddenClasses={hiddenClasses}
+        />
+
+        {/* Only while a layout is selected: the classes it can switch. */}
+        {opensLayoutClasses(selectedRow) && (
+          <LayoutClassesPanel
+            pageId={pageId}
+            token={token}
+            selected={selectedRow}
+            files={state.files}
+            hidden={hiddenClasses}
+            onChange={setHiddenClasses}
+          />
+        )}
 
         {/* Only while there is a reading to put beside the scan. */}
         {opensTranscription(selectedRow) && (

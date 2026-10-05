@@ -12,6 +12,8 @@ The Web UI has no outward contract of its own: nothing depends on it, and it dep
 
 - **A whole page is read as instruments.** The page pipeline offered by default is now `mzk-page` `2`, which gives each instrument a part of its own — a piano's two staves become one grand staff, a voice and its accompaniment become two parts sounding together — where version 1 wrote every staff one after another into a single part. Version 1 is still there under *All pipelines* for anyone who wants it.
 
+- **A page's layout can be looked at a class at a time.** Selecting `layout.json` drew every box it held at once, systems, staves and a few hundred measures together, in one colour, over the scan they were meant to explain. A list beside the canvas now names each class the file holds and how many of it there are, with an eye to switch it off and a dot to show it alone. Systems are blue, grand staves yellow and staves red, each family's measures dashed in its colour, and an empty staff — or any class Musibot does not recognise, which is drawn rather than dropped — green. The measures start switched off. Every box is drawn with a heavier outline and a faint fill, so that pointing anywhere inside one names it.
+
 
 ## 0.2.0 — 2026-08-15
 
