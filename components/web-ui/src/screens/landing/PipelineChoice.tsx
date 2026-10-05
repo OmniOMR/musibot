@@ -156,170 +156,176 @@ export default function PipelineChoice({
         },
       }}
     >
-      <Box sx={{ px: 3.75, pt: 3.25, pb: 1 }}>
-        <Typography
-          sx={{
-            fontFamily: mono,
-            fontWeight: 600,
-            fontSize: "0.6875rem",
-            lineHeight: 1,
-            letterSpacing: "0.08em",
-            textTransform: "uppercase",
-            color: paper["600"],
-          }}
-        >
-          Ready to read
-        </Typography>
-        <Typography
-          component="h2"
-          sx={{
-            mt: 1,
-            fontFamily: serif,
-            fontWeight: 600,
-            fontSize: "1.625rem",
-            lineHeight: 1.2,
-            color: paper["950"],
-          }}
-        >
-          How should this be read?
-        </Typography>
-      </Box>
-
-      <Box sx={{ px: 3.75, py: 2, display: "flex", gap: 2.25, alignItems: "flex-start" }}>
-        <Box sx={{ width: 104, flex: "none" }}>
-          <Box
-            component="img"
-            src={image.previewUrl}
-            alt=""
+      {/* Everything but the buttons scrolls, inside the card rather than with
+          it. "All pipelines" can open a long list, and the two buttons are what
+          the card is for: scrolled out of reach under it, the visitor would
+          have to go looking for the way to start the reading they just chose. */}
+      <Box sx={{ flex: "1 1 auto", minHeight: 0, overflowY: "auto", pb: 2.75 }}>
+        <Box sx={{ px: 3.75, pt: 3.25, pb: 1 }}>
+          <Typography
             sx={{
-              width: "100%",
-              maxHeight: 140,
-              objectFit: "contain",
-              display: "block",
-              border: `1px solid ${paper["300"]}`,
-              borderRadius: 1,
-              bgcolor: paper["000"],
-            }}
-          />
-          <Box
-            sx={{
-              mt: 0.75,
               fontFamily: mono,
+              fontWeight: 600,
               fontSize: "0.6875rem",
-              lineHeight: 1.4,
-              color: paper["500"],
+              lineHeight: 1,
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+              color: paper["600"],
             }}
           >
-            {image.file.name}
-            <br />
-            {image.width} × {image.height}
-          </Box>
+            Ready to read
+          </Typography>
+          <Typography
+            component="h2"
+            sx={{
+              mt: 1,
+              fontFamily: serif,
+              fontWeight: 600,
+              fontSize: "1.625rem",
+              lineHeight: 1.2,
+              color: paper["950"],
+            }}
+          >
+            How should this be read?
+          </Typography>
         </Box>
 
-        <Box sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 1.25 }}>
-          <Typography sx={{ fontSize: "0.875rem", lineHeight: 1.55, color: paper["700"] }}>
-            {guessExplanation(image)}
-          </Typography>
+        <Box sx={{ px: 3.75, py: 2, display: "flex", gap: 2.25, alignItems: "flex-start" }}>
+          <Box sx={{ width: 104, flex: "none" }}>
+            <Box
+              component="img"
+              src={image.previewUrl}
+              alt=""
+              sx={{
+                width: "100%",
+                maxHeight: 140,
+                objectFit: "contain",
+                display: "block",
+                border: `1px solid ${paper["300"]}`,
+                borderRadius: 1,
+                bgcolor: paper["000"],
+              }}
+            />
+            <Box
+              sx={{
+                mt: 0.75,
+                fontFamily: mono,
+                fontSize: "0.6875rem",
+                lineHeight: 1.4,
+                color: paper["500"],
+              }}
+            >
+              {image.file.name}
+              <br />
+              {image.width} × {image.height}
+            </Box>
+          </Box>
 
-          {/* What Musibot decided on the visitor's behalf while preparing the
+          <Box sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 1.25 }}>
+            <Typography sx={{ fontSize: "0.875rem", lineHeight: 1.55, color: paper["700"] }}>
+              {guessExplanation(image)}
+            </Typography>
+
+            {/* What Musibot decided on the visitor's behalf while preparing the
               file — currently only that a multi-page PDF lost all but its
               first page. Said before "Start reading" rather than after, and
               set apart from the guess above, which is about the image itself.
               Losing pages silently would be the one way this flow lies. */}
-          {image.notice !== null && (
-            <Typography
-              sx={{
-                fontSize: "0.8125rem",
-                lineHeight: 1.55,
-                color: paper["800"],
-                bgcolor: paper["150"],
-                border: `1px solid ${paper["300"]}`,
-                borderRadius: 1,
-                px: 1.25,
-                py: 1,
-              }}
-            >
-              {image.notice}
-            </Typography>
-          )}
-
-          {pipelines === null && problem === null ? (
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, py: 2 }}>
-              <CircularProgress size={18} />
-              <Typography sx={{ fontSize: "0.875rem", color: paper["600"] }}>
-                Asking what this instance can run…
+            {image.notice !== null && (
+              <Typography
+                sx={{
+                  fontSize: "0.8125rem",
+                  lineHeight: 1.55,
+                  color: paper["800"],
+                  bgcolor: paper["150"],
+                  border: `1px solid ${paper["300"]}`,
+                  borderRadius: 1,
+                  px: 1.25,
+                  py: 1,
+                }}
+              >
+                {image.notice}
               </Typography>
-            </Box>
-          ) : (
-            <Box role="radiogroup" sx={{ display: "flex", flexDirection: "column", gap: 1.25 }}>
-              <PipelineOption
-                title="Read a whole page"
-                description="Finds every staff, then transcribes each one. Returns layout and one MusicXML for the page."
-                selected={selected !== null && same(selected, PAGE_PIPELINE)}
-                disabled={!pageAvailable}
-                onSelect={() => setSelected(PAGE_PIPELINE)}
-              />
-              <PipelineOption
-                title="Read a single staff"
-                description="For an image that is already one cropped staff."
-                selected={selected !== null && same(selected, STAFF_PIPELINE)}
-                disabled={!staffAvailable}
-                onSelect={() => setSelected(STAFF_PIPELINE)}
-              />
-            </Box>
-          )}
+            )}
 
-          {pipelines !== null && !(pageAvailable && staffAvailable) && (
-            <Typography sx={{ fontSize: "0.8125rem", lineHeight: 1.55, color: paper["700"] }}>
-              Musibot&rsquo;s default pipelines are not available on this instance just now. Choose
-              one from the pipelines below.
-            </Typography>
-          )}
-        </Box>
-      </Box>
-
-      {pipelines !== null && (
-        <Box sx={{ mx: 3.75, borderTop: `1px solid ${paper["200"]}`, pt: 1.75 }}>
-          <Box
-            component="button"
-            type="button"
-            onClick={() => setShowAll((open) => !open)}
-            sx={{
-              border: 0,
-              background: "none",
-              p: 0,
-              cursor: "pointer",
-              fontSize: "0.84375rem",
-              fontFamily: "inherit",
-              color: paper["600"],
-            }}
-          >
-            All pipelines
-          </Box>
-          {showAll && (
-            <AllPipelines pipelines={pipelines} selected={selected} onSelect={setSelected} />
-          )}
-        </Box>
-      )}
-
-      {problem !== null && (
-        <Box sx={{ mx: 3.75, mt: 2 }}>
-          <NoticeCard title={problem.title}>
-            {problem.body}
-            {problem.overLimit && (
-              <Box sx={{ mt: 1.25 }}>
-                Reading a whole collection? The <Link href={links.HTTP_API_DOCS}>HTTP API</Link> can
-                be given a higher limit — write to{" "}
-                <Link href={`mailto:${links.CONTACT_EMAIL}`}>{links.CONTACT_EMAIL}</Link>.
+            {pipelines === null && problem === null ? (
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, py: 2 }}>
+                <CircularProgress size={18} />
+                <Typography sx={{ fontSize: "0.875rem", color: paper["600"] }}>
+                  Asking what this instance can run…
+                </Typography>
+              </Box>
+            ) : (
+              <Box role="radiogroup" sx={{ display: "flex", flexDirection: "column", gap: 1.25 }}>
+                <PipelineOption
+                  title="Read a whole page"
+                  description="Finds every staff, then transcribes each one. Returns layout and one MusicXML for the page."
+                  selected={selected !== null && same(selected, PAGE_PIPELINE)}
+                  disabled={!pageAvailable}
+                  onSelect={() => setSelected(PAGE_PIPELINE)}
+                />
+                <PipelineOption
+                  title="Read a single staff"
+                  description="For an image that is already one cropped staff."
+                  selected={selected !== null && same(selected, STAFF_PIPELINE)}
+                  disabled={!staffAvailable}
+                  onSelect={() => setSelected(STAFF_PIPELINE)}
+                />
               </Box>
             )}
-          </NoticeCard>
+
+            {pipelines !== null && !(pageAvailable && staffAvailable) && (
+              <Typography sx={{ fontSize: "0.8125rem", lineHeight: 1.55, color: paper["700"] }}>
+                Musibot&rsquo;s default pipelines are not available on this instance just now.
+                Choose one from the pipelines below.
+              </Typography>
+            )}
+          </Box>
         </Box>
-      )}
+
+        {pipelines !== null && (
+          <Box sx={{ mx: 3.75, borderTop: `1px solid ${paper["200"]}`, pt: 1.75 }}>
+            <Box
+              component="button"
+              type="button"
+              onClick={() => setShowAll((open) => !open)}
+              sx={{
+                border: 0,
+                background: "none",
+                p: 0,
+                cursor: "pointer",
+                fontSize: "0.84375rem",
+                fontFamily: "inherit",
+                color: paper["600"],
+              }}
+            >
+              All pipelines
+            </Box>
+            {showAll && (
+              <AllPipelines pipelines={pipelines} selected={selected} onSelect={setSelected} />
+            )}
+          </Box>
+        )}
+
+        {problem !== null && (
+          <Box sx={{ mx: 3.75, mt: 2 }}>
+            <NoticeCard title={problem.title}>
+              {problem.body}
+              {problem.overLimit && (
+                <Box sx={{ mt: 1.25 }}>
+                  Reading a whole collection? The <Link href={links.HTTP_API_DOCS}>HTTP API</Link>{" "}
+                  can be given a higher limit — write to{" "}
+                  <Link href={`mailto:${links.CONTACT_EMAIL}`}>{links.CONTACT_EMAIL}</Link>.
+                </Box>
+              )}
+            </NoticeCard>
+          </Box>
+        )}
+      </Box>
 
       <Box
         sx={{
-          mt: 2.75,
+          flex: "none",
           px: 3.75,
           py: 2,
           borderTop: `1px solid ${paper["200"]}`,
