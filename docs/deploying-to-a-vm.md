@@ -527,6 +527,8 @@ A model appearing in that listing is the *Worker* announcing itself; a model dis
 
 A *Worker* runs a *Model*; an *Orchestrator* runs the *Pipelines* that string *Models* together. Musibot works without one — every *Model* is offered as an [ImplicitPipeline](domain-model.md) — but without one there is no page-level recognition, so an instance serving the *Web UI* wants [pmcg-orchestrator](../components/orchestrators/pmcg-orchestrator/README.md), which is what the rest of this section installs.
 
+Replacing an `omniomr-orchestrator` deployed before the rename? Read [Replacing omniomr-orchestrator with pmcg-orchestrator](#replacing-omniomr-orchestrator-with-pmcg-orchestrator) first: the two must not run at once.
+
 One templated unit serves all of them, the same shape as the worker unit:
 
 ```bash
@@ -684,6 +686,76 @@ sudo cp /opt/musibot/repo/deploy/systemd/*.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl restart musibot-api                 # only if that unit changed
 ```
+
+
+## Removing an instance
+
+A *Worker* or an *Orchestrator* is an instance of a template unit plus what was installed for it, and removing one is undoing the steps that added it. systemd forgets nothing on its own: stopping a unit leaves it enabled, and disabling one leaves its virtual environment, its configuration and its state where they were.
+
+First find out what is there. Instances are not listed anywhere but in systemd, and an instance that is enabled but not running is easy to miss:
+
+```bash
+systemctl list-units --all 'musibot-*'
+ls /etc/systemd/system/multi-user.target.wants/ | grep musibot
+```
+
+Then, for an instance `<instance>` of `musibot-orchestrator@`:
+
+```bash
+sudo systemctl disable --now musibot-orchestrator@<instance>   # stop it, and do not start it on boot
+sudo systemctl reset-failed musibot-orchestrator@<instance>    # forget it, if it had failed
+
+sudo rm /etc/musibot/orchestrator-<instance>.env
+sudo rm -r /opt/musibot/orchestrators/<instance>
+```
+
+Its *Pipelines* disappear from `GET /pipelines` within a heartbeat, and the executions it was running fail as timeouts on the `api` service's side — the same cost as a restart, without the coming back.
+
+**Leave `/etc/systemd/system/musibot-orchestrator@.service` alone.** It is the template every instance runs from, and removing one instance is not a reason to touch it; nor does it need a `daemon-reload`, since the template did not change.
+
+**Keep the files a while if you may want them back.** Disabling an instance is enough to take it out of service, and while its environment file and its venv are still on disk, rolling back is `systemctl enable --now` again. Delete them once you are sure.
+
+A *Worker* is the same with `musibot-worker@` and `/etc/musibot/worker-<instance>.env`, plus two things an *Orchestrator* does not have:
+
+- **Its state directory**, `/var/lib/musibot/<instance>`, which holds its local mirror of the pages it was working on. systemd created it, and with the instance stopped it removes it too: `sudo systemctl clean --what=state musibot-worker@<instance>`.
+- **What its *Model* runs on**, which may be shared. A model with an environment of its own (`/opt/musibot/models/<codebase>/venv`) or a snapshot under `snapshots/` may serve other instances too — check the `MUSIBOT_MODEL_COMMAND` of every remaining `/etc/musibot/worker-*.env` before deleting either.
+
+
+### Replacing omniomr-orchestrator with pmcg-orchestrator
+
+`pmcg-orchestrator` is `omniomr-orchestrator` renamed and grown, and an instance deployed before the rename runs as `musibot-orchestrator@omniomr`. It is a different distribution with a different console script, so the old instance is not updated in place: the new one is installed beside it, and the old one removed.
+
+**Do not run the two at once.** Both announce `mzk-page` `1` and `mzk-staff` `1`, so they would share those two work queues, and `mzk-staff` `1`'s *Signature* changed in between — the `api` service reports that as a `conflicting-signatures` warning, and each request would be served by whichever of two implementations took it. The changeover is therefore a stop and a start, seconds apart:
+
+1. **Install pmcg-orchestrator** as [section 8](#8-an-orchestrator) describes — its venv, its `/etc/musibot/orchestrator-pmcg.env` — but do not start it yet. Check the unit template is current, since it is copied rather than linked: `sudo cp /opt/musibot/repo/deploy/systemd/musibot-orchestrator@.service /etc/systemd/system/ && sudo systemctl daemon-reload`.
+2. **Stop the old one**, keeping its files for now:
+
+   ```bash
+   sudo systemctl disable --now musibot-orchestrator@omniomr
+   ```
+
+3. **Start the new one**, and watch it announce:
+
+   ```bash
+   sudo systemctl enable --now musibot-orchestrator@pmcg
+   journalctl -u musibot-orchestrator@pmcg -f
+   ```
+
+4. **Check the listing**: `mzk-page` `1` and `2`, `mzk-staff` `1`, `pmcg-slice` `1`, `pmcg-glue` `1` and `2`, every one with `"orchestrators": ["pmcg"]` and nothing under `"warnings"`.
+
+   ```bash
+   curl -s -H "Authorization: Bearer {aliceToken}" http://127.0.0.1:8080/pipelines
+   ```
+
+5. **Remove the old one** once the new one has served a few pages. Until then, rolling back is steps 2 and 3 the other way round.
+
+   ```bash
+   sudo systemctl reset-failed musibot-orchestrator@omniomr
+   sudo rm /etc/musibot/orchestrator-omniomr.env
+   sudo rm -r /opt/musibot/orchestrators/omniomr
+   ```
+
+What carries over from `orchestrator-omniomr.env` is what every *Orchestrator* shares — the RabbitMQ, MinIO and logging blocks and `MUSIBOT_MAX_CONCURRENT_EXECUTIONS` — copied as they are, with `MUSIBOT_ORCHESTRATOR_COMMAND` pointing at the new venv. The settings that pinned *Models* and named *Pipelines* are gone — see [section 8](#8-an-orchestrator) — and left in the new file they would be ignored.
 
 
 ## Operating it
