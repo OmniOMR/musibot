@@ -2,6 +2,8 @@
 
 Musibot is a web service for reading sheet music (scans and photos). By reading we mean producing a machine-readable file format, such as MusicXML.
 
+> **🚀 Check out Musibot at: [https://quest.ms.mff.cuni.cz/musibot/](https://quest.ms.mff.cuni.cz/musibot/)**
+
 Musibot comes from the research field of Optical Music Recognition (OMR) and serves as a place of deployment and production-level use of trained OMR models. To represent the music notation-related data, it uses the [Musicorpus Specification](https://github.com/OmniOMR/musicorpus/blob/main/docs/musicorpus-specification/musicorpus-specification.md), which describes in detail how page-level OMR data should be annotated.
 
 Musibot consists of:
@@ -18,7 +20,6 @@ Musibot consists of:
 
 User documentation:
 
-- Using Web UI
 - [Using python client](docs/using-python-client.md)
 - [Adding models](docs/adding-models.md)
 - [Writing pipelines](docs/writing-pipelines.md)
