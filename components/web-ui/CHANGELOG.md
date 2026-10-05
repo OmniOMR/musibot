@@ -8,19 +8,26 @@ The Web UI has no outward contract of its own: nothing depends on it, and it dep
 ## Unreleased
 
 
+## 0.3.0 — 2026-10-05
+
+A page read as instruments, and a layout that can be looked at a class at a time. The whole-page reading offered by default is now `mzk-page` `2`, which gives each instrument a part of its own; a `layout.json` lists its classes beside the canvas, each with a count, an eye and a solo; the reading card keeps its buttons in reach however long it gets; and the five affiliations stand at the foot of the landing page as their marks. A PDF can now be uploaded through the gateway, which was an nginx fix rather than an app one, so a deployment re-renders its nginx config. Still an `api` of 0.3.0 or newer; the default page reading needs pmcg-orchestrator 0.2.0, which is what announces `mzk-page` `2`.
+
+
 ### Changed
 
 - **A whole page is read as instruments.** The page pipeline offered by default is now `mzk-page` `2`, which gives each instrument a part of its own — a piano's two staves become one grand staff, a voice and its accompaniment become two parts sounding together — where version 1 wrote every staff one after another into a single part. Version 1 is still there under *All pipelines* for anyone who wants it.
 
-- **A page's layout can be looked at a class at a time.** Selecting `layout.json` drew every box it held at once, systems, staves and a few hundred measures together, in one colour, over the scan they were meant to explain. A list beside the canvas now names each class the file holds and how many of it there are, with an eye to switch it off and a dot to show it alone. Systems are blue, grand staves yellow and staves red, each family's measures dashed in its colour, and an empty staff — or any class Musibot does not recognise, which is drawn rather than dropped — green. The measures start switched off. Every box is drawn with a heavier outline and a faint fill, so that pointing anywhere inside one names it.
-
 
 ### Added
+
+- **A page's layout can be looked at a class at a time.** Selecting `layout.json` drew every box it held at once, systems, staves and a few hundred measures together, in one colour, over the scan they were meant to explain. A list beside the canvas now names each class the file holds and how many of it there are, with an eye to switch it off and a dot to show it alone. Systems are blue, grand staves yellow and staves red, each family's measures dashed in its colour, and an empty staff — or any class Musibot does not recognise, which is drawn rather than dropped — green. The measures start switched off. Every box is drawn with a heavier outline and a faint fill, so that pointing anywhere inside one names it.
 
 - **The five affiliations are shown as their marks.** Charles University, ÚFAL, the Prague Music Computing Group, OmniOMR and LINDAT stood at the foot of the landing page as five names in type, waiting for the logos. The logos are there now, in the page's own warm grey rather than in five institutional colours side by side, which would have been the loudest thing on the page.
 
 
 ### Fixed
+
+- **The reading card's buttons no longer scroll away.** Opening *All pipelines* on the card that asks how to read a file could make it taller than the window, and the whole card scrolled — "Start reading" and "Choose a different file" included, out of reach under the list just used to choose. The card's content now scrolls on its own, and the two buttons stay at its foot.
 
 - **A PDF could not be uploaded through the gateway.** The PDF reader runs in a worker that is an ES module, `.mjs`, and nginx's own type map has no entry for that extension — not even in its current release — so it served the worker as `application/octet-stream` and the browser refused to start it. The Vite dev server knows the type, which is why it worked in development and nowhere else. The fix is in `deploy/nginx/musibot.conf.template`, not in the app, so a VM needs its nginx config re-rendered and reloaded, as [Deploying onto a VM](../../docs/deploying-to-a-vm.md#when-the-configuration-changes) describes.
 
