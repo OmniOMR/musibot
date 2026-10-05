@@ -15,6 +15,11 @@ The Web UI has no outward contract of its own: nothing depends on it, and it dep
 - **A page's layout can be looked at a class at a time.** Selecting `layout.json` drew every box it held at once, systems, staves and a few hundred measures together, in one colour, over the scan they were meant to explain. A list beside the canvas now names each class the file holds and how many of it there are, with an eye to switch it off and a dot to show it alone. Systems are blue, grand staves yellow and staves red, each family's measures dashed in its colour, and an empty staff — or any class Musibot does not recognise, which is drawn rather than dropped — green. The measures start switched off. Every box is drawn with a heavier outline and a faint fill, so that pointing anywhere inside one names it.
 
 
+### Fixed
+
+- **A PDF could not be uploaded through the gateway.** The PDF reader runs in a worker that is an ES module, `.mjs`, and nginx's own type map has no entry for that extension — not even in its current release — so it served the worker as `application/octet-stream` and the browser refused to start it. The Vite dev server knows the type, which is why it worked in development and nowhere else. The fix is in `deploy/nginx/musibot.conf.template`, not in the app, so a VM needs its nginx config re-rendered and reloaded, as [Deploying onto a VM](../../docs/deploying-to-a-vm.md#when-the-configuration-changes) describes.
+
+
 ## 0.2.0 — 2026-08-15
 
 Whatever format the scanner made it in, and four real pages to try it on. Musibot takes PNG, BMP, TIFF and a one-page PDF as well as JPEG; the samples on the landing page are public-domain scans rather than drawn stand-ins; and the page header offers the one file a visitor came for instead of everything a reading produced. All of it is in the browser, so this asks nothing new of the service — still an `api` of 0.3.0 or newer, as 0.1.1 required.

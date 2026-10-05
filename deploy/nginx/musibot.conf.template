@@ -73,6 +73,18 @@ server {
         expires 1y;
         add_header Cache-Control "public, immutable";
         access_log off;
+
+        # nginx's own mime.types has no entry for .mjs — not in 1.29 either — so
+        # an ES module is served as application/octet-stream, and a browser
+        # refuses to start a module worker from that. The PDF reader's worker is
+        # one, so without this a PDF cannot be uploaded through the gateway at
+        # all, while the Vite dev server, which knows the type, works fine.
+        # Nested, so the caching above still applies; `types {}` empties the map
+        # here, leaving default_type as the only answer.
+        location ~ \.mjs$ {
+            types { }
+            default_type text/javascript;
+        }
     }
 
     location = /index.html {
