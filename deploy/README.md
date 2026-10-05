@@ -11,7 +11,9 @@ How a running Musibot system is assembled from its components. Full narrative in
 - **[nginx/nginx.env.example](nginx/nginx.env.example)** — the addresses that fill that template in.
 - **[nginx/university-proxy.conf](nginx/university-proxy.conf)** — local stack only. A stand-in for the university's proxy, which publishes Musibot under a path prefix and strips that prefix before forwarding. It exists to be the thing we do not control.
 - **[rabbitmq/20-musibot.conf](rabbitmq/20-musibot.conf)** — publishes the RabbitMQ management UI under the deployment's path prefix. Dropped into RabbitMQ's `conf.d` alongside the image's own defaults.
-- **[minio/minio.env.example](minio/minio.env.example)** — VM only. What the .deb's own `minio.service` reads out of `/etc/default/minio`.
+- **[minio/minio.env.example](minio/minio.env.example)** — VM only. What `minio.service` reads out of `/etc/default/minio`.
+- **[minio/minio.service](minio/minio.service)** — VM only. The systemd unit MinIO's `.deb` used to install, now that MinIO no longer distributes one.
+- **[minio/fetch-binaries.sh](minio/fetch-binaries.sh)** — VM only. Takes the `minio` and `mc` binaries out of Musibot's re-hosted MinIO image on the GitHub Container Registry, with nothing but curl, tar and python3, and checks them against recorded checksums. See [Rough edges](../docs/rough-edges.md) for why.
 - **[systemd/](systemd/)** — the units the VM runs Musibot's own services under: `musibot-api.service`, the templated `musibot-worker@.service` (one unit, any model), the templated `musibot-orchestrator@.service` (one unit, any orchestrator), and an example environment file for each. Model-specific configuration lives with the model — see [components/models/zeus](../components/models/zeus/README.md).
 
 The runbook that uses all of them is [Deploying onto a VM](../docs/deploying-to-a-vm.md).

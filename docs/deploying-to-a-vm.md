@@ -12,7 +12,7 @@ Seven things run, and nginx is the only one the world can reach:
 | | Runs as | Listens on | Started by |
 | --- | --- | --- | --- |
 | nginx | `www-data` | `:80` | `nginx.service` (from apt) |
-| MinIO | `minio-user` | `:9000`, `:9001` | `minio.service` (from the .deb) |
+| MinIO | `minio-user` | `:9000`, `:9001` | `minio.service` (from `deploy/minio/`) |
 | RabbitMQ | `rabbitmq` | `:5672`, `:15672` | `rabbitmq-server.service` (from apt) |
 | Web API | `musibot` | `127.0.0.1:8080` | `musibot-api.service` (this repo) |
 | Workers | `musibot` | nothing | `musibot-worker@<instance>.service` (this repo) |
@@ -297,9 +297,15 @@ The `admin` password is one to choose properly: that UI is published under the p
 
 **Read this before installing it.** The MinIO project archived its repository in April 2026 and no longer maintains the community server; the last community binary is `RELEASE.2025-09-07T16-13-09Z`, and the administrative Console was already stripped down to a bare object browser in mid-2025. Nothing about that blocks this deployment — it is a working S3 server and `mc` does everything the Console used to — but it does mean the version below is the last one there will be, and that replacing MinIO is a decision this deployment will have to make rather than one it can defer forever. It is recorded in [Rough edges](rough-edges.md).
 
+**Nor does MinIO distribute it any more.** `dl.min.io` answers `410 Gone` for the `.deb` this used to install, and the official images are deleted or private. The binaries come instead out of the image Musibot re-hosts on the GitHub Container Registry, unmodified and checked against recorded checksums, and the systemd unit the `.deb` used to ship is in the repository. A machine that already has MinIO from the `.deb` needs none of this — the binary and the unit it has are the same ones:
+
 ```bash
-curl -fLO https://dl.min.io/server/minio/release/linux-amd64/archive/minio_20250907161309.0.0_amd64.deb
-sudo dpkg -i minio_20250907161309.0.0_amd64.deb
+/opt/musibot/repo/deploy/minio/fetch-binaries.sh /tmp/minio-binaries
+#   minio version RELEASE.2025-09-07T16-13-09Z (commit-id=07c3a429...)
+#   mc version RELEASE...
+sudo install -m 0755 /tmp/minio-binaries/minio /tmp/minio-binaries/mc /usr/local/bin/
+sudo cp /opt/musibot/repo/deploy/minio/minio.service /etc/systemd/system/
+sudo systemctl daemon-reload
 
 sudo useradd --system --no-create-home --shell /usr/sbin/nologin minio-user 2>/dev/null || true
 sudo mkdir -p /var/lib/minio
@@ -313,10 +319,9 @@ sudo systemctl enable --now minio
 
 Now the bucket and the credential Musibot uses. The bucket is named `musibot` and every key lives under `s3/` — the arrangement that lets a presigned URL survive being served from a path prefix, and the one thing here that is not a free choice ([Deployment](deployment.md) sets out why there is no alternative):
 
-```bash
-curl -fLo mc https://dl.min.io/client/mc/release/linux-amd64/mc
-chmod +x mc && sudo mv mc /usr/local/bin/
+`mc` was installed beside the server above. Then:
 
+```bash
 # Keys omitted, so mc prompts for them rather than taking them from argv.
 # These are MinIO's own superuser credentials — MINIO_ROOT_USER and
 # MINIO_ROOT_PASSWORD out of /etc/default/minio, which have nothing to do with

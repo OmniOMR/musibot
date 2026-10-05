@@ -30,8 +30,12 @@ services:
       timeout: 5s
       retries: 20
 
+  # MinIO withdrew its images — Docker Hub deleted them, quay.io made them
+  # private — so this is the last community release, re-hosted by Musibot
+  # unmodified. Pinned rather than `latest`: there will be no other. See
+  # ../docs/rough-edges.md.
   minio:
-    image: minio/minio
+    image: ghcr.io/omniomr/minio:RELEASE.2025-09-07T16-13-09Z
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
@@ -62,7 +66,7 @@ services:
   # what makes presigned URLs survive being served from a path. See
   # ../../docs/deployment.md.
   minio-init:
-    image: minio/mc
+    image: ghcr.io/omniomr/mc:RELEASE.2025-08-13T08-35-41Z
     depends_on:
       minio:
         condition: service_healthy
