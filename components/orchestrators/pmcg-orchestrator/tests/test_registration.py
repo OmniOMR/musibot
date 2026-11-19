@@ -34,15 +34,24 @@ def test_no_two_registrations_publish_the_same_pipeline() -> None:
     assert len(spelled()) == len(set(spelled()))
 
 
-def test_every_version_of_mzk_page_runs_the_same_models() -> None:
+def test_every_version_of_mzk_page_runs_the_same_layout_model() -> None:
     pages = [p for p in registered_pipelines() if isinstance(p, PageFromStaffPipeline)]
 
-    assert [page.version for page in pages] == ["1", "2"]
+    assert [page.version for page in pages] == ["1", "2", "3"]
     for page in pages:
         assert page._layout_model == NameAndVersion(name="dvorak-ola", version="2.0-2025-03-09")
-        assert page._staff_model == NameAndVersion(
-            name="ayce-long", version="2026-08-03-192253-final"
-        )
+
+
+def test_mzk_page_versions_one_and_two_run_ayce_long_and_three_runs_musvit_e2e() -> None:
+    staff_models = {
+        page.version: page._staff_model
+        for page in registered_pipelines()
+        if isinstance(page, PageFromStaffPipeline)
+    }
+
+    ayce_long = NameAndVersion(name="ayce-long", version="2026-08-03-192253-final")
+    musvit_e2e = NameAndVersion(name="musvit-e2e", version="2026-11-12-130358-e219")
+    assert staff_models == {"1": ayce_long, "2": ayce_long, "3": musvit_e2e}
 
 
 def test_every_pipeline_is_announced_by_default() -> None:

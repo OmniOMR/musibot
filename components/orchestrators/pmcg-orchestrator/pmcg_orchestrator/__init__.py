@@ -37,6 +37,9 @@ DVORAK_OLA = NameAndVersion(name="dvorak-ola", version="2.0-2025-03-09")
 AYCE_LONG = NameAndVersion(name="ayce-long", version="2026-08-03-192253-final")
 """The Zeus snapshot that transcribes one staff."""
 
+MUSVIT_E2E = NameAndVersion(name="musvit-e2e", version="2026-11-12-130358-e219")
+"""The Zeus+Musvit snapshot that transcribes one staff."""
+
 PIPELINE_REFERENCE_SEPARATOR = "@"
 """How a *Pipeline* is written on the command line — `name@version`, the same
 spelling a *Model* has in routing keys and queue names."""
@@ -47,7 +50,9 @@ def registered_pipelines() -> list[Pipeline]:
     return [
         PageFromStaffPipelineV1("mzk-page", "1", layout_model=DVORAK_OLA, staff_model=AYCE_LONG),
         PageFromStaffPipelineV2("mzk-page", "2", layout_model=DVORAK_OLA, staff_model=AYCE_LONG),
+        PageFromStaffPipelineV2("mzk-page", "3", layout_model=DVORAK_OLA, staff_model=MUSVIT_E2E),
         StavesFromStaffPipeline("mzk-staff", "1", staff_model=AYCE_LONG),
+        StavesFromStaffPipeline("mzk-staff", "2", staff_model=MUSVIT_E2E),
         # The steps of `mzk-page`, each on its own, for running them by hand.
         SlicePipelineV1("pmcg-slice", "1"),
         GluePipelineV1("pmcg-glue", "1"),
