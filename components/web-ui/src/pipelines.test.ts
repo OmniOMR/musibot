@@ -1,11 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { PipelineView } from "./api/types";
-import {
-  runOptionsFor,
-  unsupportedReason,
-  uploadPathFor,
-} from "./pipelines";
+import { runOptionsFor, unsupportedReason, uploadPathFor } from "./pipelines";
 
 function pipeline(overrides: Partial<PipelineView> = {}): PipelineView {
   return {
