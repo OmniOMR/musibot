@@ -8,6 +8,24 @@ Released as `pmcg-orchestrator/vX.Y.Z` git tags — see [Versioning and releases
 ## Unreleased
 
 
+## 0.3.0 — 2026-11-19
+
+A third transcription *Model*. `mzk-page` `3` and `mzk-staff` `2` read staves with `musvit-e2e` instead of `ayce-long`, and are published beside `mzk-page` `1` and `2` and `mzk-staff` `1`, which are unchanged. Still an *Orchestrator Head* of 0.1.0 or newer.
+
+
+### Added
+
+- **`mzk-page` `3`** — the same reading as `mzk-page` `2`, a part per instrument, with the staves transcribed by `musvit-e2e` `2026-11-12-130358-e219`, a Zeus+Musvit snapshot, rather than `ayce-long`. The layout is still found by `dvorak-ola`. It is the same `PageFromStaffPipelineV2` class registered around another *Model*, so the gluing is that of `mzk-page` `2`, and only the transcription of each staff differs.
+
+- **`mzk-staff` `2`** — the same as `mzk-staff` `1`, staff crops in and their transcriptions out, run by `musvit-e2e` instead of `ayce-long`. Implemented by `StavesFromStaffPipeline`.
+
+
+### Notes
+
+- **A deployment needs a *Worker* for `musvit-e2e` `2026-11-12-130358-e219`** for the two new *Pipelines* to produce anything. The orchestrator announces them regardless, so a deployment without that *Worker* offers *Pipelines* that wait for it.
+- **Nothing that was published moves.** `mzk-page` `1` and `2` and `mzk-staff` `1` still run `ayce-long` and write what they wrote before, and the *Web UI* still offers `mzk-page` `2` and `mzk-staff` `1` by default.
+
+
 ## 0.2.0 — 2026-10-05
 
 `omniomr-orchestrator` becomes `pmcg-orchestrator`, and a *Pipeline's* version becomes a contract written in the source. `mzk-page` `2` reads the page as instruments, and is published beside `mzk-page` `1`, which is unchanged; `pmcg-slice` and `pmcg-glue` expose the steps of `mzk-page` one by one, for a person in the loop; and `mzk-staff` `1` takes every staff of a page at once. It is a new distribution under a new name, installed beside the old one and swapped in — see [Replacing omniomr-orchestrator with pmcg-orchestrator](../../../docs/deploying-to-a-vm.md#replacing-omniomr-orchestrator-with-pmcg-orchestrator). Still an *Orchestrator Head* of 0.1.0 or newer.
