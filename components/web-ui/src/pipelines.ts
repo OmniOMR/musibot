@@ -29,10 +29,10 @@ export interface PipelineRef {
  * staves joined — where version 1 reads it as a single one. Both stay
  * published, so pinning version 1 by hand through "All pipelines" still works.
  */
-export const PAGE_PIPELINE: PipelineRef = { name: "mzk-page", version: "2" };
+export const PAGE_PIPELINE: PipelineRef = { name: "mzk-page", version: "3" };
 
 /** One image that is already a single cropped staff. */
-export const STAFF_PIPELINE: PipelineRef = { name: "mzk-staff", version: "1" };
+export const STAFF_PIPELINE: PipelineRef = { name: "mzk-staff", version: "2" };
 
 /** MZK is the Moravian Library — Moravská zemská knihovna — whose work these are for. */
 export function isDefaultPipeline(pipeline: PipelineRef): boolean {
