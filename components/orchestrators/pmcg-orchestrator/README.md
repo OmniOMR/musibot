@@ -9,14 +9,16 @@ The *Orchestrator* holding the *Pipelines* of the Prague Music Computing Group (
 | --- | --- | --- | --- |
 | `mzk-page` `1` | a page scan in, a page-level MusicXML file out, as one instrument | `PageFromStaffPipelineV1` | dvorak-ola, ayce-long |
 | `mzk-page` `2` | a page scan in, a page-level MusicXML file out, a part per instrument | `PageFromStaffPipelineV2` | dvorak-ola, ayce-long |
+| `mzk-page` `3` | as `mzk-page` `2`, with the staves transcribed by `musvit-e2e` | `PageFromStaffPipelineV2` | dvorak-ola, musvit-e2e |
 | `mzk-staff` `1` | staff crops in, their transcriptions out | `StavesFromStaffPipeline` | ayce-long |
+| `mzk-staff` `2` | as `mzk-staff` `1`, transcribed by `musvit-e2e` | `StavesFromStaffPipeline` | musvit-e2e |
 | `pmcg-slice` `1` | a page and its `layout.json` in, a crop per staff out | `SlicePipelineV1` | — |
 | `pmcg-glue` `1` | a `layout.json` and staff transcriptions in, a page as one instrument out | `GluePipelineV1` | — |
 | `pmcg-glue` `2` | a `layout.json` and staff transcriptions in, a page as a part per instrument out | `GluePipelineV2` | — |
 
-The *Models* are pinned exactly: `dvorak-ola` `2.0-2025-03-09` finds the staves, and `ayce-long` `2026-08-03-192253-final`, a [Zeus](../../models/zeus/README.md) snapshot, transcribes them. The *Orchestrator* announces itself as `pmcg`.
+The *Models* are pinned exactly: `dvorak-ola` `2.0-2025-03-09` finds the staves, and `ayce-long` `2026-08-03-192253-final`, a [Zeus](../../models/zeus/README.md) snapshot, transcribes them; `mzk-page` `3` and `mzk-staff` `2` transcribe with `musvit-e2e` `2026-11-12-130358-e219` instead, a Zeus+Musvit snapshot. The *Orchestrator* announces itself as `pmcg`.
 
-`mzk-page` `1` and `mzk-staff` `1` are named in [the Web UI](../../web-ui/src/pipelines.ts), which offers them as its two defaults, so their names and versions are part of what this deployment promises rather than an internal detail. The `mzk-` *Pipelines* are named after the Moravian Library (MZK), whose work they were built for, while the implementations behind them are not particular to it: the same class can be published again around other *Models* — a commercial transcription model, say — under another name.
+`mzk-page` `1` and `mzk-staff` `1` are named in [the Web UI](../../web-ui/src/pipelines.ts), which offers them as its two defaults, so their names and versions are part of what this deployment promises rather than an internal detail. The `mzk-` *Pipelines* are named after the Moravian Library (MZK), whose work they were built for, while the implementations behind them are not particular to it: the same class can be published again around other *Models* — a commercial transcription model, say — under another name. `mzk-page` `3` is that class, `PageFromStaffPipelineV2`, published again around `musvit-e2e` under a version of its own.
 
 `pmcg-slice`, `mzk-staff` and `pmcg-glue` are the steps of `mzk-page` one by one, for a *User* who wants a person in the loop — correcting the layout before anything is transcribed, for instance. **Run in that order on the same page, they produce exactly the file `mzk-page` would have written**, of the same version as the `pmcg-glue` used; see [Running the steps by hand](#running-the-steps-by-hand).
 
@@ -213,7 +215,7 @@ Running it needs the [local development stack](../../../deploy/README.md) and th
 .venv/bin/musibot-pmcg-orchestrator
 ```
 
-`mzk-page` and `mzk-staff` also need a *Worker* for each *Model* they run — [dvorak-ola](../../models/dvorak-ola/README.md) and [zeus](../../models/zeus/README.md#running-it) with the `ayce-long` snapshot — which is the point at which a laptop is running the whole system. `pmcg-slice` and `pmcg-glue` run no *Model* and need none.
+`mzk-page` and `mzk-staff` also need a *Worker* for each *Model* they run — [dvorak-ola](../../models/dvorak-ola/README.md) and [zeus](../../models/zeus/README.md#running-it) with the `ayce-long` snapshot (or the `musvit-e2e` one, for `mzk-page` `3` and `mzk-staff` `2`) — which is the point at which a laptop is running the whole system. `pmcg-slice` and `pmcg-glue` run no *Model* and need none.
 
 
 ## Testing
