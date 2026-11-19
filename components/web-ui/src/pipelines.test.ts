@@ -2,10 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { PipelineView } from "./api/types";
 import {
-  find,
-  PAGE_PIPELINE,
   runOptionsFor,
-  STAFF_PIPELINE,
   unsupportedReason,
   uploadPathFor,
 } from "./pipelines";
